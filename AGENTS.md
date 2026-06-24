@@ -11,6 +11,7 @@ AGENTS.md is a **router**, not a catch-all. It points to focused rule files in `
 | `.agents/infra.md` | Touching hosting, processes, secrets, backups, brokers, or the LLM runtime |
 | `.agents/nextjs.md` | Writing or changing the dashboard (Next.js / Tailwind / TypeScript) |
 | `.agents/design-system.md` | Building any UI — colors, type, spacing, components, accessibility |
+| `.agents/data-format.md` | Reading or writing anything in `data/` — journals, coaching, snapshots, proposals (storage format + validation) |
 | `.agents/workflow.md` | Doing git work, commits, branches, PRs, testing, or self-correcting |
 
 Project background lives in `planning/` (`feasibility-and-plan.md`, `architecture.md`). Read those for the "why."

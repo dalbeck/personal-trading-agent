@@ -42,11 +42,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
         </time>
       </div>
 
-      <Markdown source={entry.thesis} className="mt-3 text-sm text-fg" />
-      <Markdown
-        source={entry.reasoning}
-        className="mt-2 text-sm [&_p]:text-fg-muted"
-      />
+      <Markdown source={entry.body} className="mt-3 text-sm text-fg" />
 
       {isTrade && (entry.stopPrice !== null || entry.takeProfit !== null) ? (
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-fg-muted">
