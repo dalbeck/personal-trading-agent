@@ -1,0 +1,271 @@
+import "server-only";
+
+import { access, mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import {
+  bankedLessonBullet,
+  composeCoachingBody,
+  composeJournalBody,
+  formatRiskRejectionReason,
+  insertBankedLesson,
+} from "@/lib/journal-format";
+import type { RiskDecision } from "@/lib/risk";
+import {
+  CoachingEntrySchema,
+  JournalEntrySchema,
+} from "@/lib/schemas";
+import type { z } from "zod";
+import { readStrategyDoc, writeStrategyDoc } from "./strategy";
+import { stringifyFrontmatter } from "./frontmatter";
+
+/**
+ * Engine-side writers for the narrative `data/` artifacts (decision journal,
+ * coaching log) and the playbook lesson promotion. Every artifact is validated
+ * against its zod contract **before** it is written, so a malformed write fails
+ * loudly instead of poisoning the data dir. Format: Markdown + YAML frontmatter
+ * (see `.agents/data-format.md`).
+ *
+ * `server-only`: these touch the filesystem and must never run in the browser.
+ */
+
+function dataRoot(opts?: { dataDir?: string }): string {
+  return (
+    opts?.dataDir ??
+    process.env.TRADING_DATA_DIR ??
+    path.join(process.cwd(), "data")
+  );
+}
+
+function symbolSlug(symbol: string): string {
+  return symbol.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+async function exists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Resolve a non-colliding `<base>.md` path, appending -2, -3, … if needed. */
+async function uniquePath(dir: string, base: string): Promise<string> {
+  let candidate = path.join(dir, `${base}.md`);
+  let n = 2;
+  while (await exists(candidate)) {
+    candidate = path.join(dir, `${base}-${n}.md`);
+    n += 1;
+  }
+  return candidate;
+}
+
+/** Validate `{ ...frontmatter, body }`, serialize, and write it atomically-ish. */
+async function writeNarrative<S extends z.ZodType>(
+  absPath: string,
+  schema: S,
+  frontmatter: Record<string, unknown>,
+  body: string,
+): Promise<void> {
+  const parsed = schema.safeParse({ ...frontmatter, body });
+  if (!parsed.success) {
+    const detail = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ");
+    throw new Error(
+      `Refusing to write invalid artifact ${path.basename(absPath)}: ${detail}`,
+    );
+  }
+  await mkdir(path.dirname(absPath), { recursive: true });
+  await writeFile(absPath, stringifyFrontmatter(frontmatter, body), "utf8");
+}
+
+export interface WriteResult {
+  id: string;
+  file: string;
+}
+
+/* ------------------------------ Decision journal ----------------------------- */
+
+export interface TradeDecisionInput {
+  timestamp: string;
+  symbol: string;
+  action: "buy" | "sell";
+  side?: "long" | "short";
+  qty: number;
+  price: number;
+  stopPrice?: number | null;
+  takeProfit?: number | null;
+  riskPct?: number | null;
+  reviewDate: string;
+  tags?: string[];
+  thesis: string;
+  research?: string;
+  redTeam?: string;
+  decision: string;
+}
+
+/** Journal a placed trade at decision time. */
+export async function recordTradeDecision(
+  input: TradeDecisionInput,
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  const date = input.timestamp.slice(0, 10);
+  const slug = symbolSlug(input.symbol);
+  const id = `j-${date}-${slug}`;
+  const dir = path.join(dataRoot(opts), "decision-journal");
+  const file = await uniquePath(dir, `${date}-${slug}-${input.action}`);
+
+  const frontmatter = {
+    kind: "trade",
+    id,
+    timestamp: input.timestamp,
+    symbol: input.symbol,
+    action: input.action,
+    side: input.side ?? "long",
+    qty: input.qty,
+    price: input.price,
+    stopPrice: input.stopPrice ?? null,
+    takeProfit: input.takeProfit ?? null,
+    riskPct: input.riskPct ?? null,
+    reviewDate: input.reviewDate,
+    tags: input.tags ?? [],
+  };
+  const body = composeJournalBody({
+    thesis: input.thesis,
+    research: input.research,
+    redTeam: input.redTeam,
+    verdictLabel: "Decision",
+    verdict: input.decision,
+  });
+
+  await writeNarrative(file, JournalEntrySchema, frontmatter, body);
+  return { id, file };
+}
+
+export interface RejectionInput {
+  timestamp: string;
+  symbol: string;
+  proposedAction: "buy" | "sell";
+  rejectedBy: "codex-redteam" | "rules" | "human";
+  reviewDate: string;
+  tags?: string[];
+  thesis: string;
+  research?: string;
+  redTeam?: string;
+  reason: string;
+}
+
+/** Journal a rejected proposal at decision time. */
+export async function recordRejection(
+  input: RejectionInput,
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  const date = input.timestamp.slice(0, 10);
+  const slug = symbolSlug(input.symbol);
+  const id = `j-${date}-${slug}`;
+  const dir = path.join(dataRoot(opts), "decision-journal");
+  const file = await uniquePath(dir, `${date}-${slug}-rejection`);
+
+  const frontmatter = {
+    kind: "rejection",
+    id,
+    timestamp: input.timestamp,
+    symbol: input.symbol,
+    proposedAction: input.proposedAction,
+    rejectedBy: input.rejectedBy,
+    reviewDate: input.reviewDate,
+    tags: input.tags ?? [],
+  };
+  const body = composeJournalBody({
+    thesis: input.thesis,
+    research: input.research,
+    redTeam: input.redTeam,
+    verdictLabel: "Rejected",
+    verdict: input.reason,
+  });
+
+  await writeNarrative(file, JournalEntrySchema, frontmatter, body);
+  return { id, file };
+}
+
+/** Journal a risk-engine block: a `rules` rejection whose reason is the
+ *  failing rails. Wires the M2 risk decision into a journaled rejection. */
+export async function recordRiskRejection(
+  meta: {
+    timestamp: string;
+    symbol: string;
+    proposedAction: "buy" | "sell";
+    reviewDate: string;
+    tags?: string[];
+    thesis: string;
+    research?: string;
+  },
+  decision: RiskDecision,
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  return recordRejection(
+    {
+      ...meta,
+      rejectedBy: "rules",
+      reason: formatRiskRejectionReason(decision),
+    },
+    opts,
+  );
+}
+
+/* ------------------------------- Coaching log -------------------------------- */
+
+export interface CoachingInput {
+  date: string;
+  period: "daily" | "weekly";
+  symbol?: string | null;
+  relatedJournalIds?: string[];
+  grade: "A" | "B" | "C" | "D" | "F";
+  expected: string;
+  actual: string;
+  lesson: string;
+  promotedToPlaybook?: boolean;
+}
+
+/** Write a next-morning coaching self-review. */
+export async function recordCoaching(
+  input: CoachingInput,
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  const id = `c-${input.date}`;
+  const dir = path.join(dataRoot(opts), "coaching-log");
+  const file = await uniquePath(dir, `${input.date}-${input.period}`);
+
+  const frontmatter = {
+    id,
+    date: input.date,
+    period: input.period,
+    symbol: input.symbol ?? null,
+    relatedJournalIds: input.relatedJournalIds ?? [],
+    grade: input.grade,
+    promotedToPlaybook: input.promotedToPlaybook ?? false,
+  };
+  const body = composeCoachingBody({
+    expected: input.expected,
+    actual: input.actual,
+    lesson: input.lesson,
+  });
+
+  await writeNarrative(file, CoachingEntrySchema, frontmatter, body);
+  return { id, file };
+}
+
+/** Promote a durable lesson into the playbook's Banked lessons, with the date
+ *  and source coaching id as provenance. */
+export async function promoteLessonToPlaybook(
+  input: { lesson: string; date: string; sourceId: string },
+  opts?: { strategyDir?: string },
+): Promise<void> {
+  const playbook = await readStrategyDoc("playbook", opts);
+  if (!playbook.trim()) {
+    throw new Error("playbook.md is empty — nothing to promote into");
+  }
+  const bullet = bankedLessonBullet(input.lesson, input.date, input.sourceId);
+  await writeStrategyDoc("playbook", insertBankedLesson(playbook, bullet), opts);
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFrontmatter } from "./frontmatter";
+import { parseFrontmatter, stringifyFrontmatter } from "./frontmatter";
 
 /**
  * Narrative `data/` artifacts (decision journal, coaching log, chats) are
@@ -79,5 +79,45 @@ describe("parseFrontmatter", () => {
   it("throws when the frontmatter is not a mapping", () => {
     const raw = ["---", "- just", "- a", "- list", "---", "body"].join("\n");
     expect(() => parseFrontmatter(raw)).toThrow(/mapping/i);
+  });
+});
+
+describe("stringifyFrontmatter", () => {
+  it("round-trips through parseFrontmatter", () => {
+    const data = {
+      kind: "trade",
+      id: "j-2026-06-24-nvda",
+      timestamp: "2026-06-24T09:41:00-04:00",
+      symbol: "NVDA",
+      qty: 9,
+      price: 432.75,
+      stopPrice: null,
+      reviewDate: "2026-07-24",
+      tags: ["semis", "breakout"],
+    };
+    const body = "Lead paragraph.\n\n**Decision.** Bought.";
+
+    const file = stringifyFrontmatter(data, body);
+    const parsed = parseFrontmatter(file);
+
+    expect(parsed.data).toEqual(data);
+    expect(parsed.body).toBe(body);
+  });
+
+  it("quotes ISO dates so they survive as strings", () => {
+    const file = stringifyFrontmatter(
+      { timestamp: "2026-06-24T09:41:00-04:00", reviewDate: "2026-07-24" },
+      "body",
+    );
+    // Re-reading must yield strings, not Dates.
+    const parsed = parseFrontmatter(file);
+    expect(typeof parsed.data.timestamp).toBe("string");
+    expect(typeof parsed.data.reviewDate).toBe("string");
+  });
+
+  it("emits a leading `---` frontmatter block", () => {
+    const file = stringifyFrontmatter({ id: "x" }, "body");
+    expect(file.startsWith("---\n")).toBe(true);
+    expect(file).toContain("\n---\n");
   });
 });

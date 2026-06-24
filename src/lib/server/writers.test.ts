@@ -1,0 +1,183 @@
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { parseFrontmatter } from "./frontmatter";
+import { validateDataDir } from "./validate-data";
+import {
+  promoteLessonToPlaybook,
+  recordCoaching,
+  recordRejection,
+  recordRiskRejection,
+  recordTradeDecision,
+} from "./writers";
+
+let dataDir = "";
+let strategyDir = "";
+
+afterEach(() => {
+  dataDir = "";
+  strategyDir = "";
+});
+
+async function tmpData(): Promise<string> {
+  dataDir = await mkdtemp(path.join(tmpdir(), "pta-writers-data-"));
+  return dataDir;
+}
+
+async function tmpStrategy(playbook: string): Promise<string> {
+  strategyDir = await mkdtemp(path.join(tmpdir(), "pta-writers-strat-"));
+  await writeFile(path.join(strategyDir, "playbook.md"), playbook);
+  return strategyDir;
+}
+
+const tradeInput = {
+  timestamp: "2026-06-24T09:41:00-04:00",
+  symbol: "NVDA",
+  action: "buy" as const,
+  side: "long" as const,
+  qty: 9,
+  price: 121.5,
+  stopPrice: 112.0,
+  takeProfit: 145.0,
+  riskPct: 0.0085,
+  reviewDate: "2026-07-24",
+  tags: ["semis", "trend"],
+  thesis: "AI accelerator demand still outrunning supply.",
+  research: "Datacenter backlog extending; hyperscaler capex raised.",
+  redTeam: "Valuation rich, but trend and earnings revisions support it.",
+  decision: "Bought 9 shares with a stop under the breakout pivot.",
+};
+
+describe("recordTradeDecision", () => {
+  it("writes a well-formed, schema-valid trade entry", async () => {
+    const dir = await tmpData();
+    const { id, file } = await recordTradeDecision(tradeInput, { dataDir: dir });
+
+    expect(id).toBe("j-2026-06-24-nvda");
+    expect(await validateDataDir(dir)).toEqual([]);
+
+    const { data, body } = parseFrontmatter(await readFile(file, "utf8"));
+    expect(data).toMatchObject({ kind: "trade", symbol: "NVDA", qty: 9 });
+    expect(body).toContain("AI accelerator demand");
+    expect(body).toContain("**Research.**");
+    expect(body).toContain("**Decision.**");
+  });
+
+  it("does not clobber a same-day, same-symbol entry", async () => {
+    const dir = await tmpData();
+    const a = await recordTradeDecision(tradeInput, { dataDir: dir });
+    const b = await recordTradeDecision(tradeInput, { dataDir: dir });
+    expect(a.file).not.toBe(b.file);
+    expect(await validateDataDir(dir)).toEqual([]);
+  });
+});
+
+describe("recordRejection", () => {
+  it("writes a schema-valid rejection entry", async () => {
+    const dir = await tmpData();
+    const { file } = await recordRejection(
+      {
+        timestamp: "2026-06-24T09:33:00-04:00",
+        symbol: "TSLA",
+        proposedAction: "buy",
+        rejectedBy: "codex-redteam",
+        reviewDate: "2026-07-02",
+        tags: ["event-risk"],
+        thesis: "Delivery-beat momentum.",
+        reason: "Binary print into elevated IV; default-to-no held.",
+      },
+      { dataDir: dir },
+    );
+    expect(await validateDataDir(dir)).toEqual([]);
+    const { data, body } = parseFrontmatter(await readFile(file, "utf8"));
+    expect(data).toMatchObject({
+      kind: "rejection",
+      rejectedBy: "codex-redteam",
+    });
+    expect(body).toContain("**Rejected.**");
+  });
+});
+
+describe("recordRiskRejection", () => {
+  it("journals a risk-engine block with the violations as the reason", async () => {
+    const dir = await tmpData();
+    const { file } = await recordRiskRejection(
+      {
+        timestamp: "2026-06-24T09:36:00-04:00",
+        symbol: "SMCI",
+        proposedAction: "buy",
+        reviewDate: "2026-07-06",
+        thesis: "Server-build momentum.",
+      },
+      {
+        ok: false,
+        violations: [
+          { rule: "position-size", message: "size $30,000 exceeds 20%" },
+        ],
+      },
+      { dataDir: dir },
+    );
+    expect(await validateDataDir(dir)).toEqual([]);
+    const { data, body } = parseFrontmatter(await readFile(file, "utf8"));
+    expect(data).toMatchObject({ kind: "rejection", rejectedBy: "rules" });
+    expect(body).toContain("Blocked by the risk engine");
+    expect(body).toContain("position-size");
+  });
+});
+
+describe("recordCoaching", () => {
+  it("writes a schema-valid coaching entry", async () => {
+    const dir = await tmpData();
+    const { id, file } = await recordCoaching(
+      {
+        date: "2026-06-24",
+        period: "weekly",
+        symbol: "AMD",
+        relatedJournalIds: ["j-2026-06-09-amd"],
+        grade: "B",
+        expected: "Track SPY with lower drawdown.",
+        actual: "Outperformed by 150bps.",
+        lesson: "Pullback entries beat breakout chases.",
+      },
+      { dataDir: dir },
+    );
+    expect(id).toBe("c-2026-06-24");
+    expect(await validateDataDir(dir)).toEqual([]);
+    const { data, body } = parseFrontmatter(await readFile(file, "utf8"));
+    expect(data).toMatchObject({ grade: "B", promotedToPlaybook: false });
+    expect(body).toContain("**Lesson.**");
+  });
+});
+
+describe("promoteLessonToPlaybook", () => {
+  const playbook = [
+    "# Playbook",
+    "",
+    "## Banked lessons",
+    "",
+    "Durable lessons promoted from the coaching log. Newest first.",
+    "",
+    "- **Existing.** Old lesson.",
+    "",
+  ].join("\n");
+
+  it("prepends the lesson with provenance under Banked lessons", async () => {
+    const dir = await tmpStrategy(playbook);
+    await promoteLessonToPlaybook(
+      {
+        lesson: "Honor the trim trigger on losers.",
+        date: "2026-06-24",
+        sourceId: "c-2026-06-24",
+      },
+      { strategyDir: dir },
+    );
+    const out = await readFile(path.join(dir, "playbook.md"), "utf8");
+    expect(out).toContain(
+      "- Honor the trim trigger on losers. _(Promoted 2026-06-24, from c-2026-06-24.)_",
+    );
+    expect(out.indexOf("Honor the trim trigger")).toBeLessThan(
+      out.indexOf("Old lesson"),
+    );
+  });
+});

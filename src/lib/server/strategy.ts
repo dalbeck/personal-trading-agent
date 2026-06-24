@@ -12,22 +12,35 @@ export const STRATEGY_DOC_TITLES: Record<StrategyDoc, string> = {
   playbook: "Playbook",
 };
 
-const STRATEGY_DIR =
-  process.env.TRADING_STRATEGY_DIR ?? path.join(process.cwd(), "strategy");
-
 const MAX_BYTES = 100_000;
+
+export interface StrategyDirOpts {
+  /** Override the strategy dir (tests). Defaults to env / repo `strategy/`. */
+  strategyDir?: string;
+}
+
+function strategyDir(opts?: StrategyDirOpts): string {
+  return (
+    opts?.strategyDir ??
+    process.env.TRADING_STRATEGY_DIR ??
+    path.join(process.cwd(), "strategy")
+  );
+}
 
 export function isStrategyDoc(value: string): value is StrategyDoc {
   return (STRATEGY_DOCS as readonly string[]).includes(value);
 }
 
-function resolve(doc: StrategyDoc): string {
-  return path.join(STRATEGY_DIR, `${doc}.md`);
+function resolve(doc: StrategyDoc, opts?: StrategyDirOpts): string {
+  return path.join(strategyDir(opts), `${doc}.md`);
 }
 
-export async function readStrategyDoc(doc: StrategyDoc): Promise<string> {
+export async function readStrategyDoc(
+  doc: StrategyDoc,
+  opts?: StrategyDirOpts,
+): Promise<string> {
   try {
-    return await readFile(resolve(doc), "utf8");
+    return await readFile(resolve(doc, opts), "utf8");
   } catch (err) {
     if (
       typeof err === "object" &&
@@ -44,9 +57,10 @@ export async function readStrategyDoc(doc: StrategyDoc): Promise<string> {
 export async function writeStrategyDoc(
   doc: StrategyDoc,
   content: string,
+  opts?: StrategyDirOpts,
 ): Promise<void> {
   if (content.length > MAX_BYTES) {
     throw new Error("Document exceeds the size limit.");
   }
-  await writeFile(resolve(doc), content, "utf8");
+  await writeFile(resolve(doc, opts), content, "utf8");
 }
