@@ -8,6 +8,7 @@ import {
   toneForValue,
 } from "@/lib/format";
 import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
+import { getLiveTradingStatus } from "@/lib/server/gate";
 
 // Reads live paper data / mutable local files; never cache at build time.
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function OverviewPage() {
   const { snapshot: snap, source, notice } = await getPaperAccount();
   const live = await getLiveAccount();
+  const gate = await getLiveTradingStatus();
 
   if (!snap) {
     return (
@@ -164,26 +166,44 @@ export default async function OverviewPage() {
           </dl>
         </Card>
 
-        <Card className={live.connected ? "" : "opacity-80"}>
+        <Card className={gate.liveEnabled ? "" : "opacity-80"}>
           <div className="mb-3 flex items-center gap-2">
-            <Badge tone={live.connected ? "accent" : "muted"} dot>
+            <Badge tone={gate.liveEnabled ? "gain" : "muted"} dot>
               LIVE
             </Badge>
             <h2
               className={`text-sm font-semibold ${
-                live.connected ? "text-fg" : "text-fg-muted"
+                gate.liveEnabled ? "text-fg" : "text-fg-muted"
               }`}
             >
               Live account
             </h2>
             <span className="ml-auto text-xs font-semibold tabular-nums">
-              <span className={live.connected ? "text-gain" : "text-fg-muted"}>
-                {live.connected
+              <span className={gate.liveEnabled ? "text-gain" : "text-fg-muted"}>
+                {gate.liveEnabled
                   ? "LIVE TRADING: ON"
                   : "LIVE TRADING: OFF"}
               </span>
             </span>
           </div>
+
+          <dl className="mb-3 grid grid-cols-1 gap-1.5 rounded-card border border-line bg-surface p-3 text-xs">
+            <GateRow
+              label="Broker gate"
+              hint="Agentic account allows agent trading"
+              open={gate.brokerGateOpen}
+            />
+            <GateRow
+              label="Harness gate"
+              hint="order tools allow-listed in settings.json"
+              open={gate.harnessGateOpen}
+            />
+            {gate.disconnected ? (
+              <p className="mt-1 text-loss">
+                Disconnect halt latched — live trading is held OFF.
+              </p>
+            ) : null}
+          </dl>
 
           {live.snapshot ? (
             <>
@@ -219,6 +239,40 @@ export default async function OverviewPage() {
           )}
         </Card>
       </section>
+    </div>
+  );
+}
+
+/** One row of the two-gate status: a green check when open, a muted dash when
+ *  closed. Both gates must be open for live trading. */
+function GateRow({
+  label,
+  hint,
+  open,
+}: {
+  label: string;
+  hint: string;
+  open: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        aria-hidden
+        className={`inline-flex size-4 items-center justify-center rounded-pill text-[10px] font-bold ${
+          open
+            ? "bg-gain/15 text-gain"
+            : "bg-fg-muted/10 text-fg-muted"
+        }`}
+      >
+        {open ? "✓" : "–"}
+      </span>
+      <span className={open ? "font-medium text-fg" : "text-fg-muted"}>
+        {label}
+      </span>
+      <span className="ml-auto text-right text-fg-muted">
+        {open ? "open" : "closed"}
+        <span className="sr-only"> — {hint}</span>
+      </span>
     </div>
   );
 }

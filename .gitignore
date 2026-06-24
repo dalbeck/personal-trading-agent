@@ -25,6 +25,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Claude Code — local machine-specific permission grants (the shared deny-list
+# in .claude/settings.json IS committed; the local allow-list is not)
+.claude/settings.local.json
+
 # OS / editor
 .DS_Store
 Thumbs.db
