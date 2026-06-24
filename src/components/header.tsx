@@ -1,11 +1,16 @@
+import { LiveStatusControl } from "@/components/live-status";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { getLiveTradingStatus } from "@/lib/server/gate";
 
 /**
- * Top bar. Surfaces the active trading environment. PAPER is live this phase
- * (accent-outlined); LIVE is stubbed and must read as clearly off/disconnected
- * — paper vs. live must always be visually distinct (.agents/nextjs.md safety).
+ * Top bar. Surfaces the active trading environment. PAPER is the proving ground
+ * (accent-outlined); the LIVE chip reflects the real two-gate status (M2) and
+ * carries a one-click disconnect. Paper vs. live must always read as distinct
+ * (.agents/nextjs.md safety).
  */
-export function Header() {
+export async function Header() {
+  const live = await getLiveTradingStatus();
+
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 md:px-8">
       <div className="flex items-center gap-2">
@@ -13,10 +18,13 @@ export function Header() {
           <span aria-hidden className="size-1.5 rounded-pill bg-accent" />
           PAPER
         </span>
-        <span className="inline-flex items-center gap-1.5 rounded-pill border border-line px-2.5 py-1 text-xs font-medium text-fg-muted">
-          <span aria-hidden className="size-1.5 rounded-pill bg-fg-muted/50" />
-          LIVE · not connected
-        </span>
+        <LiveStatusControl
+          status={{
+            liveEnabled: live.liveEnabled,
+            disconnected: live.disconnected,
+            reason: live.reason,
+          }}
+        />
       </div>
 
       <div className="flex items-center gap-2">
