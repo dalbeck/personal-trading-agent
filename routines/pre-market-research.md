@@ -10,6 +10,8 @@ trades. Work entirely from this repo.
 - `data/snapshots/` (latest) — current paper equity and open positions.
 - `data/decision-journal/` — recent decisions and rejections (don't repeat
   mistakes the coaching log already flagged).
+- `data/news/` — material headlines the news scout (M7, if running) surfaced
+  for current holdings; weigh them when reviewing open positions and ideas.
 
 ## Do
 1. Scan the watchlist / market regime for swing candidates that fit the

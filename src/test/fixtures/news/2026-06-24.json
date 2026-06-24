@@ -1,0 +1,20 @@
+[
+  {
+    "symbol": "MSFT",
+    "title": "Microsoft lifts Azure guidance as Copilot attach rates climb",
+    "link": "https://news.example.com/msft-azure-guidance",
+    "source": "MarketWatch",
+    "publishedAt": "Wed, 24 Jun 2026 12:10:00 GMT",
+    "reason": "Mentions Microsoft (held: MSFT)",
+    "seenAt": "2026-06-24T08:12:00-04:00"
+  },
+  {
+    "symbol": "AMD",
+    "title": "AMD unveils next-gen accelerator lineup ahead of earnings",
+    "link": "https://news.example.com/amd-accelerator",
+    "source": "CNBC",
+    "publishedAt": "Wed, 24 Jun 2026 11:45:00 GMT",
+    "reason": "Mentions AMD (held: AMD)",
+    "seenAt": "2026-06-24T08:12:00-04:00"
+  }
+]
