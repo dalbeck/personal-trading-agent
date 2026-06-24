@@ -1,0 +1,27 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Live-written data — backed up to Cloudflare R2 (encrypted), never committed
+/data/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
