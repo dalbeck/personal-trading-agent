@@ -5,6 +5,7 @@ import { ROUTINE_IDS } from "@/lib/schemas";
 import type { RunLog } from "@/lib/types";
 import { placePaperOrder, hasAlpacaCredentials } from "@/lib/server/alpaca";
 import { executePendingProposals } from "@/lib/server/execute";
+import { isTradingHalted } from "@/lib/server/gate";
 import { withLock } from "@/lib/server/lockfile";
 import { pingDeadMan, sendHeartbeat } from "@/lib/server/notify";
 import { recordRunLog } from "@/lib/server/writers";
@@ -72,6 +73,23 @@ export async function POST(
   }
 
   const startedAt = nowET();
+
+  // Kill switch (M6): if trading is halted, refuse to run — log it and 503.
+  // Defense in depth alongside unloading the launchd jobs; even a manual fire
+  // can't trade while the halt is latched.
+  if (await isTradingHalted()) {
+    await recordRunLog({
+      routine: id,
+      startedAt,
+      finishedAt: nowET(),
+      status: "skipped",
+      summary: "Trading halted (kill switch) — routine execution skipped.",
+      proposalsConsidered: 0,
+      ordersPlaced: 0,
+      rejections: 0,
+    });
+    return Response.json({ status: "halted" }, { status: 503 });
+  }
 
   const result = await withLock(id, async () => {
     let status: RunLog["status"] = "ok";

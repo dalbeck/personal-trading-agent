@@ -11,6 +11,7 @@ import {
   harnessGateOpen,
   HARNESS_ORDER_PERMISSIONS,
   isDisconnected,
+  isTradingHalted,
   LIVE_ORDER_TOOLS,
 } from "./gate";
 import * as gate from "./gate";
@@ -135,6 +136,16 @@ describe("two-gate model", () => {
       (k) => forbidden.test(k) && k !== "assertLiveOrderAllowed",
     );
     expect(dangerous).toEqual([]);
+  });
+
+  it("isTradingHalted reflects the kill-switch / disconnect halt", async () => {
+    const dir = await tmp();
+    const opts = { dataDir: dir, settingsPaths: [path.join(dir, "settings.json")] };
+    expect(await isTradingHalted(opts)).toBe(false);
+    await disconnectLive({ ...opts, reason: "kill switch" });
+    expect(await isTradingHalted(opts)).toBe(true);
+    await clearDisconnect(opts);
+    expect(await isTradingHalted(opts)).toBe(false);
   });
 
   it("the order tools are named but never wired to a placement path", () => {

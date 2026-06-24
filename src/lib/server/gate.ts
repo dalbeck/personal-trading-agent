@@ -142,6 +142,16 @@ export async function isDisconnected(opts?: GateOpts): Promise<boolean> {
 }
 
 /**
+ * Whether ALL trading (paper routines included) is halted. The M6 kill switch
+ * latches the same disconnect halt, so the scheduled-routine pipeline checks
+ * this and refuses to trade until a human clears it. Distinct name from
+ * {@link isDisconnected} to read clearly at the routine call site.
+ */
+export async function isTradingHalted(opts?: GateOpts): Promise<boolean> {
+  return isDisconnected(opts);
+}
+
+/**
  * Latch live trading OFF (the one-click disconnect / kill direction). Safe by
  * construction: it can only *reduce* capability, never grant it. Writing the
  * halt forces `liveEnabled` false regardless of the gates.
