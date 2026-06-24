@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { Button, type ButtonVariant } from "./button";
 
 /**
@@ -15,8 +15,10 @@ export function AlertDialog({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   confirmVariant = "primary",
+  confirmDisabled = false,
   onConfirm,
   onDismiss,
+  children,
 }: {
   open: boolean;
   title: string;
@@ -24,8 +26,11 @@ export function AlertDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   confirmVariant?: ButtonVariant;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onDismiss: () => void;
+  /** Optional rich body rendered between the description and the actions. */
+  children?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -55,6 +60,7 @@ export function AlertDialog({
             {description}
           </p>
         ) : null}
+        {children ? <div className="mt-4">{children}</div> : null}
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={onDismiss}>
             {cancelLabel}
@@ -63,6 +69,7 @@ export function AlertDialog({
             variant={confirmVariant}
             size="sm"
             onClick={onConfirm}
+            disabled={confirmDisabled}
             autoFocus
           >
             {confirmLabel}

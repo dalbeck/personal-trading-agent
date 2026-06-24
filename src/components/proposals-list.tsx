@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,22 +23,60 @@ const redTeamTone: Record<string, BadgeTone> = {
   reject: "loss",
 };
 
-export function ProposalsList({ proposals }: { proposals: TradeProposal[] }) {
-  // Local-only decisions — paper phase places no real orders, persists nothing.
-  const [overrides, setOverrides] = useState<Record<string, Status>>({});
+interface DecisionResult {
+  outcome: "approved" | "denied" | "blocked-risk" | "blocked-redteam";
+  destination?: "robinhood" | "alpaca-paper" | "mock";
+  brokerOrderId?: string;
+  dryRun: boolean;
+}
+
+const outcomeLabel: Record<DecisionResult["outcome"], string> = {
+  approved: "Approved",
+  denied: "Denied (journaled)",
+  "blocked-risk": "Blocked by risk rails",
+  "blocked-redteam": "Blocked by red-team",
+};
+
+export function ProposalsList({
+  proposals,
+  liveEnabled,
+}: {
+  proposals: TradeProposal[];
+  liveEnabled: boolean;
+}) {
+  const router = useRouter();
+  const [results, setResults] = useState<Record<string, DecisionResult>>({});
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const statusOf = (p: TradeProposal): Status => overrides[p.id] ?? p.status;
+  const statusOf = (p: TradeProposal): Status => {
+    const r = results[p.id];
+    if (!r) return p.status;
+    return r.outcome === "approved" ? "approved" : "rejected";
+  };
 
-  function approve(id: string) {
-    setOverrides((o) => ({ ...o, [id]: "approved" }));
-    setConfirmId(null);
-  }
-  function reject(id: string) {
-    setOverrides((o) => ({ ...o, [id]: "rejected" }));
+  async function decide(id: string, decision: "approve" | "deny") {
+    setBusyId(id);
+    try {
+      const res = await fetch("/api/live/approve", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ proposalId: id, decision }),
+      });
+      const data = (await res.json()) as DecisionResult & { error?: string };
+      if (res.ok) {
+        setResults((r) => ({ ...r, [id]: data }));
+        router.refresh();
+      }
+    } finally {
+      setBusyId(null);
+      setConfirmId(null);
+    }
   }
 
   const confirmProposal = proposals.find((p) => p.id === confirmId) ?? null;
+  const redTeamRejected =
+    confirmProposal?.redTeam?.verdict === "reject";
 
   return (
     <>
@@ -45,6 +84,8 @@ export function ProposalsList({ proposals }: { proposals: TradeProposal[] }) {
         {proposals.map((p) => {
           const status = statusOf(p);
           const pending = status === "pending";
+          const result = results[p.id];
+          const estCost = p.qty * p.limitPrice;
           return (
             <Card key={p.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -68,6 +109,7 @@ export function ProposalsList({ proposals }: { proposals: TradeProposal[] }) {
               </p>
 
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-fg-muted">
+                <span>Est. cost {formatCurrency(estCost)}</span>
                 <span>Risk {formatPercent(p.riskPct, { signed: false })}</span>
                 {p.stopPrice !== null ? (
                   <span>Stop {formatCurrency(p.stopPrice)}</span>
@@ -76,9 +118,7 @@ export function ProposalsList({ proposals }: { proposals: TradeProposal[] }) {
                   <span>Target {formatCurrency(p.takeProfit)}</span>
                 ) : null}
                 {p.confidence !== null ? (
-                  <span>
-                    Confidence {Math.round(p.confidence * 100)}%
-                  </span>
+                  <span>Confidence {Math.round(p.confidence * 100)}%</span>
                 ) : null}
               </div>
 
@@ -104,23 +144,44 @@ export function ProposalsList({ proposals }: { proposals: TradeProposal[] }) {
                     <Button
                       variant="danger"
                       size="sm"
-                      onClick={() => reject(p.id)}
+                      disabled={busyId === p.id}
+                      onClick={() => decide(p.id, "deny")}
                     >
                       Reject
                     </Button>
                     <Button
                       variant="primary"
                       size="sm"
+                      disabled={busyId === p.id}
                       onClick={() => setConfirmId(p.id)}
                     >
-                      Approve
+                      Approve…
                     </Button>
                   </>
                 ) : (
                   <span className="text-xs text-fg-muted">
-                    {status === "approved"
-                      ? "Approved (paper — no order placed)"
-                      : "Rejected"}
+                    {result ? (
+                      <>
+                        {outcomeLabel[result.outcome]}
+                        {result.outcome === "approved" ? (
+                          <>
+                            {" "}
+                            · routed to{" "}
+                            <span className="font-medium text-fg">
+                              {result.destination}
+                            </span>
+                            {result.dryRun ? " (dry-run sink)" : " (LIVE)"}
+                            {result.brokerOrderId ? (
+                              <> · {result.brokerOrderId}</>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </>
+                    ) : status === "approved" ? (
+                      "Approved"
+                    ) : (
+                      "Rejected"
+                    )}
                   </span>
                 )}
               </div>
@@ -133,15 +194,86 @@ export function ProposalsList({ proposals }: { proposals: TradeProposal[] }) {
         open={confirmProposal !== null}
         title={
           confirmProposal
-            ? `Approve ${confirmProposal.action} ${confirmProposal.symbol}?`
-            : "Approve proposal?"
+            ? `Approve ${confirmProposal.action.toUpperCase()} ${confirmProposal.symbol}?`
+            : "Approve order?"
         }
-        description="This is a paper account. Approving records your decision locally for this session only — it places no real order and moves no money."
-        confirmLabel="Approve (paper)"
-        cancelLabel="Cancel"
-        onConfirm={() => confirmProposal && approve(confirmProposal.id)}
+        description={
+          liveEnabled
+            ? "⚠ LIVE TRADING IS ON — approving places a REAL order with REAL money."
+            : "Harness gate is closed. Approving routes this order to the dry-run sink (paper / mock broker) — no real money, never Robinhood."
+        }
+        confirmLabel={
+          busyId
+            ? "Routing…"
+            : liveEnabled
+              ? "Approve — place LIVE order"
+              : "Approve (dry-run)"
+        }
+        confirmVariant={liveEnabled ? "danger" : "primary"}
+        confirmDisabled={redTeamRejected || busyId !== null}
+        onConfirm={() => confirmProposal && decide(confirmProposal.id, "approve")}
         onDismiss={() => setConfirmId(null)}
-      />
+      >
+        {confirmProposal ? (
+          <div className="rounded-card border border-line bg-surface p-3">
+            <dl className="grid grid-cols-2 gap-y-1.5 text-sm">
+              <dt className="text-fg-muted">Ticker</dt>
+              <dd className="text-right font-medium text-fg">
+                {confirmProposal.symbol}
+              </dd>
+              <dt className="text-fg-muted">Side / action</dt>
+              <dd className="text-right tabular-nums text-fg">
+                {confirmProposal.action} · {confirmProposal.side}
+              </dd>
+              <dt className="text-fg-muted">Quantity</dt>
+              <dd className="text-right tabular-nums text-fg">
+                {confirmProposal.qty}
+              </dd>
+              <dt className="text-fg-muted">Order type</dt>
+              <dd className="text-right text-fg">marketable-limit</dd>
+              <dt className="text-fg-muted">Limit price</dt>
+              <dd className="text-right tabular-nums text-fg">
+                {formatCurrency(confirmProposal.limitPrice)}
+              </dd>
+              <dt className="text-fg-muted">Est. cost</dt>
+              <dd className="text-right tabular-nums text-fg">
+                {formatCurrency(
+                  confirmProposal.qty * confirmProposal.limitPrice,
+                )}
+              </dd>
+              {confirmProposal.stopPrice !== null ? (
+                <>
+                  <dt className="text-fg-muted">Stop</dt>
+                  <dd className="text-right tabular-nums text-fg">
+                    {formatCurrency(confirmProposal.stopPrice)}
+                  </dd>
+                </>
+              ) : null}
+            </dl>
+
+            <p className="mt-3 border-t border-line pt-3 text-pretty text-sm text-fg">
+              {confirmProposal.thesis}
+            </p>
+
+            {confirmProposal.redTeam ? (
+              <div className="mt-3 flex items-start gap-2 text-xs">
+                <Badge tone={redTeamTone[confirmProposal.redTeam.verdict]}>
+                  red-team: {confirmProposal.redTeam.verdict}
+                </Badge>
+                <span className="text-pretty text-fg-muted">
+                  {confirmProposal.redTeam.notes}
+                </span>
+              </div>
+            ) : null}
+
+            {redTeamRejected ? (
+              <p className="mt-3 text-xs font-medium text-loss">
+                Red-team rejected this trade — it cannot be approved.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </AlertDialog>
     </>
   );
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   bankedLessonBullet,
@@ -16,6 +16,7 @@ import {
   NewsFileSchema,
   PortfolioSnapshotSchema,
   RunLogSchema,
+  TradeProposalSchema,
 } from "@/lib/schemas";
 import type {
   MaterialNewsItem,
@@ -354,6 +355,39 @@ export async function recordSnapshot(
   const file = await uniquePath(dir, date, ".json");
   await writeStructured(file, PortfolioSnapshotSchema, snapshot);
   return { id: `snapshot-${date}`, file };
+}
+
+/* ------------------------------- Proposals ---------------------------------- */
+
+/** Update a proposal's `status` in place (data/proposals/), preserving every
+ *  other field. Returns the file written, or `null` if no proposal matches the
+ *  id. Used by the per-trade approval flow so the queue reflects decisions. */
+export async function setProposalStatus(
+  id: string,
+  status: "pending" | "approved" | "rejected",
+  opts?: { dataDir?: string },
+): Promise<WriteResult | null> {
+  const dir = path.join(dataRoot(opts), "proposals");
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return null;
+  }
+  for (const name of names.filter((n) => n.endsWith(".json"))) {
+    const file = path.join(dir, name);
+    const parsed = TradeProposalSchema.safeParse(
+      JSON.parse(await readFile(file, "utf8")),
+    );
+    if (parsed.success && parsed.data.id === id) {
+      await writeStructured(file, TradeProposalSchema, {
+        ...parsed.data,
+        status,
+      });
+      return { id, file };
+    }
+  }
+  return null;
 }
 
 /** Promote a durable lesson into the playbook's Banked lessons, with the date
