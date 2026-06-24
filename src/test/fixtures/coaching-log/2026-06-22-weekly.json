@@ -1,0 +1,12 @@
+{
+  "id": "c-2026-06-22",
+  "date": "2026-06-22",
+  "period": "weekly",
+  "symbol": "AMD",
+  "relatedJournalIds": ["j-2026-06-09-amd", "j-2026-06-18-tsla"],
+  "grade": "C",
+  "expected": "AMD to base and resume higher; risk discipline to keep weekly drawdown shallow.",
+  "actual": "AMD faded to -5.4% and dragged day P&L negative on Monday. Discipline held elsewhere: the TSLA and SMCI rejections avoided two losing setups.",
+  "lesson": "Honor the trim trigger earlier on losers approaching the stop rather than hoping for a base; the rejections show the governance filters are doing their job.",
+  "promotedToPlaybook": false
+}

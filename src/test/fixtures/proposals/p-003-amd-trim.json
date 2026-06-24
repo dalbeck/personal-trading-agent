@@ -1,0 +1,21 @@
+{
+  "id": "p-003-amd-trim",
+  "createdAt": "2026-06-23T07:22:00-04:00",
+  "symbol": "AMD",
+  "action": "sell",
+  "side": "long",
+  "qty": 15,
+  "limitPrice": 159.00,
+  "stopPrice": null,
+  "takeProfit": null,
+  "riskPct": 0.0,
+  "confidence": 0.7,
+  "thesis": "De-risk the underwater AMD position by trimming half ahead of a possible stop-out.",
+  "reasoning": "Price is sitting 3% above the protective stop with weakening relative strength. Halving the position cuts open risk while keeping upside optionality.",
+  "status": "pending",
+  "redTeam": {
+    "verdict": "approve",
+    "notes": "Risk-reducing action on a losing trade — consistent with the playbook. No objection."
+  },
+  "reviewByDate": "2026-06-24"
+}

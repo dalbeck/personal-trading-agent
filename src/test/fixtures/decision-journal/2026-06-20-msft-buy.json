@@ -1,0 +1,17 @@
+{
+  "kind": "trade",
+  "id": "j-2026-06-20-msft",
+  "timestamp": "2026-06-20T09:41:00-04:00",
+  "symbol": "MSFT",
+  "action": "buy",
+  "side": "long",
+  "qty": 9,
+  "price": 432.75,
+  "stopPrice": 415.00,
+  "takeProfit": 478.00,
+  "riskPct": 0.0152,
+  "thesis": "Megacap software leadership intact; Copilot attach rates lifting Azure guidance into the next print.",
+  "reasoning": "Pullback to the rising 50-day held with a higher low; entered marketable-limit above the morning range. Stop under the 50-day caps risk at ~1.5% of equity.",
+  "reviewDate": "2026-07-21",
+  "tags": ["megacap", "trend-pullback", "earnings-runup"]
+}

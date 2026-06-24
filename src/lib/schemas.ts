@@ -1,0 +1,167 @@
+import { z } from "zod";
+
+/**
+ * Runtime contracts for everything the engine writes into `data/` and the
+ * dashboard reads back. Zod schemas are the single source of truth; the
+ * TypeScript types in `./types.ts` are inferred from these, so the validated
+ * shape and the compile-time shape can never drift.
+ *
+ * All money values are plain numbers in the account currency (USD). Ratios
+ * (e.g. `totalPlPct`) are fractions, not percentages: 0.0482 === +4.82%.
+ */
+
+const money = z.number().finite();
+const ratio = z.number().finite();
+const symbol = z
+  .string()
+  .trim()
+  .min(1)
+  .max(12)
+  .regex(/^[A-Z0-9.\-]+$/, "ticker must be uppercase letters/digits");
+const isoDateTime = z.iso.datetime({ offset: true });
+const isoDate = z.iso.date();
+
+export const AccountKind = z.enum(["paper", "live"]);
+
+/* --------------------------------------------------------------------------
+ * Position — a single open holding within a snapshot.
+ * ------------------------------------------------------------------------ */
+export const PositionSchema = z
+  .object({
+    symbol,
+    side: z.enum(["long", "short"]).default("long"),
+    qty: z.number().positive(),
+    avgCost: money,
+    lastPrice: money,
+    marketValue: money,
+    costBasis: money,
+    unrealizedPl: money,
+    unrealizedPlPct: ratio,
+    stopPrice: money.nullable().default(null),
+    openedAt: isoDate,
+  })
+  .strict();
+
+/* --------------------------------------------------------------------------
+ * PortfolioSnapshot — point-in-time account state captured by the engine.
+ * ------------------------------------------------------------------------ */
+export const EquityPointSchema = z
+  .object({ date: isoDate, equity: money })
+  .strict();
+
+export const BenchmarkSchema = z
+  .object({
+    symbol, // e.g. "SPY"
+    portfolioReturnPct: ratio,
+    benchmarkReturnPct: ratio,
+  })
+  .strict();
+
+export const PortfolioSnapshotSchema = z
+  .object({
+    account: AccountKind,
+    asOf: isoDateTime,
+    currency: z.string().length(3).default("USD"),
+    equity: money,
+    cash: money,
+    buyingPower: money,
+    totalPl: money,
+    totalPlPct: ratio,
+    dayPl: money,
+    dayPlPct: ratio,
+    positions: z.array(PositionSchema),
+    benchmark: BenchmarkSchema.optional(),
+    equityCurve: z.array(EquityPointSchema).default([]),
+  })
+  .strict();
+
+/* --------------------------------------------------------------------------
+ * JournalEntry — one entry per trade AND per rejection, written at decision
+ * time. Discriminated on `kind`.
+ * ------------------------------------------------------------------------ */
+const JournalBase = {
+  id: z.string().min(1),
+  timestamp: isoDateTime,
+  symbol,
+  thesis: z.string().min(1),
+  reasoning: z.string().min(1),
+  reviewDate: isoDate,
+  tags: z.array(z.string()).default([]),
+};
+
+export const TradeJournalEntrySchema = z
+  .object({
+    ...JournalBase,
+    kind: z.literal("trade"),
+    action: z.enum(["buy", "sell"]),
+    side: z.enum(["long", "short"]).default("long"),
+    qty: z.number().positive(),
+    price: money,
+    stopPrice: money.nullable().default(null),
+    takeProfit: money.nullable().default(null),
+    riskPct: ratio.nullable().default(null),
+  })
+  .strict();
+
+export const RejectionJournalEntrySchema = z
+  .object({
+    ...JournalBase,
+    kind: z.literal("rejection"),
+    proposedAction: z.enum(["buy", "sell"]),
+    rejectedBy: z.enum(["codex-redteam", "rules", "human"]),
+  })
+  .strict();
+
+export const JournalEntrySchema = z.discriminatedUnion("kind", [
+  TradeJournalEntrySchema,
+  RejectionJournalEntrySchema,
+]);
+
+/* --------------------------------------------------------------------------
+ * TradeProposal — a pending agent idea surfaced in the Proposals view.
+ * ------------------------------------------------------------------------ */
+export const RedTeamVerdictSchema = z
+  .object({
+    verdict: z.enum(["approve", "reject", "concern"]),
+    notes: z.string().min(1),
+  })
+  .strict();
+
+export const TradeProposalSchema = z
+  .object({
+    id: z.string().min(1),
+    createdAt: isoDateTime,
+    symbol,
+    action: z.enum(["buy", "sell"]),
+    side: z.enum(["long", "short"]).default("long"),
+    qty: z.number().positive(),
+    limitPrice: money, // marketable-limit only (charter)
+    stopPrice: money.nullable().default(null),
+    takeProfit: money.nullable().default(null),
+    riskPct: ratio,
+    confidence: z.number().min(0).max(1).nullable().default(null),
+    thesis: z.string().min(1),
+    reasoning: z.string().min(1),
+    status: z.enum(["pending", "approved", "rejected"]).default("pending"),
+    redTeam: RedTeamVerdictSchema.nullable().default(null),
+    reviewByDate: isoDate.nullable().default(null),
+  })
+  .strict();
+
+/* --------------------------------------------------------------------------
+ * CoachingEntry — self-graded review vs. actual prices (coaching-log).
+ * ------------------------------------------------------------------------ */
+export const CoachingEntrySchema = z
+  .object({
+    id: z.string().min(1),
+    date: isoDate,
+    period: z.enum(["daily", "weekly"]),
+    symbol: symbol.nullable().default(null),
+    relatedJournalIds: z.array(z.string()).default([]),
+    grade: z.enum(["A", "B", "C", "D", "F"]),
+    expected: z.string().min(1),
+    actual: z.string().min(1),
+    lesson: z.string().min(1),
+    promotedToPlaybook: z.boolean().default(false),
+  })
+  .strict();

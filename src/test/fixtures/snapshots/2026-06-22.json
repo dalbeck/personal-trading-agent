@@ -1,0 +1,95 @@
+{
+  "account": "paper",
+  "asOf": "2026-06-22T21:00:00-04:00",
+  "currency": "USD",
+  "equity": 104812.55,
+  "cash": 85460.85,
+  "buyingPower": 85460.85,
+  "totalPl": 4812.55,
+  "totalPlPct": 0.0482,
+  "dayPl": -612.40,
+  "dayPlPct": -0.0058,
+  "benchmark": {
+    "symbol": "SPY",
+    "portfolioReturnPct": 0.0482,
+    "benchmarkReturnPct": 0.0361
+  },
+  "positions": [
+    {
+      "symbol": "NVDA",
+      "side": "long",
+      "qty": 18,
+      "avgCost": 118.40,
+      "lastPrice": 131.20,
+      "marketValue": 2361.60,
+      "costBasis": 2131.20,
+      "unrealizedPl": 230.40,
+      "unrealizedPlPct": 0.1081,
+      "stopPrice": 112.50,
+      "openedAt": "2026-05-12"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "long",
+      "qty": 22,
+      "avgCost": 196.10,
+      "lastPrice": 201.45,
+      "marketValue": 4431.90,
+      "costBasis": 4314.20,
+      "unrealizedPl": 117.70,
+      "unrealizedPlPct": 0.0273,
+      "stopPrice": 188.00,
+      "openedAt": "2026-05-28"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "long",
+      "qty": 9,
+      "avgCost": 432.75,
+      "lastPrice": 449.10,
+      "marketValue": 4041.90,
+      "costBasis": 3894.75,
+      "unrealizedPl": 147.15,
+      "unrealizedPlPct": 0.0378,
+      "stopPrice": 415.00,
+      "openedAt": "2026-06-20"
+    },
+    {
+      "symbol": "AMD",
+      "side": "long",
+      "qty": 30,
+      "avgCost": 168.20,
+      "lastPrice": 159.05,
+      "marketValue": 4771.50,
+      "costBasis": 5046.00,
+      "unrealizedPl": -274.50,
+      "unrealizedPlPct": -0.0544,
+      "stopPrice": 154.00,
+      "openedAt": "2026-06-09"
+    },
+    {
+      "symbol": "COST",
+      "side": "long",
+      "qty": 4,
+      "avgCost": 905.60,
+      "lastPrice": 936.20,
+      "marketValue": 3744.80,
+      "costBasis": 3622.40,
+      "unrealizedPl": 122.40,
+      "unrealizedPlPct": 0.0338,
+      "stopPrice": 880.00,
+      "openedAt": "2026-06-20"
+    }
+  ],
+  "equityCurve": [
+    { "date": "2026-05-01", "equity": 100000.00 },
+    { "date": "2026-05-08", "equity": 100620.00 },
+    { "date": "2026-05-15", "equity": 101480.00 },
+    { "date": "2026-05-22", "equity": 102150.00 },
+    { "date": "2026-05-29", "equity": 103010.00 },
+    { "date": "2026-06-05", "equity": 103880.00 },
+    { "date": "2026-06-12", "equity": 104990.00 },
+    { "date": "2026-06-19", "equity": 105424.95 },
+    { "date": "2026-06-22", "equity": 104812.55 }
+  ]
+}
