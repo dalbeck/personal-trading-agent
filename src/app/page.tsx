@@ -1,5 +1,11 @@
 import { EquityCurve } from "@/components/charts/equity-curve";
 import { DataSourceNotice } from "@/components/data-source-notice";
+import { ActivityFeed } from "@/components/overview/activity-feed";
+import { AttentionStrip } from "@/components/overview/attention-strip";
+import { AwaitingReview } from "@/components/overview/awaiting-review";
+import { EvalSnapshotModule } from "@/components/overview/eval-snapshot";
+import { GuardrailHeadroom } from "@/components/overview/guardrail-headroom";
+import { RoutinesHealthModule } from "@/components/overview/routines-health";
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,6 +16,7 @@ import {
 import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
 import { getLiveTradingStatus } from "@/lib/server/gate";
 import { liveDrawdown } from "@/lib/server/live-guards";
+import { getOverviewModules } from "@/lib/server/overview";
 import { LIVE_LIMITS } from "@strategy/charter.config";
 
 // Reads live paper data / mutable local files; never cache at build time.
@@ -17,8 +24,11 @@ export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const { snapshot: snap, source, notice } = await getPaperAccount();
-  const live = await getLiveAccount();
-  const gate = await getLiveTradingStatus();
+  const [live, gate, modules] = await Promise.all([
+    getLiveAccount(),
+    getLiveTradingStatus(),
+    getOverviewModules(snap),
+  ]);
 
   // Live pilot caps (M4) for the LIVE panel — configured limits, with current
   // exposure/drawdown when a real live snapshot is present.
@@ -34,128 +44,116 @@ export default async function OverviewPage() {
     killBreached: dd ? dd.breached : false,
   };
 
-  if (!snap) {
-    return (
-      <div>
-        <PageTitle title="Overview" />
-        <Card className="border-dashed">
-          <p className="text-sm text-fg-muted">
-            No paper snapshot found in <code>data/snapshots/</code>.
-          </p>
-        </Card>
-      </div>
-    );
-  }
-
-  const beatsBenchmark = snap.benchmark
+  const excess = snap?.benchmark
     ? snap.benchmark.portfolioReturnPct - snap.benchmark.benchmarkReturnPct
     : null;
 
   return (
-    <div>
-      <PageTitle
-        title="Overview"
-        subtitle="Paper account snapshot, equity curve, and benchmark."
+    <div className="flex flex-col gap-6">
+      <div>
+        <PageTitle
+          title="Overview"
+          subtitle="What needs you, how the desk is tracking, and the guardrails it runs inside."
+        />
+        <DataSourceNotice notice={notice} />
+      </div>
+
+      <AttentionStrip attention={modules.attention} />
+
+      {snap ? (
+        <>
+          <section
+            aria-label="Account summary"
+            className="grid grid-cols-2 gap-4 lg:grid-cols-5"
+          >
+            <StatCard label="Equity" value={formatCurrency(snap.equity)} />
+            <StatCard
+              label="Total P&L"
+              value={formatCurrency(snap.totalPl, { signed: true })}
+              delta={formatPercent(snap.totalPlPct)}
+              tone={toneForValue(snap.totalPl)}
+            />
+            <StatCard
+              label="Day P&L"
+              value={formatCurrency(snap.dayPl, { signed: true })}
+              delta={formatPercent(snap.dayPlPct)}
+              tone={toneForValue(snap.dayPl)}
+            />
+            <StatCard
+              label="vs SPY (excess)"
+              value={excess !== null ? formatPercent(excess) : "—"}
+              delta={
+                snap.benchmark
+                  ? `you ${formatPercent(
+                      snap.benchmark.portfolioReturnPct,
+                    )} · SPY ${formatPercent(snap.benchmark.benchmarkReturnPct)}`
+                  : undefined
+              }
+              tone={excess !== null ? toneForValue(excess) : "neutral"}
+            />
+            <StatCard
+              label="Buying power"
+              value={formatCurrency(snap.buyingPower)}
+            />
+          </section>
+
+          <section>
+            <Card>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-fg">Equity curve</h2>
+                  <p className="text-xs text-fg-muted">
+                    Since inception · paper account
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="inline-flex items-center gap-2 text-fg-muted">
+                    <span aria-hidden className="h-0.5 w-4 rounded bg-accent" />
+                    Portfolio
+                  </span>
+                  <span className="inline-flex items-center gap-2 text-fg-muted">
+                    <span
+                      aria-hidden
+                      className="h-0 w-4 border-t-2 border-dashed border-fg-muted"
+                    />
+                    SPY
+                  </span>
+                </div>
+              </div>
+
+              <EquityCurve
+                points={snap.equityCurve}
+                benchmarkReturnPct={snap.benchmark?.benchmarkReturnPct}
+              />
+            </Card>
+          </section>
+        </>
+      ) : (
+        <Card className="border-dashed">
+          <p className="text-sm text-fg-muted">
+            No paper snapshot found in <code>data/snapshots/</code>. KPIs and the
+            equity curve appear once a snapshot is written.
+          </p>
+        </Card>
+      )}
+
+      <AwaitingReview
+        proposals={modules.awaitingReview}
+        liveEnabled={gate.liveEnabled}
+        pendingTotal={modules.attention.pendingReview}
       />
 
-      <DataSourceNotice notice={notice} />
-
-      <section
-        aria-label="Account summary"
-        className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-      >
-        <StatCard label="Equity" value={formatCurrency(snap.equity)} />
-        <StatCard
-          label="Total P&L"
-          value={formatCurrency(snap.totalPl, { signed: true })}
-          delta={formatPercent(snap.totalPlPct)}
-          tone={toneForValue(snap.totalPl)}
-        />
-        <StatCard
-          label="Day P&L"
-          value={formatCurrency(snap.dayPl, { signed: true })}
-          delta={formatPercent(snap.dayPlPct)}
-          tone={toneForValue(snap.dayPl)}
-        />
-        <StatCard
-          label="Buying power"
-          value={formatCurrency(snap.buyingPower)}
-        />
+      <section className="grid gap-4 lg:grid-cols-2">
+        <GuardrailHeadroom guardrails={modules.guardrails} />
+        <EvalSnapshotModule evaluation={modules.evaluation} />
       </section>
 
-      <section className="mt-6">
-        <Card>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-fg">Equity curve</h2>
-              <p className="text-xs text-fg-muted">
-                Since inception · paper account
-              </p>
-            </div>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="inline-flex items-center gap-2 text-fg-muted">
-                <span aria-hidden className="h-0.5 w-4 rounded bg-accent" />
-                Portfolio
-              </span>
-              <span className="inline-flex items-center gap-2 text-fg-muted">
-                <span
-                  aria-hidden
-                  className="h-0 w-4 border-t-2 border-dashed border-fg-muted"
-                />
-                SPY
-              </span>
-            </div>
-          </div>
-
-          <EquityCurve
-            points={snap.equityCurve}
-            benchmarkReturnPct={snap.benchmark?.benchmarkReturnPct}
-          />
-
-          {snap.benchmark ? (
-            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm tabular-nums">
-              <span className="text-fg-muted">
-                Portfolio{" "}
-                <span
-                  className={
-                    toneForValue(snap.benchmark.portfolioReturnPct) === "loss"
-                      ? "text-loss"
-                      : "text-gain"
-                  }
-                >
-                  {formatPercent(snap.benchmark.portfolioReturnPct)}
-                </span>
-              </span>
-              <span className="text-fg-muted">
-                {snap.benchmark.symbol}{" "}
-                <span
-                  className={
-                    toneForValue(snap.benchmark.benchmarkReturnPct) === "loss"
-                      ? "text-loss"
-                      : "text-gain"
-                  }
-                >
-                  {formatPercent(snap.benchmark.benchmarkReturnPct)}
-                </span>
-              </span>
-              {beatsBenchmark !== null ? (
-                <span className="text-fg-muted">
-                  vs benchmark{" "}
-                  <span
-                    className={
-                      beatsBenchmark >= 0 ? "text-gain" : "text-loss"
-                    }
-                  >
-                    {formatPercent(beatsBenchmark)}
-                  </span>
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-        </Card>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <ActivityFeed activity={modules.activity} />
+        <RoutinesHealthModule health={modules.routinesHealth} />
       </section>
 
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center gap-2">
             <Badge tone="accent" dot>
@@ -166,20 +164,24 @@ export default async function OverviewPage() {
               {source === "alpaca" ? "Live · Alpaca" : "Sample data"}
             </span>
           </div>
-          <dl className="grid grid-cols-2 gap-y-2 text-sm">
-            <dt className="text-fg-muted">Equity</dt>
-            <dd className="text-right tabular-nums text-fg">
-              {formatCurrency(snap.equity)}
-            </dd>
-            <dt className="text-fg-muted">Cash</dt>
-            <dd className="text-right tabular-nums text-fg">
-              {formatCurrency(snap.cash)}
-            </dd>
-            <dt className="text-fg-muted">Open positions</dt>
-            <dd className="text-right tabular-nums text-fg">
-              {snap.positions.length}
-            </dd>
-          </dl>
+          {snap ? (
+            <dl className="grid grid-cols-2 gap-y-2 text-sm">
+              <dt className="text-fg-muted">Equity</dt>
+              <dd className="text-right tabular-nums text-fg">
+                {formatCurrency(snap.equity)}
+              </dd>
+              <dt className="text-fg-muted">Cash</dt>
+              <dd className="text-right tabular-nums text-fg">
+                {formatCurrency(snap.cash)}
+              </dd>
+              <dt className="text-fg-muted">Open positions</dt>
+              <dd className="text-right tabular-nums text-fg">
+                {snap.positions.length}
+              </dd>
+            </dl>
+          ) : (
+            <p className="text-sm text-fg-muted">No paper snapshot yet.</p>
+          )}
         </Card>
 
         <Card className={gate.liveEnabled ? "" : "opacity-80"}>
