@@ -6,6 +6,7 @@ import {
   JournalIcon,
   LogsIcon,
   NewsIcon,
+  OperationsIcon,
   OverviewIcon,
   PositionsIcon,
   ProposalsIcon,
@@ -34,5 +35,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Chat", href: "/chat", icon: ChatIcon },
   { label: "Routines", href: "/routines", icon: RoutinesIcon },
   { label: "Logs", href: "/logs", icon: LogsIcon },
+  { label: "Operations", href: "/operations", icon: OperationsIcon },
   { label: "Evaluation", href: "/evaluation", icon: EvaluationIcon },
 ];
