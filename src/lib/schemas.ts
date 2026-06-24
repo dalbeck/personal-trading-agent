@@ -150,6 +150,24 @@ export const TradeProposalSchema = z
   .strict();
 
 /* --------------------------------------------------------------------------
+ * MaterialNews — a headline the news scout judged material to a held name
+ * (data/news/<date>.json holds an array of these).
+ * ------------------------------------------------------------------------ */
+export const MaterialNewsItemSchema = z
+  .object({
+    symbol, // the held ticker this is material to
+    title: z.string().min(1),
+    link: z.url(),
+    source: z.string().min(1),
+    publishedAt: z.string().nullable().default(null), // raw RFC-822 from RSS
+    reason: z.string().min(1),
+    seenAt: isoDateTime, // when the scout caught it
+  })
+  .strict();
+
+export const NewsFileSchema = z.array(MaterialNewsItemSchema);
+
+/* --------------------------------------------------------------------------
  * CoachingEntry — self-graded review vs. actual prices (coaching-log).
  * ------------------------------------------------------------------------ */
 /* --------------------------------------------------------------------------
