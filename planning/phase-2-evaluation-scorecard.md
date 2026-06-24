@@ -2,7 +2,7 @@
 
 _Fill this at the end of the evaluation window. It is the gate to Phase 3. Track the inputs from day one so the assessment isn't reconstructed from memory. **This is not investment advice — it's a process rubric.**_
 
-> **Computed live:** the dashboard **Evaluation** view (`/evaluation`) renders this scorecard automatically from `data/` (snapshots, journal, proposals, run logs) — performance vs benchmark, trade stats, process-integrity checks, reliability, and an **advisory** GO/ITERATE/NO-GO verdict. The math lives in `src/lib/eval/scorecard.ts` (pure, unit-tested); `src/lib/server/eval.ts` does the reading. The verdict is advisory only — the qualitative criteria (section 5) and the final GO stay human. SPY drawdown/volatility need a SPY price series and are not wired yet (only the benchmark return is).
+> **Computed live:** the dashboard **Evaluation** view (`/evaluation`) renders this scorecard automatically from `data/` (snapshots, journal, proposals, run logs) — performance vs benchmark, trade stats, process-integrity checks, reliability, and an **advisory** GO/ITERATE/NO-GO verdict. The math lives in `src/lib/eval/scorecard.ts` (pure, unit-tested); `src/lib/server/eval.ts` does the reading. The verdict is advisory only — the qualitative criteria (section 5) and the final GO stay human. SPY return, drawdown, and volatility ARE wired (best-effort): `eval.ts` pulls SPY daily closes from Alpaca's market-data API over the desk's window, so the "excessive drawdown vs SPY" veto evaluates once Alpaca keys are set and the window has ≥2 equity points; with no keys it falls back to the benchmark return only.
 
 ## Window setup
 - Start date / end date: ______ → ______

@@ -50,3 +50,11 @@
 ## Safety in the UI
 - The dashboard surfaces trade approvals; it must **never bypass** the two-gate permission flow for real-money orders (see `.agents/infra.md`).
 - Paper and live account views must be clearly labeled and visually distinct.
+
+## Server-side command execution
+The backend may spawn local processes (the `claude`/`codex` CLIs, repo scripts) — that's intended (native macOS, no container). But any **HTTP-triggered** execution MUST be:
+- **Allowlisted** — fixed action IDs → specific binaries/scripts + fixed args. Never run a client-supplied path, name, or args.
+- **Shell-free** — `execFile`/`spawn` with an args array and `shell: false`. No `exec` / string concatenation (command-injection risk).
+- **Token-gated + localhost-only** — same bearer-token pattern as the routine trigger; bound to 127.0.0.1.
+- **Confirm-gated** for destructive/system-changing actions (`AlertDialog`).
+- **Never** expose, via any button or endpoint, an action that **opens the live-trading gate** or funds/moves real money. The dashboard may close/kill, never open the live gate.
