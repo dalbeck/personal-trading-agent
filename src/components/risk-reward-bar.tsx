@@ -1,4 +1,5 @@
 import { formatCurrency, formatPercent } from "@/lib/format";
+import { confidenceBucket } from "@/lib/confidence";
 import {
   computeRiskReward,
   describeRiskReward,
@@ -107,26 +108,43 @@ export function RiskRewardBar({
   );
 }
 
-/** A small confidence meter: a thin filled track plus the percentage. */
+/**
+ * Model-confidence meter: a labeled Low/Moderate/High bucket plus a segmented
+ * meter and the percent (e.g. "Moderate · 55%"). The color is deliberately
+ * **neutral** — high confidence on a bad trade is still a bad trade, so the
+ * meter must not imply "good" the way gain/loss green-red would. A tooltip
+ * frames it as the model's own uncalibrated self-rating (`.agents/design-system.md`
+ * → "Confidence & model self-ratings").
+ */
 function ConfidenceMeter({ value }: { value: number }) {
-  const pct = Math.round(value * 100);
+  const { level, pct, filled, segments } = confidenceBucket(value);
+  const summary = `${level} · ${pct}%`;
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-fg-muted">Confidence</span>
+    <div
+      className="flex items-center gap-2"
+      title="Model confidence — self-rated by the model and uncalibrated. One input alongside the risk rails and red-team, not a probability."
+    >
+      <span className="text-xs text-fg-muted">Model confidence</span>
       <div
         role="meter"
-        aria-label="Model confidence"
+        aria-label={`Model confidence: ${level}, ${pct}%`}
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-1.5 w-16 overflow-hidden rounded-pill bg-surface"
+        aria-valuetext={summary}
+        className="flex items-center gap-0.5"
       >
-        <div
-          className="h-full rounded-pill bg-fg-muted"
-          style={{ width: `${Math.max(2, pct)}%` }}
-        />
+        {Array.from({ length: segments }).map((_, i) => (
+          <span
+            key={i}
+            aria-hidden
+            className={`h-2.5 w-3 rounded-pill ${
+              i < filled ? "bg-fg-muted" : "bg-line"
+            }`}
+          />
+        ))}
       </div>
-      <span className="text-xs font-medium tabular-nums text-fg">{pct}%</span>
+      <span className="text-xs font-medium tabular-nums text-fg">{summary}</span>
     </div>
   );
 }
