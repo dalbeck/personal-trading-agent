@@ -1,13 +1,29 @@
-import { PageTitle, Placeholder } from "@/components/page-shell";
+import { StrategyEditor } from "@/components/strategy-editor";
+import { PageTitle } from "@/components/page-shell";
+import {
+  STRATEGY_DOCS,
+  STRATEGY_DOC_TITLES,
+  readStrategyDoc,
+} from "@/lib/server/strategy";
 
-export default function StrategyPage() {
+export const dynamic = "force-dynamic";
+
+export default async function StrategyPage() {
+  const docs = await Promise.all(
+    STRATEGY_DOCS.map(async (doc) => ({
+      doc,
+      title: STRATEGY_DOC_TITLES[doc],
+      content: await readStrategyDoc(doc),
+    })),
+  );
+
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-3xl">
       <PageTitle
         title="Strategy"
-        subtitle="Charter and playbook — the rules the agent trades by."
+        subtitle="The charter (immutable rules) and playbook (checklist + lessons)."
       />
-      <Placeholder note="Renders strategy/charter.md and strategy/playbook.md (editable) in M3." />
+      <StrategyEditor docs={docs} />
     </div>
   );
 }

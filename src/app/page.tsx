@@ -1,83 +1,167 @@
-import { Card, PageTitle } from "@/components/page-shell";
+import { EquityCurve } from "@/components/charts/equity-curve";
+import { Card, PageTitle, StatCard } from "@/components/page-shell";
+import { Badge } from "@/components/ui/badge";
+import {
+  formatCurrency,
+  formatPercent,
+  toneForValue,
+} from "@/lib/format";
+import { readLatestSnapshot } from "@/lib/server/data";
 
-type Stat = {
-  label: string;
-  value: string;
-  delta?: string;
-  tone?: "gain" | "loss" | "neutral";
-};
+// Reads mutable local files; never cache at build time.
+export const dynamic = "force-dynamic";
 
-// Sample figures only — live paper/Alpaca data wiring lands in M2–M4.
-const STATS: Stat[] = [
-  { label: "Equity", value: "$104,812.55", tone: "neutral" },
-  { label: "Total P&L", value: "+$4,812.55", delta: "+4.82%", tone: "gain" },
-  { label: "Day P&L", value: "−$612.40", delta: "−0.58%", tone: "loss" },
-  { label: "Buying power", value: "$38,240.00", tone: "neutral" },
-];
+export default async function OverviewPage() {
+  const snap = await readLatestSnapshot("paper");
 
-const toneClass: Record<NonNullable<Stat["tone"]>, string> = {
-  gain: "text-gain",
-  loss: "text-loss",
-  neutral: "text-fg",
-};
+  if (!snap) {
+    return (
+      <div className="mx-auto max-w-6xl">
+        <PageTitle title="Overview" />
+        <Card className="border-dashed">
+          <p className="text-sm text-fg-muted">
+            No paper snapshot found in <code>data/snapshots/</code>.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
-export default function OverviewPage() {
+  const beatsBenchmark = snap.benchmark
+    ? snap.benchmark.portfolioReturnPct - snap.benchmark.benchmarkReturnPct
+    : null;
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageTitle
         title="Overview"
-        subtitle="Paper account snapshot. This is the M1 shell — figures below are sample data."
+        subtitle="Paper account snapshot, equity curve, and benchmark."
       />
 
       <section
         aria-label="Account summary"
         className="grid grid-cols-2 gap-4 lg:grid-cols-4"
       >
-        {STATS.map((s) => (
-          <Card key={s.label}>
-            <p className="text-xs font-medium uppercase tracking-wide text-fg-muted">
-              {s.label}
-            </p>
-            <p
-              className={`mt-2 text-2xl font-semibold tabular-nums ${toneClass[s.tone ?? "neutral"]}`}
-            >
-              {s.value}
-            </p>
-            {s.delta ? (
-              <p
-                className={`mt-1 text-sm tabular-nums ${toneClass[s.tone ?? "neutral"]}`}
-              >
-                {s.delta}
+        <StatCard label="Equity" value={formatCurrency(snap.equity)} />
+        <StatCard
+          label="Total P&L"
+          value={formatCurrency(snap.totalPl, { signed: true })}
+          delta={formatPercent(snap.totalPlPct)}
+          tone={toneForValue(snap.totalPl)}
+        />
+        <StatCard
+          label="Day P&L"
+          value={formatCurrency(snap.dayPl, { signed: true })}
+          delta={formatPercent(snap.dayPlPct)}
+          tone={toneForValue(snap.dayPl)}
+        />
+        <StatCard
+          label="Buying power"
+          value={formatCurrency(snap.buyingPower)}
+        />
+      </section>
+
+      <section className="mt-6">
+        <Card>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-fg">Equity curve</h2>
+              <p className="text-xs text-fg-muted">
+                Since inception · paper account
               </p>
-            ) : null}
-          </Card>
-        ))}
+            </div>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="inline-flex items-center gap-2 text-fg-muted">
+                <span aria-hidden className="h-0.5 w-4 rounded bg-accent" />
+                Portfolio
+              </span>
+              <span className="inline-flex items-center gap-2 text-fg-muted">
+                <span
+                  aria-hidden
+                  className="h-0 w-4 border-t-2 border-dashed border-fg-muted"
+                />
+                SPY
+              </span>
+            </div>
+          </div>
+
+          <EquityCurve
+            points={snap.equityCurve}
+            benchmarkReturnPct={snap.benchmark?.benchmarkReturnPct}
+          />
+
+          {snap.benchmark ? (
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm tabular-nums">
+              <span className="text-fg-muted">
+                Portfolio{" "}
+                <span
+                  className={
+                    toneForValue(snap.benchmark.portfolioReturnPct) === "loss"
+                      ? "text-loss"
+                      : "text-gain"
+                  }
+                >
+                  {formatPercent(snap.benchmark.portfolioReturnPct)}
+                </span>
+              </span>
+              <span className="text-fg-muted">
+                {snap.benchmark.symbol}{" "}
+                <span
+                  className={
+                    toneForValue(snap.benchmark.benchmarkReturnPct) === "loss"
+                      ? "text-loss"
+                      : "text-gain"
+                  }
+                >
+                  {formatPercent(snap.benchmark.benchmarkReturnPct)}
+                </span>
+              </span>
+              {beatsBenchmark !== null ? (
+                <span className="text-fg-muted">
+                  vs benchmark{" "}
+                  <span
+                    className={
+                      beatsBenchmark >= 0 ? "text-gain" : "text-loss"
+                    }
+                  >
+                    {formatPercent(beatsBenchmark)}
+                  </span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </Card>
       </section>
 
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-pill border border-accent px-2 py-0.5 text-xs font-semibold text-fg">
-              <span aria-hidden className="size-1.5 rounded-pill bg-accent" />
+            <Badge tone="accent" dot>
               PAPER
-            </span>
+            </Badge>
             <h2 className="text-sm font-semibold text-fg">Paper account</h2>
           </div>
-          <p className="text-pretty text-sm text-fg-muted">
-            Connected to the Alpaca paper environment in a later milestone. All
-            research and (paper) order proposals run here first.
-          </p>
+          <dl className="grid grid-cols-2 gap-y-2 text-sm">
+            <dt className="text-fg-muted">Equity</dt>
+            <dd className="text-right tabular-nums text-fg">
+              {formatCurrency(snap.equity)}
+            </dd>
+            <dt className="text-fg-muted">Cash</dt>
+            <dd className="text-right tabular-nums text-fg">
+              {formatCurrency(snap.cash)}
+            </dd>
+            <dt className="text-fg-muted">Open positions</dt>
+            <dd className="text-right tabular-nums text-fg">
+              {snap.positions.length}
+            </dd>
+          </dl>
         </Card>
 
         <Card className="opacity-80">
           <div className="mb-3 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-pill border border-line px-2 py-0.5 text-xs font-medium text-fg-muted">
-              <span
-                aria-hidden
-                className="size-1.5 rounded-pill bg-fg-muted/50"
-              />
+            <Badge tone="muted" dot>
               LIVE
-            </span>
+            </Badge>
             <h2 className="text-sm font-semibold text-fg-muted">
               Live account
             </h2>
@@ -86,42 +170,6 @@ export default function OverviewPage() {
             Not connected. Real-money execution is out of scope for Phase 1 and
             stays behind a two-gate human approval.
           </p>
-        </Card>
-      </section>
-
-      <section className="mt-6">
-        <Card>
-          <h2 className="mb-1 text-sm font-semibold text-fg">Design system</h2>
-          <p className="mb-4 text-pretty text-sm text-fg-muted">
-            Button variants and semantic colors, toggled by theme.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              className="rounded-pill bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition-colors duration-150 ease-out hover:bg-accent-hover"
-            >
-              Primary
-            </button>
-            <button
-              type="button"
-              className="rounded-pill border border-line px-4 py-2 text-sm font-medium text-fg transition-colors duration-150 ease-out hover:bg-surface-overlay"
-            >
-              Secondary
-            </button>
-            <button
-              type="button"
-              className="rounded-pill px-4 py-2 text-sm font-medium text-fg-muted transition-colors duration-150 ease-out hover:text-fg"
-            >
-              Ghost
-            </button>
-            <button
-              type="button"
-              disabled
-              className="cursor-not-allowed rounded-pill bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground opacity-50"
-            >
-              Disabled
-            </button>
-          </div>
         </Card>
       </section>
     </div>
