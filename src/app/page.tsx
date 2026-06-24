@@ -7,13 +7,14 @@ import {
   formatPercent,
   toneForValue,
 } from "@/lib/format";
-import { getPaperAccount } from "@/lib/server/account";
+import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
 
 // Reads live paper data / mutable local files; never cache at build time.
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const { snapshot: snap, source, notice } = await getPaperAccount();
+  const live = await getLiveAccount();
 
   if (!snap) {
     return (
@@ -163,19 +164,59 @@ export default async function OverviewPage() {
           </dl>
         </Card>
 
-        <Card className="opacity-80">
+        <Card className={live.connected ? "" : "opacity-80"}>
           <div className="mb-3 flex items-center gap-2">
-            <Badge tone="muted" dot>
+            <Badge tone={live.connected ? "accent" : "muted"} dot>
               LIVE
             </Badge>
-            <h2 className="text-sm font-semibold text-fg-muted">
+            <h2
+              className={`text-sm font-semibold ${
+                live.connected ? "text-fg" : "text-fg-muted"
+              }`}
+            >
               Live account
             </h2>
+            <span className="ml-auto text-xs font-semibold tabular-nums">
+              <span className={live.connected ? "text-gain" : "text-fg-muted"}>
+                {live.connected
+                  ? "LIVE TRADING: ON"
+                  : "LIVE TRADING: OFF"}
+              </span>
+            </span>
           </div>
-          <p className="text-pretty text-sm text-fg-muted">
-            Not connected. Real-money execution is out of scope for Phase 1 and
-            stays behind a two-gate human approval.
-          </p>
+
+          {live.snapshot ? (
+            <>
+              {live.notice ? (
+                <p className="mb-3 text-pretty text-xs text-fg-muted">
+                  {live.notice}
+                </p>
+              ) : (
+                <p className="mb-3 text-xs text-fg-muted">
+                  Robinhood Agentic · read-only
+                </p>
+              )}
+              <dl className="grid grid-cols-2 gap-y-2 text-sm">
+                <dt className="text-fg-muted">Equity</dt>
+                <dd className="text-right tabular-nums text-fg">
+                  {formatCurrency(live.snapshot.equity)}
+                </dd>
+                <dt className="text-fg-muted">Cash</dt>
+                <dd className="text-right tabular-nums text-fg">
+                  {formatCurrency(live.snapshot.cash)}
+                </dd>
+                <dt className="text-fg-muted">Open positions</dt>
+                <dd className="text-right tabular-nums text-fg">
+                  {live.snapshot.positions.length}
+                </dd>
+              </dl>
+            </>
+          ) : (
+            <p className="text-pretty text-sm text-fg-muted">
+              {live.notice ??
+                "Not connected. Real-money execution stays behind a two-gate human approval."}
+            </p>
+          )}
         </Card>
       </section>
     </div>

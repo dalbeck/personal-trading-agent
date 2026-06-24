@@ -17,6 +17,7 @@
 - **Robinhood Agentic** = optional live execution (Phase 3 only), via its MCP (`https://agent.robinhood.com/mcp/trading`).
 - **Fidelity** = excluded; no retail automation API.
 - **Two-gate live safety:** (1) the Robinhood Agentic account allows agent trading; (2) a one-time human `settings.json` allow-list edit enables order tools. An agent may **never** grant itself order permission. Per-trade approval stays ON until paper results justify otherwise.
+- **Robinhood read-only client (Phase 3 M1, `src/lib/server/robinhood.ts`):** wires the dashboard LIVE panel to the real account via `get_portfolio` only — its `READ_ONLY_TOOLS` allow-list has no order tool by construction. **Default-off:** with no `ROBINHOOD_MCP_TOKEN` the resolver (`getLiveAccount` in `account.ts`) returns `disconnected` and the panel shows **LIVE TRADING: OFF**. When connected it persists each live snapshot to `data/snapshots/` (`account: "live"`) so the panel and the agent share one source of truth. The MCP round-trip is injectable so mapping/resolver are tested without a network or a live account.
 
 ## Secrets
 - `.env` is gitignored. Real values live in macOS Keychain / 1Password. Keep `.env.example` current.
