@@ -1,4 +1,4 @@
-import { JSON_SCHEMA, load } from "js-yaml";
+import { dump, JSON_SCHEMA, load } from "js-yaml";
 
 /**
  * Minimal Markdown + YAML-frontmatter splitter for narrative `data/` artifacts
@@ -35,4 +35,18 @@ export function parseFrontmatter(raw: string): ParsedFrontmatter {
     data: parsed as Record<string, unknown>,
     body: (match[2] ?? "").trim(),
   };
+}
+
+/**
+ * Serialize a frontmatter mapping + markdown body into a `.md` file string —
+ * the inverse of `parseFrontmatter`. Key order is preserved. Dumped with the
+ * default schema so values that look like dates/timestamps are quoted, keeping
+ * them unambiguous strings on the round-trip (see `.agents/data-format.md`).
+ */
+export function stringifyFrontmatter(
+  data: Record<string, unknown>,
+  body: string,
+): string {
+  const yaml = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
+  return `---\n${yaml}\n---\n\n${body.trim()}\n`;
 }

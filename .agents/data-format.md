@@ -80,6 +80,19 @@ Pullback to the rising 50-day held with a higher low; entered a marketable-limit
 above the morning range.
 ```
 
+## Writing
+
+- The engine writes narrative artifacts through `src/lib/server/writers.ts` —
+  never hand-build a file. `recordTradeDecision` / `recordRejection` (and
+  `recordRiskRejection`, which turns a blocked `RiskDecision` into a journaled
+  `rules` rejection) write the decision journal; `recordCoaching` writes the
+  coaching log; `promoteLessonToPlaybook` appends a banked lesson with
+  provenance. Every writer **validates against the zod contract before writing**
+  and refuses to emit an invalid artifact.
+- Body prose is composed by the pure helpers in `src/lib/journal-format.ts`
+  (thesis-lead + labelled sections for journal; Expected/Actual/Lesson for
+  coaching). Frontmatter is serialized by `stringifyFrontmatter`.
+
 ## Reading & validation
 
 - Readers live in `src/lib/server/data.ts`. `readMarkdownDir` splits frontmatter

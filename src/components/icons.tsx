@@ -54,6 +54,16 @@ export function JournalIcon(props: IconProps) {
   );
 }
 
+export function CoachingIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 5 21 9l-9 4-9-4z" />
+      <path d="M6 11v4c0 1.4 2.7 3 6 3s6-1.6 6-3v-4" />
+      <path d="M21 9v4" />
+    </svg>
+  );
+}
+
 export function ProposalsIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
