@@ -43,8 +43,10 @@ export interface ReturnMetrics {
 export interface BenchmarkInput {
   symbol: string;
   returnPct: number | null;
-  /** SPY drawdown over the window — requires a SPY price series (future). */
+  /** Benchmark max drawdown over the window (≤ 0); null when no price series. */
   maxDrawdownPct?: number | null;
+  /** Benchmark per-period volatility; null when no price series. */
+  volatility?: number | null;
 }
 
 export interface BenchmarkComparison {
@@ -53,6 +55,14 @@ export interface BenchmarkComparison {
   benchmarkReturnPct: number | null;
   /** Desk return − benchmark return (alpha). `null` if either side is unknown. */
   excessReturnPct: number | null;
+  deskMaxDrawdownPct: number | null;
+  benchmarkMaxDrawdownPct: number | null;
+  benchmarkVolatility: number | null;
+  /**
+   * How much worse the desk's drawdown is than the benchmark's, in fraction
+   * points (positive = desk drew down more). `null` when either is unknown.
+   */
+  drawdownExcessPct: number | null;
 }
 
 export interface ClosedTrade {
@@ -356,6 +366,12 @@ export function computeReliability(runLogs: RunLog[]): Reliability {
 export const MIN_WINDOW_POINTS = 30;
 
 /**
+ * How much worse than the benchmark the desk's drawdown may be and still GO
+ * (the rubric's "≤ +5pp" margin). Beyond this is "excessive drawdown" → no-go.
+ */
+export const MAX_DRAWDOWN_EXCESS = 0.05;
+
+/**
  * Advisory GO/ITERATE/NO-GO on the *computable* slice of the rubric. Hard
  * process failures veto a GO; missing benchmark data yields "incomplete". The
  * qualitative criteria (section 5) and final sign-off stay with the human.
@@ -413,6 +429,15 @@ export function decideVerdict(card: {
     return { kind: "no-go", reasons };
   }
 
+  // 6. Excessive drawdown vs the benchmark is a no-go (when SPY drawdown known).
+  const ddExcess = card.benchmark.drawdownExcessPct;
+  if (ddExcess !== null && ddExcess > MAX_DRAWDOWN_EXCESS) {
+    reasons.push(
+      `Desk drawdown is ${(ddExcess * 100).toFixed(1)}pp worse than ${card.benchmark.symbol} (> ${(MAX_DRAWDOWN_EXCESS * 100).toFixed(0)}pp margin) — excessive drawdown.`,
+    );
+    return { kind: "no-go", reasons };
+  }
+
   reasons.push(
     "Desk beat the benchmark with no hard process failures. Confirm the edge is process (not one outlier) and review the qualitative criteria before any GO.",
   );
@@ -441,6 +466,7 @@ export function buildScorecard(inputs: ScorecardInputs): Scorecard {
   const reliability = computeReliability(inputs.runLogs);
 
   const benchmarkReturn = inputs.benchmark?.returnPct ?? null;
+  const benchmarkMaxDd = inputs.benchmark?.maxDrawdownPct ?? null;
   const benchmark: BenchmarkComparison = {
     symbol: inputs.benchmark?.symbol ?? "SPY",
     deskReturnPct: returns.totalReturnPct,
@@ -448,6 +474,14 @@ export function buildScorecard(inputs: ScorecardInputs): Scorecard {
     excessReturnPct:
       returns.totalReturnPct !== null && benchmarkReturn !== null
         ? returns.totalReturnPct - benchmarkReturn
+        : null,
+    deskMaxDrawdownPct: returns.maxDrawdownPct,
+    benchmarkMaxDrawdownPct: benchmarkMaxDd,
+    benchmarkVolatility: inputs.benchmark?.volatility ?? null,
+    // Compare magnitudes: positive means the desk drew down more than the bench.
+    drawdownExcessPct:
+      returns.maxDrawdownPct !== null && benchmarkMaxDd !== null
+        ? Math.abs(returns.maxDrawdownPct) - Math.abs(benchmarkMaxDd)
         : null,
   };
 

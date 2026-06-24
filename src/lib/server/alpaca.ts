@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 import type { ProposedOrder } from "@/lib/risk";
 import { PortfolioSnapshotSchema } from "@/lib/schemas";
-import type { PortfolioSnapshot, Position } from "@/lib/types";
+import type { EquityPoint, PortfolioSnapshot, Position } from "@/lib/types";
 
 /**
  * Server-only Alpaca **paper** REST client. Credentials come from `.env` and
@@ -14,6 +14,9 @@ import type { PortfolioSnapshot, Position } from "@/lib/types";
 
 const BASE_URL =
   process.env.ALPACA_BASE_URL ?? "https://paper-api.alpaca.markets";
+// Market data lives on a separate host from the trading API.
+const DATA_BASE_URL =
+  process.env.ALPACA_DATA_URL ?? "https://data.alpaca.markets";
 const KEY_ID = process.env.ALPACA_API_KEY_ID ?? "";
 const SECRET = process.env.ALPACA_API_SECRET_KEY ?? "";
 const TIMEOUT_MS = 6000;
@@ -101,6 +104,76 @@ function getAlpacaHistory() {
     "/v2/account/portfolio/history?period=3M&timeframe=1D",
     HistorySchema,
   );
+}
+
+/* ------------------------- market data: daily bars ------------------------ */
+// Daily OHLC bars from the data API (separate host). Only the close is used —
+// for the benchmark (e.g. SPY) return/drawdown curve on the evaluation
+// scorecard. Research/benchmark only; never order pricing or execution.
+
+const BarSchema = z.object({ t: z.string(), c: z.number() });
+const BarsResponseSchema = z.object({
+  bars: z.array(BarSchema).nullable().catch(null),
+  next_page_token: z.string().nullable().catch(null),
+});
+
+/** Map raw daily bars → an `EquityPoint[]` close series (date, equity=close). */
+export function mapBarsToCloses(
+  bars: z.infer<typeof BarSchema>[],
+): EquityPoint[] {
+  return bars.map((b) => ({ date: b.t.slice(0, 10), equity: b.c }));
+}
+
+/**
+ * Daily closing prices for `symbol` over [start, end] (ISO dates), oldest →
+ * newest, as an `EquityPoint[]`. Paginates the data API (capped). Throws on
+ * network/auth/validation error — callers treat the benchmark series as
+ * best-effort and fall back when it's unavailable.
+ */
+export async function getDailyCloses(
+  symbol: string,
+  start: string,
+  end: string,
+  opts?: { fetchImpl?: typeof fetch },
+): Promise<EquityPoint[]> {
+  const doFetch = opts?.fetchImpl ?? fetch;
+  const closes: EquityPoint[] = [];
+  let pageToken: string | null = null;
+
+  for (let page = 0; page < 10; page++) {
+    const params = new URLSearchParams({
+      timeframe: "1Day",
+      start,
+      end,
+      adjustment: "all",
+      limit: "1000",
+    });
+    if (pageToken) params.set("page_token", pageToken);
+
+    const res = await doFetch(
+      `${DATA_BASE_URL}/v2/stocks/${encodeURIComponent(symbol)}/bars?${params}`,
+      {
+        headers: {
+          "APCA-API-KEY-ID": KEY_ID,
+          "APCA-API-SECRET-KEY": SECRET,
+          accept: "application/json",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Alpaca data /v2/stocks/${symbol}/bars → ${res.status} ${res.statusText}`,
+      );
+    }
+    const parsed = BarsResponseSchema.parse(await res.json());
+    closes.push(...mapBarsToCloses(parsed.bars ?? []));
+    pageToken = parsed.next_page_token;
+    if (!pageToken) break;
+  }
+
+  return closes;
 }
 
 /* ------------------------------ mapping -------------------------------- */

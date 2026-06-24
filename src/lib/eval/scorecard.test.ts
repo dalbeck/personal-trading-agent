@@ -333,6 +333,10 @@ describe("decideVerdict", () => {
       deskReturnPct: 0.05,
       benchmarkReturnPct: 0.036,
       excessReturnPct: 0.014,
+      deskMaxDrawdownPct: -0.03,
+      benchmarkMaxDrawdownPct: -0.025,
+      benchmarkVolatility: 0.008,
+      drawdownExcessPct: 0.005, // 0.5pp worse than SPY — within margin
     },
     integrity: {
       ordersBlockedByRules: 1,
@@ -380,6 +384,23 @@ describe("decideVerdict", () => {
     expect(decideVerdict(base).kind).toBe("go-candidate");
   });
 
+  it("is no-go when drawdown is excessively worse than the benchmark", () => {
+    const v = decideVerdict({
+      ...base,
+      benchmark: { ...base.benchmark, drawdownExcessPct: 0.08 }, // 8pp > 5pp margin
+    });
+    expect(v.kind).toBe("no-go");
+    expect(v.reasons.join(" ")).toMatch(/excessive drawdown/);
+  });
+
+  it("ignores the drawdown check when the benchmark drawdown is unknown", () => {
+    const v = decideVerdict({
+      ...base,
+      benchmark: { ...base.benchmark, drawdownExcessPct: null },
+    });
+    expect(v.kind).toBe("go-candidate");
+  });
+
   it("downgrades a clean beat to iterate on a small sample", () => {
     const v = decideVerdict({
       ...base,
@@ -411,13 +432,38 @@ describe("buildScorecard", () => {
       snapshots: [{ account: "paper" } as PortfolioSnapshot],
       runLogs: [runLog("ok")],
       proposalsGenerated: 4,
-      benchmark: { symbol: "SPY", returnPct: 0.036 },
+      benchmark: {
+        symbol: "SPY",
+        returnPct: 0.036,
+        maxDrawdownPct: -0.02,
+        volatility: 0.009,
+      },
     });
     expect(card.benchmark.deskReturnPct).toBeCloseTo(0.05);
     expect(card.benchmark.excessReturnPct).toBeCloseTo(0.014);
+    expect(card.benchmark.benchmarkMaxDrawdownPct).toBeCloseTo(-0.02);
+    expect(card.benchmark.benchmarkVolatility).toBeCloseTo(0.009);
+    // desk curve only rises → 0 drawdown; 0 − 0.02 magnitude = −0.02 (better)
+    expect(card.benchmark.drawdownExcessPct).toBeCloseTo(-0.02);
     expect(card.integrity.passes).toBe(true);
     expect(card.trades.ordersExecuted).toBe(1);
     // small sample (2 points) → not a clean go-candidate
     expect(card.verdict.kind).toBe("iterate");
+  });
+
+  it("leaves benchmark drawdown null when no benchmark series is provided", () => {
+    const card = buildScorecard({
+      equityCurve: curve([
+        ["2026-05-01", 100000],
+        ["2026-06-22", 105000],
+      ]),
+      journal: [],
+      snapshots: [{ account: "paper" } as PortfolioSnapshot],
+      runLogs: [],
+      proposalsGenerated: 0,
+      benchmark: { symbol: "SPY", returnPct: 0.036 },
+    });
+    expect(card.benchmark.benchmarkMaxDrawdownPct).toBeNull();
+    expect(card.benchmark.drawdownExcessPct).toBeNull();
   });
 });

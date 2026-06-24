@@ -154,7 +154,7 @@ export default async function EvaluationPage() {
 
       <Section
         title="1 · Performance vs benchmark"
-        note={`Desk equity curve vs ${benchmark.symbol}. SPY drawdown/volatility need a SPY price series — future enrichment.`}
+        note={`Desk equity curve vs ${benchmark.symbol}. ${benchmark.symbol} drawdown/volatility come from its daily closes (Alpaca data API); a — means the series was unavailable.`}
       >
         <Card>
           <Row
@@ -185,17 +185,43 @@ export default async function EvaluationPage() {
             }
           />
           <Row
-            label="Max drawdown"
-            value={pct(returns.maxDrawdownPct, { signed: false })}
-            tone={returns.maxDrawdownPct ? "loss" : "neutral"}
+            label="Max drawdown — desk"
+            value={pct(benchmark.deskMaxDrawdownPct, { signed: false })}
+            tone={benchmark.deskMaxDrawdownPct ? "loss" : "neutral"}
+          />
+          <Row
+            label={`Max drawdown — ${benchmark.symbol}`}
+            value={pct(benchmark.benchmarkMaxDrawdownPct, { signed: false })}
+            tone={benchmark.benchmarkMaxDrawdownPct ? "loss" : "neutral"}
+          />
+          <Row
+            label="Drawdown vs benchmark"
+            value={
+              benchmark.drawdownExcessPct === null
+                ? DASH
+                : `${benchmark.drawdownExcessPct > 0 ? "+" : ""}${(
+                    benchmark.drawdownExcessPct * 100
+                  ).toFixed(2)}pp`
+            }
+            tone={
+              benchmark.drawdownExcessPct === null
+                ? "neutral"
+                : benchmark.drawdownExcessPct > 0
+                  ? "loss"
+                  : "gain"
+            }
           />
           <Row
             label="Return ÷ max-drawdown"
             value={num(returns.returnOverMaxDd)}
           />
           <Row
-            label="Volatility (per-period stdev)"
+            label="Volatility — desk (per-period stdev)"
             value={pct(returns.volatility, { signed: false })}
+          />
+          <Row
+            label={`Volatility — ${benchmark.symbol}`}
+            value={pct(benchmark.benchmarkVolatility, { signed: false })}
           />
           <Row label="Simple Sharpe (rf=0)" value={num(returns.sharpe)} />
         </Card>
