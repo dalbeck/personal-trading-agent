@@ -22,7 +22,7 @@
 ## Data & backups (three tiers)
 1. **Code + docs + strategy** → private git remote (`origin`).
 2. **Secrets** → never in git; Keychain / 1Password.
-3. **`data/`** (journals, snapshots, chats) → **Cloudflare R2, client-side encrypted via `rclone crypt`**, gitignored. Daily job lives in `scripts/`.
+3. **`data/`** (journals, snapshots, chats) → **Cloudflare R2, client-side encrypted via `rclone crypt`**, gitignored. Daily job lives in `scripts/` (`backup.sh` / `restore.sh`; setup in `scripts/README.md`). The scripts build the rclone config from `.env` env vars at runtime — **no secrets in any rclone config file**; crypt password/salt live in `.env` (`R2_CRYPT_PASSWORD` / `R2_CRYPT_SALT`).
 - Never live-symlink the working tree into Google Drive (it corrupts `.git`). Back up snapshots, not the live tree.
 
 ## Repo layout
