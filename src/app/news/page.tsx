@@ -1,6 +1,8 @@
 import { Card, PageTitle } from "@/components/page-shell";
+import { SampleDataBadge, SampleDataBanner } from "@/components/sample-data-badge";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
+import { anySample } from "@/lib/sample-data";
 import { readMaterialNews } from "@/lib/server/data";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +16,7 @@ export default async function NewsPage() {
         title="News"
         subtitle="Headlines the scout judged material to a current paper holding."
       />
+      <SampleDataBanner show={anySample(items)} />
       {items.length === 0 ? (
         <Card className="border-dashed">
           <p className="text-sm text-fg-muted">
@@ -26,7 +29,10 @@ export default async function NewsPage() {
           {items.map((item) => (
             <Card key={`${item.seenAt}-${item.link}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Badge tone="accent">{item.symbol}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge tone="accent">{item.symbol}</Badge>
+                  {item.sample ? <SampleDataBadge /> : null}
+                </div>
                 <time className="text-xs text-fg-muted" dateTime={item.seenAt}>
                   {formatDateTime(item.seenAt)}
                 </time>

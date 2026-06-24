@@ -5,9 +5,9 @@
   "action": "buy",
   "side": "long",
   "qty": 40,
-  "limitPrice": 41.20,
-  "stopPrice": 37.50,
-  "takeProfit": 52.00,
+  "limitPrice": 41.2,
+  "stopPrice": 37.5,
+  "takeProfit": 52,
   "riskPct": 0.0141,
   "confidence": 0.55,
   "thesis": "Government + commercial AIP bookings accelerating; durable net-dollar retention.",
@@ -17,5 +17,6 @@
     "verdict": "approve",
     "notes": "Valuation rich but risk is well-defined at this stop. Acceptable as a small momentum allocation."
   },
-  "reviewByDate": "2026-06-25"
+  "reviewByDate": "2026-06-25",
+  "sample": true
 }

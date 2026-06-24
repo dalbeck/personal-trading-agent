@@ -81,6 +81,8 @@ export async function buildOpsSteps(id: string): Promise<OpsStep[]> {
       return [script("backup.sh")];
     case "install-routines":
       return [script("install-routines.sh")];
+    case "clear-seed-data":
+      return [script("clear-seed-data.sh")];
     case "kill-switch":
       return [script("kill-switch.sh")];
     case "desk-start":

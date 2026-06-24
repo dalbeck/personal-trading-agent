@@ -5,9 +5,9 @@
   "action": "buy",
   "side": "long",
   "qty": 20,
-  "limitPrice": 245.00,
-  "stopPrice": 215.00,
-  "takeProfit": 320.00,
+  "limitPrice": 245,
+  "stopPrice": 215,
+  "takeProfit": 320,
   "riskPct": 0.0286,
   "confidence": 0.4,
   "thesis": "Crypto-beta proxy on a risk-on rotation.",
@@ -17,5 +17,6 @@
     "verdict": "reject",
     "notes": "Position risk exceeds the per-trade cap and correlation to the book is high. Hard no."
   },
-  "reviewByDate": "2026-06-23"
+  "reviewByDate": "2026-06-23",
+  "sample": true
 }

@@ -82,6 +82,30 @@ Pullback to the rising 50-day held with a higher low; entered a marketable-limit
 above the morning range.
 ```
 
+## Sample-data marker (`sample`)
+
+Seeded/demo records carry **`sample: true`** so the dashboard never shows
+fabricated content as if it were live — a real trust hazard for a trading tool.
+
+- **Where:** a boolean field on the record. JSON records (proposals, news items)
+  use `"sample": true`; markdown records would use `sample: true` in
+  frontmatter. The contracts default it to `false`
+  (`TradeProposalSchema`, `MaterialNewsItemSchema` in `src/lib/schemas.ts`), so
+  **live records written by the routines/scout simply omit it.**
+- **Propagation:** readers return the flag like any other field (it's on the
+  schema). Any view rendering one or more sample records must surface a clear
+  **"Sample data"** indicator — the shared `SampleDataBanner` / `SampleDataBadge`
+  (`src/components/sample-data-badge.tsx`), gated on `anySample()`
+  (`src/lib/sample-data.ts`). News, Proposals, and the Overview "Awaiting review"
+  module already do this.
+- **Clearing:** `scripts/clear-seed-data.sh` removes only sample-flagged files
+  from `data/` (idempotent), leaving live records in place, so the user can get
+  the honest empty states. It's allowlisted in the Operations panel as the
+  confirm-gated `clear-seed-data` action (`src/lib/ops.ts`).
+- The running app reads only from `data/`; the committed fixtures
+  (`src/test/fixtures/`, all `sample: true`) are a test-only data source, wired
+  in via `TRADING_DATA_DIR` — never a live source.
+
 ## Writing
 
 - The engine writes narrative artifacts through `src/lib/server/writers.ts` —

@@ -174,3 +174,21 @@ Cron example (3:10am daily) — use absolute paths and log output:
 
 (launchd is the macOS-native alternative; a `LaunchAgent` calling the same
 command on a `StartCalendarInterval` works identically.)
+
+## Clearing sample/seed data
+
+`clear-seed-data.sh` removes **sample-flagged** seed files from `data/` so the
+dashboard shows its honest empty states instead of demo content. Only files
+explicitly marked sample (`"sample": true` in JSON, `sample: true` in markdown
+frontmatter) are removed; live records — which omit the marker or set it false —
+are left untouched. It is safe and idempotent.
+
+```sh
+scripts/clear-seed-data.sh                 # clear sample-flagged files from data/
+TRADING_DATA_DIR=/path/to/data scripts/clear-seed-data.sh   # target another root
+```
+
+It is allowlisted in the Operations panel as the confirm-gated
+**Clear sample data** action (`clear-seed-data`). See the sample-data marker in
+`.agents/data-format.md` for how records get flagged and which views surface the
+"Sample data" indicator.

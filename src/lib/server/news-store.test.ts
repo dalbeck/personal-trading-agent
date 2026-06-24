@@ -15,6 +15,7 @@ function item(link: string): MaterialNewsItem {
     publishedAt: null,
     reason: "Mentions Microsoft (held: MSFT)",
     seenAt: "2026-06-24T12:00:00-04:00",
+    sample: false,
   };
 }
 

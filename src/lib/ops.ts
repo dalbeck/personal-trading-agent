@@ -23,6 +23,7 @@ export type OpsGroup =
   | "Preflight"
   | "Routines"
   | "Backup"
+  | "Data"
   | "Schedule"
   | "Emergency";
 
@@ -97,6 +98,19 @@ export const OPS_ACTIONS: OpsActionMeta[] = [
     },
   },
   {
+    id: "clear-seed-data",
+    label: "Clear sample data",
+    group: "Data",
+    description:
+      "Remove sample-flagged seed files (proposals, news) from data/ so the dashboard shows its honest empty states. Live records (sample omitted / false) are untouched.",
+    danger: true,
+    confirm: {
+      title: "Clear sample data?",
+      body: "Permanently deletes sample-flagged seed files (proposals, news) from data/. Live records are left untouched. The affected views fall back to their real empty states. Idempotent.",
+      confirmLabel: "Clear sample data",
+    },
+  },
+  {
     id: "install-routines",
     label: "Install routine plists",
     group: "Schedule",
@@ -155,6 +169,7 @@ export const OPS_GROUP_ORDER: OpsGroup[] = [
   "Preflight",
   "Routines",
   "Backup",
+  "Data",
   "Schedule",
   "Emergency",
 ];

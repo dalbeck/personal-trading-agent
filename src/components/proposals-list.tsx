@@ -7,6 +7,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/page-shell";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
+import { SampleDataBadge } from "@/components/sample-data-badge";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { TradeProposal } from "@/lib/types";
 
@@ -99,9 +100,12 @@ export function ProposalsList({
                     {p.qty} @ {formatCurrency(p.limitPrice)} limit
                   </span>
                 </div>
-                <Badge tone={statusTone[status]} dot>
-                  {status.toUpperCase()}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {p.sample ? <SampleDataBadge /> : null}
+                  <Badge tone={statusTone[status]} dot>
+                    {status.toUpperCase()}
+                  </Badge>
+                </div>
               </div>
 
               <p className="mt-3 text-pretty text-sm text-fg">{p.thesis}</p>

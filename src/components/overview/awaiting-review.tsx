@@ -1,5 +1,7 @@
 import { ModuleCard, ModuleEmpty } from "@/components/overview/module-card";
 import { ProposalsList } from "@/components/proposals-list";
+import { SampleDataBanner } from "@/components/sample-data-badge";
+import { anySample } from "@/lib/sample-data";
 import type { TradeProposal } from "@/lib/types";
 
 /**
@@ -40,6 +42,7 @@ export function AwaitingReview({
         />
       ) : (
         <>
+          <SampleDataBanner show={anySample(proposals)} />
           <ProposalsList proposals={proposals} liveEnabled={liveEnabled} />
           {more > 0 ? (
             <p className="mt-3 text-xs text-fg-muted">
