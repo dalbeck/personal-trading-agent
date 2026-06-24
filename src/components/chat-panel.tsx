@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import {
   CHAT_MODELS,
@@ -143,20 +144,19 @@ export function ChatPanel() {
               key={m.id}
               className={m.role === "user" ? "flex justify-end" : "flex"}
             >
-              <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-card px-3.5 py-2.5 text-sm ${
-                  m.role === "user"
-                    ? "bg-surface-overlay text-fg"
-                    : "text-fg"
-                }`}
-              >
-                {m.text ||
-                  (streaming && m.role === "assistant" ? (
+              {m.role === "user" ? (
+                <div className="max-w-[85%] whitespace-pre-wrap rounded-card bg-surface-overlay px-3.5 py-2.5 text-sm text-fg">
+                  {m.text}
+                </div>
+              ) : (
+                <div className="max-w-[85%] rounded-card px-3.5 py-2.5 text-sm text-fg">
+                  {m.text ? (
+                    <Markdown source={m.text} />
+                  ) : streaming ? (
                     <span className="text-fg-muted">Thinking…</span>
-                  ) : (
-                    ""
-                  ))}
-              </div>
+                  ) : null}
+                </div>
+              )}
             </div>
           ))
         )}

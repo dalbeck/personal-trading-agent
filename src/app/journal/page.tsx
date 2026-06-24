@@ -1,3 +1,4 @@
+import { Markdown } from "@/components/markdown";
 import { Card, PageTitle } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
@@ -41,8 +42,11 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
         </time>
       </div>
 
-      <p className="mt-3 text-pretty text-sm text-fg">{entry.thesis}</p>
-      <p className="mt-2 text-pretty text-sm text-fg-muted">{entry.reasoning}</p>
+      <Markdown source={entry.thesis} className="mt-3 text-sm text-fg" />
+      <Markdown
+        source={entry.reasoning}
+        className="mt-2 text-sm [&_p]:text-fg-muted"
+      />
 
       {isTrade && (entry.stopPrice !== null || entry.takeProfit !== null) ? (
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-fg-muted">
