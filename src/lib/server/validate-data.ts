@@ -5,6 +5,7 @@ import {
   CoachingEntrySchema,
   JournalEntrySchema,
   PortfolioSnapshotSchema,
+  ResearchUsageSchema,
   RunLogSchema,
   TradeProposalSchema,
 } from "../schemas";
@@ -36,6 +37,7 @@ const CATEGORIES: Category[] = [
   { subdir: "snapshots", format: "json", schema: PortfolioSnapshotSchema },
   { subdir: "proposals", format: "json", schema: TradeProposalSchema },
   { subdir: "logs", format: "json", schema: RunLogSchema },
+  { subdir: "research", format: "json", schema: ResearchUsageSchema },
 ];
 
 export interface ValidationProblem {

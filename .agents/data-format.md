@@ -28,6 +28,7 @@ and routines must follow this. The runtime contracts live in
 | `data/proposals/` | `.json` | `TradeProposalSchema` |
 | `data/fills/` | `.json` | _(added in Phase 2)_ |
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
+| `data/research/` | `.json` | `ResearchUsageSchema` (per-day metered-API call counter) |
 
 ## Frontmatter conventions
 
