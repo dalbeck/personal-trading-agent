@@ -1,23 +1,7 @@
 import { ModuleCard } from "@/components/overview/module-card";
 import { formatPercent } from "@/lib/format";
-import type { VerdictKind } from "@/lib/eval/scorecard";
+import { verdictStyle } from "@/lib/eval/verdict-style";
 import type { EvalSnapshot } from "@/lib/server/overview";
-
-const verdictStyle: Record<VerdictKind, { label: string; className: string }> = {
-  "go-candidate": {
-    label: "GO candidate",
-    className: "border-gain/40 bg-gain/10 text-gain",
-  },
-  iterate: {
-    label: "Iterate",
-    className: "border-accent/40 bg-accent/10 text-accent",
-  },
-  "no-go": { label: "No-go", className: "border-loss/40 bg-loss/10 text-loss" },
-  incomplete: {
-    label: "Incomplete",
-    className: "border-line bg-surface-overlay text-fg-muted",
-  },
-};
 
 /**
  * Evaluation gate snapshot — the Phase 2 go/no-go gate in miniature: window

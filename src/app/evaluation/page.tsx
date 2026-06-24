@@ -1,7 +1,8 @@
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { formatPercent, toneForValue } from "@/lib/format";
 import { getEvaluationScorecard } from "@/lib/server/eval";
-import type { Scorecard, VerdictKind } from "@/lib/eval/scorecard";
+import { verdictStyle } from "@/lib/eval/verdict-style";
+import type { Scorecard } from "@/lib/eval/scorecard";
 
 export const dynamic = "force-dynamic";
 
@@ -14,28 +15,6 @@ function pct(value: number | null, opts?: { signed?: boolean }): string {
 function num(value: number | null, digits = 2): string {
   return value === null ? DASH : value.toFixed(digits);
 }
-
-const verdictStyle: Record<
-  VerdictKind,
-  { label: string; className: string }
-> = {
-  "go-candidate": {
-    label: "GO candidate",
-    className: "border-gain/40 bg-gain/10 text-gain",
-  },
-  iterate: {
-    label: "Iterate",
-    className: "border-accent/40 bg-accent/10 text-accent",
-  },
-  "no-go": {
-    label: "No-go",
-    className: "border-loss/40 bg-loss/10 text-loss",
-  },
-  incomplete: {
-    label: "Incomplete",
-    className: "border-line bg-surface-overlay text-fg-muted",
-  },
-};
 
 function VerdictBanner({ verdict }: { verdict: Scorecard["verdict"] }) {
   const style = verdictStyle[verdict.kind];
