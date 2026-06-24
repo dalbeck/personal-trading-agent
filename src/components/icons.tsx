@@ -123,6 +123,16 @@ export function ChatIcon(props: IconProps) {
   );
 }
 
+export function EvaluationIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1Z" />
+      <rect x="4" y="5" width="16" height="16" rx="2" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
 export function SunIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

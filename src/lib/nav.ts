@@ -2,6 +2,7 @@ import type { ComponentType, SVGProps } from "react";
 import {
   ChatIcon,
   CoachingIcon,
+  EvaluationIcon,
   JournalIcon,
   LogsIcon,
   NewsIcon,
@@ -33,4 +34,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Chat", href: "/chat", icon: ChatIcon },
   { label: "Routines", href: "/routines", icon: RoutinesIcon },
   { label: "Logs", href: "/logs", icon: LogsIcon },
+  { label: "Evaluation", href: "/evaluation", icon: EvaluationIcon },
 ];
