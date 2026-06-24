@@ -219,6 +219,17 @@ export function formatEtWeekday(iso: string): string {
   return etWeekdayShort(new Date(iso));
 }
 
+/** Full ET date for an instant, e.g. "Thursday, June 25, 2026". */
+export function formatEtDateLong(iso: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: NY_TZ,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
 /** Whether two instants fall on the same ET calendar day. */
 export function sameEtDay(a: string | Date, b: string | Date): boolean {
   return etDateString(new Date(a)) === etDateString(new Date(b));

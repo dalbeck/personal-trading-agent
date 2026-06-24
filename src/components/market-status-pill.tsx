@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   formatCountdown,
   formatCountdownVerbose,
+  formatEtDateLong,
   formatEtTime,
-  formatEtWeekday,
   sameEtDay,
 } from "@/lib/market-status";
 
@@ -98,7 +98,7 @@ export function MarketStatusPill({ initial }: { initial: MarketStatusView }) {
     const time = formatEtTime(status.nextOpen);
     clause = sameDay
       ? `opens ${time}`
-      : `opens ${formatEtWeekday(status.nextOpen)} ${time}`;
+      : `opens ${formatEtDateLong(status.nextOpen)} ${time}`;
   }
 
   const ariaLabel = buildAriaLabel(status, countdownVerbose);
@@ -120,7 +120,7 @@ export function MarketStatusPill({ initial }: { initial: MarketStatusView }) {
       <span
         aria-hidden
         className={`size-1.5 shrink-0 rounded-pill ${
-          status.isOpen ? "bg-gain" : "bg-fg-muted/50"
+          status.isOpen ? "bg-gain" : "bg-loss"
         }`}
       />
       <span aria-hidden className="font-semibold text-fg">
