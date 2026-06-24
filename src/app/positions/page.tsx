@@ -1,12 +1,13 @@
+import { DataSourceNotice } from "@/components/data-source-notice";
 import { PositionsTable } from "@/components/positions-table";
 import { Card, PageTitle } from "@/components/page-shell";
 import { formatCurrency } from "@/lib/format";
-import { readLatestSnapshot } from "@/lib/server/data";
+import { getPaperAccount } from "@/lib/server/account";
 
 export const dynamic = "force-dynamic";
 
 export default async function PositionsPage() {
-  const snap = await readLatestSnapshot("paper");
+  const { snapshot: snap, notice } = await getPaperAccount();
   const positions = snap?.positions ?? [];
   const totalUnrealized = positions.reduce((s, p) => s + p.unrealizedPl, 0);
 
@@ -22,6 +23,8 @@ export default async function PositionsPage() {
             : "Open positions with cost basis and unrealized P&L."
         }
       />
+
+      <DataSourceNotice notice={notice} />
 
       {positions.length === 0 ? (
         <Card className="border-dashed">

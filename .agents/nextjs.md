@@ -25,6 +25,7 @@
 - Client Components only where interactivity or streaming is needed (chat, approvals, live updates).
 - Route handlers / API routes own: file I/O on the repo, Alpaca calls, spawning `claude`/`codex` subprocesses, and streaming their stdout to the browser via SSE.
 - Keep broker / LLM / file logic in a server-side `lib/` layer, not in components.
+- **External API responses are untrusted:** zod-validate them server-side too (see `lib/server/alpaca.ts`). Live data views resolve through a resolver that prefers the live source but **falls back to seed data with a non-blocking notice** when keys are absent or the call fails — the app must always render (`lib/server/account.ts`).
 
 ## UI
 - All visual decisions come from `.agents/design-system.md`. Do not hardcode colors, spacing, radii, or fonts — use the design tokens.
