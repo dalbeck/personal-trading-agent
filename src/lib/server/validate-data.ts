@@ -6,6 +6,7 @@ import {
   JournalEntrySchema,
   NewsFileSchema,
   PortfolioSnapshotSchema,
+  ResearchUsageSchema,
   RunLogSchema,
   TradeProposalSchema,
 } from "../schemas";
@@ -39,6 +40,7 @@ const CATEGORIES: Category[] = [
   { subdir: "logs", format: "json", schema: RunLogSchema },
   // Each news file is an array of material items.
   { subdir: "news", format: "json", schema: NewsFileSchema },
+  { subdir: "research", format: "json", schema: ResearchUsageSchema },
 ];
 
 export interface ValidationProblem {

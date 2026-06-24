@@ -23,6 +23,24 @@ trades. Work entirely from this repo.
    to `TradeProposalSchema` (`src/lib/schemas.ts`), `status: "pending"`. See
    `.agents/data-format.md` for the format.
 
+### Optional research enrichment
+
+If `RESEARCH_PROVIDER=perplexity`, you MAY enrich the **shortlist only** (or
+tickers with earnings soon) with `finance_search` context — this is the **only**
+routine allowed to call it, and only via the endpoint:
+
+```bash
+scripts/run-routine.sh # is for routines; for research, POST to the local server:
+curl -fsS -X POST -H "Authorization: Bearer $ROUTINE_TRIGGER_TOKEN" \
+  -H 'content-type: application/json' -d '{"symbol":"MSFT"}' \
+  http://127.0.0.1:${PORT:-3000}/api/research/finance
+```
+
+The per-day cap is enforced in code (it returns `{"result":null}` once hit).
+Use the returned summary as **context only** — never for pricing. When a
+proposal used this context, add the `research:perplexity` tag to its journal
+entry so we can later assess whether it helped.
+
 ## Rules
 - Respect the charter. If a candidate already breaks a hard rail, don't propose
   it — note why instead. The risk engine and red-team will gate proposals at

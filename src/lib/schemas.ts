@@ -195,6 +195,17 @@ export const RunLogSchema = z
   })
   .strict();
 
+/* --------------------------------------------------------------------------
+ * ResearchUsage — per-day metered-API call counter (data/research/) that
+ * enforces the Perplexity daily cap in code (Phase 2 M8).
+ * ------------------------------------------------------------------------ */
+export const ResearchUsageSchema = z
+  .object({
+    date: isoDate,
+    count: z.number().int().nonnegative(),
+  })
+  .strict();
+
 export const CoachingEntrySchema = z
   .object({
     id: z.string().min(1),
