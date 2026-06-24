@@ -1,0 +1,21 @@
+{
+  "id": "p-002-pltr",
+  "createdAt": "2026-06-23T07:18:00-04:00",
+  "symbol": "PLTR",
+  "action": "buy",
+  "side": "long",
+  "qty": 40,
+  "limitPrice": 41.20,
+  "stopPrice": 37.50,
+  "takeProfit": 52.00,
+  "riskPct": 0.0141,
+  "confidence": 0.55,
+  "thesis": "Government + commercial AIP bookings accelerating; durable net-dollar retention.",
+  "reasoning": "Pullback into the 21-day EMA after a momentum leg; starter position with a defined stop below the swing low.",
+  "status": "pending",
+  "redTeam": {
+    "verdict": "approve",
+    "notes": "Valuation rich but risk is well-defined at this stop. Acceptable as a small momentum allocation."
+  },
+  "reviewByDate": "2026-06-25"
+}

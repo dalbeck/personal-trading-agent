@@ -1,0 +1,21 @@
+{
+  "id": "p-001-googl",
+  "createdAt": "2026-06-23T07:15:00-04:00",
+  "symbol": "GOOGL",
+  "action": "buy",
+  "side": "long",
+  "qty": 12,
+  "limitPrice": 178.50,
+  "stopPrice": 168.00,
+  "takeProfit": 205.00,
+  "riskPct": 0.0120,
+  "confidence": 0.62,
+  "thesis": "Search resilience plus Gemini monetization; re-rating as AI capex translates to cloud margin.",
+  "reasoning": "Tight consolidation above the 50-day; entry on a marketable limit through the range high. Reward/risk ~2.3:1.",
+  "status": "pending",
+  "redTeam": {
+    "verdict": "concern",
+    "notes": "Regulatory headline risk is asymmetric; size at half the model weight until the antitrust remedy is clarified."
+  },
+  "reviewByDate": "2026-06-25"
+}

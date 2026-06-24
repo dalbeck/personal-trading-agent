@@ -1,0 +1,64 @@
+{
+  "account": "paper",
+  "asOf": "2026-06-19T21:00:00-04:00",
+  "currency": "USD",
+  "equity": 105424.95,
+  "cash": 93692.55,
+  "buyingPower": 93692.55,
+  "totalPl": 5424.95,
+  "totalPlPct": 0.0542,
+  "dayPl": 421.30,
+  "dayPlPct": 0.0040,
+  "benchmark": {
+    "symbol": "SPY",
+    "portfolioReturnPct": 0.0542,
+    "benchmarkReturnPct": 0.0388
+  },
+  "positions": [
+    {
+      "symbol": "NVDA",
+      "side": "long",
+      "qty": 18,
+      "avgCost": 118.40,
+      "lastPrice": 132.90,
+      "marketValue": 2392.20,
+      "costBasis": 2131.20,
+      "unrealizedPl": 261.00,
+      "unrealizedPlPct": 0.1225,
+      "stopPrice": 112.50,
+      "openedAt": "2026-05-12"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "long",
+      "qty": 22,
+      "avgCost": 196.10,
+      "lastPrice": 203.10,
+      "marketValue": 4468.20,
+      "costBasis": 4314.20,
+      "unrealizedPl": 154.00,
+      "unrealizedPlPct": 0.0357,
+      "stopPrice": 188.00,
+      "openedAt": "2026-05-28"
+    },
+    {
+      "symbol": "AMD",
+      "side": "long",
+      "qty": 30,
+      "avgCost": 168.20,
+      "lastPrice": 162.40,
+      "marketValue": 4872.00,
+      "costBasis": 5046.00,
+      "unrealizedPl": -174.00,
+      "unrealizedPlPct": -0.0345,
+      "stopPrice": 154.00,
+      "openedAt": "2026-06-09"
+    }
+  ],
+  "equityCurve": [
+    { "date": "2026-05-29", "equity": 103010.00 },
+    { "date": "2026-06-05", "equity": 103880.00 },
+    { "date": "2026-06-12", "equity": 104990.00 },
+    { "date": "2026-06-19", "equity": 105424.95 }
+  ]
+}
