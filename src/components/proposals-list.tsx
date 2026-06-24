@@ -6,6 +6,7 @@ import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/page-shell";
+import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { TradeProposal } from "@/lib/types";
 
@@ -108,19 +109,28 @@ export function ProposalsList({
                 {p.reasoning}
               </p>
 
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-fg-muted">
-                <span>Est. cost {formatCurrency(estCost)}</span>
-                <span>Risk {formatPercent(p.riskPct, { signed: false })}</span>
-                {p.stopPrice !== null ? (
-                  <span>Stop {formatCurrency(p.stopPrice)}</span>
-                ) : null}
-                {p.takeProfit !== null ? (
-                  <span>Target {formatCurrency(p.takeProfit)}</span>
-                ) : null}
-                {p.confidence !== null ? (
-                  <span>Confidence {Math.round(p.confidence * 100)}%</span>
-                ) : null}
+              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm tabular-nums">
+                <span className="text-fg-muted">
+                  Est. cost{" "}
+                  <span className="font-semibold text-fg">
+                    {formatCurrency(estCost)}
+                  </span>
+                </span>
+                <span className="text-fg-muted">
+                  Risk{" "}
+                  <span className="font-semibold text-fg">
+                    {formatPercent(p.riskPct, { signed: false })}
+                  </span>
+                </span>
               </div>
+
+              <RiskRewardBar
+                action={p.action}
+                entry={p.limitPrice}
+                stop={p.stopPrice}
+                target={p.takeProfit}
+                confidence={p.confidence}
+              />
 
               {p.redTeam ? (
                 <div className="mt-3 rounded-card border border-line bg-surface-overlay p-3">
