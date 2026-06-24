@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RISK_LIMITS } from "@strategy/charter.config";
+import { LIVE_LIMITS, RISK_LIMITS } from "@strategy/charter.config";
 
 /**
  * Guards that the machine-readable config stays in lockstep with the numbers
@@ -19,6 +19,16 @@ describe("RISK_LIMITS mirrors strategy/charter.md", () => {
       allowedOrderTypes: ["marketable_limit"],
       allowedAssetClasses: ["equity"],
       excludedSymbols: ["SPY"],
+    });
+  });
+});
+
+describe("LIVE_LIMITS mirrors strategy/charter.md (Phase 3 live pilot caps)", () => {
+  it("matches the charter's live-pilot guardrails", () => {
+    expect(LIVE_LIMITS).toEqual({
+      weeklyFundingCapUsd: 100, // ≤ $100 human deposits / rolling 7 days
+      maxAccountExposureUsd: 500, // hard total live exposure ceiling
+      drawdownKillPct: 0.1, // −10% from the live high-water mark
     });
   });
 });
