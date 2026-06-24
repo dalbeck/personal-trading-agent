@@ -114,3 +114,53 @@
 @utility shadow-overlay {
   box-shadow: var(--overlay-shadow);
 }
+
+/* ---------------------------------------------------------------------------
+   Syntax highlighting (rehype-highlight emits hljs-* classes). Mapped to the
+   design tokens so fenced code in chat/journal/coaching reads correctly in
+   both themes — no third-party highlight.js theme, no hardcoded palette.
+--------------------------------------------------------------------------- */
+@layer base {
+  .hljs {
+    color: var(--color-fg);
+    background: transparent;
+  }
+  .hljs-comment,
+  .hljs-quote {
+    color: var(--color-fg-muted);
+    font-style: italic;
+  }
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-built_in,
+  .hljs-name,
+  .hljs-tag {
+    color: var(--gain);
+  }
+  .hljs-string,
+  .hljs-title,
+  .hljs-section,
+  .hljs-attribute,
+  .hljs-literal,
+  .hljs-template-tag,
+  .hljs-template-variable,
+  .hljs-type,
+  .hljs-addition {
+    color: var(--accent-hover);
+  }
+  .hljs-number,
+  .hljs-symbol,
+  .hljs-bullet,
+  .hljs-link,
+  .hljs-meta,
+  .hljs-selector-id,
+  .hljs-selector-class {
+    color: var(--loss);
+  }
+  .hljs-emphasis {
+    font-style: italic;
+  }
+  .hljs-strong {
+    font-weight: 600;
+  }
+}

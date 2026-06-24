@@ -37,6 +37,13 @@
   - Client components that read DOM/theme state must use `useSyncExternalStore`, **not** `setState` in `useEffect` — Next 16's `react-hooks/set-state-in-effect` rule fails lint otherwise.
 - Accessibility is mandatory: `aria-label` on icon-only buttons, visible focus, `AlertDialog` for destructive/irreversible actions (enabling live trading, approving a live order).
 
+## Markdown rendering (dynamic LLM content)
+- Render **all dynamic / LLM-generated markdown** (chat output, journal theses, coaching notes) through the shared `Markdown` component (`src/components/markdown.tsx`). Never hand-roll a parser and never feed this content to **MDX** — rendering untrusted MDX executes arbitrary JS. MDX is only for trusted, statically-authored docs.
+- The input is **untrusted**. The pipeline order is load-bearing: `remark-gfm` → `rehype-raw` → `rehype-sanitize` (GitHub schema) → `rehype-highlight`. Sanitize runs on the raw-parsed tree so it strips `<script>`/`<iframe>`, `on*` handlers, and `javascript:` URLs; highlight runs *after* sanitize so its `hljs` spans are trusted output and survive. The sanitize schema is extended only to keep `className` on `<code>` (the `language-*` hint highlight needs) — do not widen it further without a recorded reason.
+- Links open via a custom `a` renderer with `target="_blank" rel="noopener noreferrer"`. Tables use `tabular-nums`. Syntax-highlight colors are mapped to design tokens in `globals.css` (`.hljs-*`), not a third-party theme — so code reads correctly in both themes.
+- Streaming is handled implicitly: the chat panel re-renders `Markdown` as tokens arrive; partial/unclosed markdown renders best-effort without crashing.
+- Coverage lives in `src/components/markdown.test.ts` (rendered with `react-dom/server`, no jsdom) — it pins GFM rendering, link safety, and that injection payloads are stripped. Extend it, don't bypass it.
+
 ## Safety in the UI
 - The dashboard surfaces trade approvals; it must **never bypass** the two-gate permission flow for real-money orders (see `.agents/infra.md`).
 - Paper and live account views must be clearly labeled and visually distinct.

@@ -30,3 +30,6 @@ yarn-error.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Playwright MCP scratch output (milestone screenshots, snapshots, console logs)
+.playwright-mcp/
