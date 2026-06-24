@@ -8,6 +8,7 @@ import {
   CoachingEntrySchema,
   JournalEntrySchema,
   PortfolioSnapshotSchema,
+  RunLogSchema,
   TradeProposalSchema,
 } from "@/lib/schemas";
 import type {
@@ -15,6 +16,7 @@ import type {
   CoachingEntry,
   JournalEntry,
   PortfolioSnapshot,
+  RunLog,
   TradeProposal,
 } from "@/lib/types";
 
@@ -187,4 +189,24 @@ export async function readProposals(
 export async function readCoachingLog(): Promise<CoachingEntry[]> {
   const entries = await readMarkdownDir("coaching-log", CoachingEntrySchema);
   return entries.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/* ------------------------------- Run logs ------------------------------ */
+
+/** Routine run logs, newest first. */
+export async function readRunLogs(): Promise<RunLog[]> {
+  const logs = await readJsonDir("logs", RunLogSchema);
+  return logs.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}
+
+/** The most recent run log per routine id (for the Routines status view). */
+export async function readLatestRunByRoutine(): Promise<
+  Record<string, RunLog>
+> {
+  const logs = await readRunLogs(); // newest first
+  const latest: Record<string, RunLog> = {};
+  for (const log of logs) {
+    if (!latest[log.routine]) latest[log.routine] = log;
+  }
+  return latest;
 }

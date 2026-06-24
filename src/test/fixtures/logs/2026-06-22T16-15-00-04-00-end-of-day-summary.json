@@ -1,0 +1,10 @@
+{
+  "routine": "end-of-day-summary",
+  "startedAt": "2026-06-22T16:15:00-04:00",
+  "finishedAt": "2026-06-22T16:15:03-04:00",
+  "status": "ok",
+  "summary": "Wrote snapshot 2026-06-22 and 2 journal entries; day P&L -$612.40.",
+  "proposalsConsidered": 0,
+  "ordersPlaced": 0,
+  "rejections": 0
+}

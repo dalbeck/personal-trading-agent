@@ -4,17 +4,18 @@ import { useState } from "react";
 import { Card } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
-import type { Routine, RunStatus } from "@/lib/routines";
+import type { RoutineRun, RunStatus } from "@/lib/routines";
 
 const statusMeta: Record<RunStatus, { label: string; dot: string; text: string }> =
   {
     ok: { label: "OK", dot: "bg-gain", text: "text-gain" },
     error: { label: "Error", dot: "bg-loss", text: "text-loss" },
     skipped: { label: "Skipped", dot: "bg-fg-muted/60", text: "text-fg-muted" },
+    locked: { label: "Locked", dot: "bg-fg-muted/60", text: "text-fg-muted" },
     never: { label: "Never run", dot: "bg-fg-muted/40", text: "text-fg-muted" },
   };
 
-export function RoutinesList({ routines }: { routines: Routine[] }) {
+export function RoutinesList({ routines }: { routines: RoutineRun[] }) {
   const [ran, setRan] = useState<string | null>(null);
 
   return (
@@ -54,7 +55,9 @@ export function RoutinesList({ routines }: { routines: Routine[] }) {
                 </Button>
                 {ran === r.id ? (
                   <span role="status" className="text-xs text-fg-muted">
-                    Stubbed — runs via launchd in Phase 2.
+                    Runs on its launchd schedule; trigger manually with
+                    {" "}
+                    <code>scripts/run-routine.sh {r.id}</code>.
                   </span>
                 ) : null}
               </div>

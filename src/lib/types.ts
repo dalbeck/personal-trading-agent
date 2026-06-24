@@ -9,6 +9,7 @@ import type {
   PositionSchema,
   RedTeamVerdictSchema,
   RejectionJournalEntrySchema,
+  RunLogSchema,
   TradeJournalEntrySchema,
   TradeProposalSchema,
 } from "./schemas";
@@ -32,3 +33,5 @@ export type RedTeamVerdict = z.infer<typeof RedTeamVerdictSchema>;
 export type TradeProposal = z.infer<typeof TradeProposalSchema>;
 
 export type CoachingEntry = z.infer<typeof CoachingEntrySchema>;
+
+export type RunLog = z.infer<typeof RunLogSchema>;

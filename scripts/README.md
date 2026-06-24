@@ -1,7 +1,33 @@
 # Scripts
 
-Helper scripts for the trading agent. Git operations aside, the backup scripts
-are the main thing here.
+Helper scripts for the trading agent: the **scheduled routines** (launchd) and
+the encrypted `data/` backups.
+
+## Scheduled routines (launchd)
+
+The five routines (see `routines/`) run on a schedule. A launchd job per routine
+runs `run-routine.sh <id>`, which POSTs to `http://127.0.0.1:$PORT/api/routines/<id>`
+on the always-on dashboard server. The endpoint runs the routine under a
+single-instance **lockfile** and writes a structured run log to `data/logs/`
+(surfaced on the Routines + Logs views).
+
+- `run-routine.sh <id>` — trigger one routine (used by launchd; also for manual
+  runs). Sources `.env` for `PORT` / `ROUTINE_TRIGGER_TOKEN`.
+- `install-routines.sh` — generate the five plists into `~/Library/LaunchAgents`
+  with this repo's path + the ET cadence. **It does not load them** — you load
+  them deliberately once Alpaca paper keys are set and the charter is reviewed.
+
+```bash
+scripts/install-routines.sh                 # writes plists (not loaded)
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.tradingdesk.pre-market-research.plist
+scripts/run-routine.sh market-open-execution  # run one now, manually
+```
+
+**Safety:** the trigger endpoint places paper orders. Set `ROUTINE_TRIGGER_TOKEN`
+in `.env` so only the runner (which sends the bearer token) can fire it. Never
+expose the dashboard server publicly. **Execution is code-gated** — every
+proposal clears the risk rails and the red-team before Alpaca paper is called;
+the LLM proposes but never executes.
 
 ## Encrypted `data/` backups → Cloudflare R2
 

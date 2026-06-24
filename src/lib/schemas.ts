@@ -152,6 +152,31 @@ export const TradeProposalSchema = z
 /* --------------------------------------------------------------------------
  * CoachingEntry — self-graded review vs. actual prices (coaching-log).
  * ------------------------------------------------------------------------ */
+/* --------------------------------------------------------------------------
+ * RunLog — one structured record per routine run (data/logs/). Drives the
+ * Routines + Logs dashboard views and the dead-man switch.
+ * ------------------------------------------------------------------------ */
+export const ROUTINE_IDS = [
+  "pre-market-research",
+  "market-open-execution",
+  "midday-scan",
+  "end-of-day-summary",
+  "weekly-review",
+] as const;
+
+export const RunLogSchema = z
+  .object({
+    routine: z.enum(ROUTINE_IDS),
+    startedAt: isoDateTime,
+    finishedAt: isoDateTime,
+    status: z.enum(["ok", "error", "skipped", "locked"]),
+    summary: z.string().min(1),
+    proposalsConsidered: z.number().int().nonnegative().default(0),
+    ordersPlaced: z.number().int().nonnegative().default(0),
+    rejections: z.number().int().nonnegative().default(0),
+  })
+  .strict();
+
 export const CoachingEntrySchema = z
   .object({
     id: z.string().min(1),

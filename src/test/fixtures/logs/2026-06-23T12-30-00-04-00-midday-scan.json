@@ -1,0 +1,10 @@
+{
+  "routine": "midday-scan",
+  "startedAt": "2026-06-23T12:30:00-04:00",
+  "finishedAt": "2026-06-23T12:30:04-04:00",
+  "status": "skipped",
+  "summary": "Market data feed returned stale quotes; no actions taken.",
+  "proposalsConsidered": 0,
+  "ordersPlaced": 0,
+  "rejections": 0
+}
