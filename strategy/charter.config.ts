@@ -28,3 +28,29 @@ export const RISK_LIMITS: RiskLimits = {
   // SPY is the benchmark, never a holding.
   excludedSymbols: ["SPY"],
 };
+
+/**
+ * Phase 3 **live-pilot** caps — additional, live-only guardrails layered on top
+ * of RISK_LIMITS for the funded Robinhood account. Mirror of the "Live pilot
+ * caps" section in `strategy/charter.md`; keep in lockstep (the tripwire test
+ * `charter-config.test.ts` enforces it). These bound the controlled live pilot;
+ * the agent can never raise them.
+ */
+export interface LiveLimits {
+  /** Max human deposits into the live account per rolling 7 days (USD). */
+  weeklyFundingCapUsd: number;
+  /** Hard ceiling on total live exposure across all positions (USD). */
+  maxAccountExposureUsd: number;
+  /** Drawdown from the live high-water mark that trips the kill switch
+   *  (halt new risk + disconnect + alert). Fraction: 0.10 === −10%. */
+  drawdownKillPct: number;
+}
+
+export const LIVE_LIMITS: LiveLimits = {
+  // Smallest viable pilot: ~$100/week funding cap.
+  weeklyFundingCapUsd: 100,
+  // Hard account-level exposure ceiling for the capped pilot.
+  maxAccountExposureUsd: 500,
+  // Kill switch at −10% from the live high-water mark.
+  drawdownKillPct: 0.1,
+};

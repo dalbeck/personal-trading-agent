@@ -9,6 +9,8 @@ import {
 } from "@/lib/format";
 import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
 import { getLiveTradingStatus } from "@/lib/server/gate";
+import { liveDrawdown } from "@/lib/server/live-guards";
+import { LIVE_LIMITS } from "@strategy/charter.config";
 
 // Reads live paper data / mutable local files; never cache at build time.
 export const dynamic = "force-dynamic";
@@ -17,6 +19,20 @@ export default async function OverviewPage() {
   const { snapshot: snap, source, notice } = await getPaperAccount();
   const live = await getLiveAccount();
   const gate = await getLiveTradingStatus();
+
+  // Live pilot caps (M4) for the LIVE panel — configured limits, with current
+  // exposure/drawdown when a real live snapshot is present.
+  const dd = live.snapshot ? liveDrawdown(live.snapshot) : null;
+  const liveCaps = {
+    weeklyFundingCapUsd: LIVE_LIMITS.weeklyFundingCapUsd,
+    maxAccountExposureUsd: LIVE_LIMITS.maxAccountExposureUsd,
+    drawdownKillPct: LIVE_LIMITS.drawdownKillPct,
+    exposureUsd: live.snapshot
+      ? live.snapshot.positions.reduce((s, p) => s + Math.max(0, p.marketValue), 0)
+      : null,
+    drawdownPct: dd ? dd.drawdownPct : null,
+    killBreached: dd ? dd.breached : false,
+  };
 
   if (!snap) {
     return (
@@ -205,6 +221,33 @@ export default async function OverviewPage() {
             ) : null}
           </dl>
 
+          <dl className="mb-3 grid grid-cols-1 gap-1.5 rounded-card border border-line bg-surface p-3 text-xs">
+            <div className="mb-0.5 font-semibold uppercase tracking-wide text-fg-muted">
+              Live pilot caps
+            </div>
+            <CapRow
+              label="Weekly funding cap"
+              value={formatCurrency(liveCaps.weeklyFundingCapUsd)}
+            />
+            <CapRow
+              label="Account exposure ceiling"
+              value={
+                liveCaps.exposureUsd !== null
+                  ? `${formatCurrency(liveCaps.exposureUsd)} / ${formatCurrency(liveCaps.maxAccountExposureUsd)}`
+                  : formatCurrency(liveCaps.maxAccountExposureUsd)
+              }
+            />
+            <CapRow
+              label="Drawdown kill switch"
+              value={
+                liveCaps.drawdownPct !== null
+                  ? `${formatPercent(-liveCaps.drawdownPct)} · trips at −${(liveCaps.drawdownKillPct * 100).toFixed(0)}%`
+                  : `−${(liveCaps.drawdownKillPct * 100).toFixed(0)}% from high-water`
+              }
+              tone={liveCaps.killBreached ? "loss" : "muted"}
+            />
+          </dl>
+
           {live.snapshot ? (
             <>
               {live.notice ? (
@@ -272,6 +315,30 @@ function GateRow({
       <span className="ml-auto text-right text-fg-muted">
         {open ? "open" : "closed"}
         <span className="sr-only"> — {hint}</span>
+      </span>
+    </div>
+  );
+}
+
+/** One row of the live pilot caps: a labelled, right-aligned value. */
+function CapRow({
+  label,
+  value,
+  tone = "muted",
+}: {
+  label: string;
+  value: string;
+  tone?: "muted" | "loss";
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-fg-muted">{label}</span>
+      <span
+        className={`ml-auto text-right tabular-nums ${
+          tone === "loss" ? "font-semibold text-loss" : "text-fg"
+        }`}
+      >
+        {value}
       </span>
     </div>
   );

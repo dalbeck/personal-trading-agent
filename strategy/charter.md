@@ -35,6 +35,22 @@ cannot override them.
 - **Stop on every swing:** every entry carries a predefined protective stop
   (e.g. **−8%** or an ATR-based level), set at decision time.
 
+## Live pilot caps (Phase 3 — real money)
+
+Additional, **live-only** guardrails for the funded Robinhood Agentic account,
+on top of the risk rails above. They bound the controlled live pilot and are
+enforced in code (`lib/server/live-guards.ts`, mirrored in `charter.config.ts`).
+The agent can never raise them; both gates plus per-trade approval still apply.
+
+- **Weekly funding cap:** at most **$100** of human deposits into the live
+  account per rolling 7 days. The agent never funds — this guards the human's
+  own deposits and is surfaced on the dashboard.
+- **Account exposure ceiling:** at most **$500** of total live exposure across
+  all positions. An order that would breach it is **rejected and journaled**.
+- **Live drawdown kill switch:** at a **−10%** drawdown from the live
+  high-water mark, halt all new risk (latch live OFF via disconnect) and fire a
+  phone/dead-man alert. Re-arming is a deliberate human act.
+
 ## Execution quality
 
 - **Marketable-limit orders only.** Never a naked market order, and never a
@@ -59,6 +75,12 @@ cannot override them.
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-06-24** — Added the **Live pilot caps (Phase 3)** section: a **$100**
+  weekly funding cap, a **$500** account exposure ceiling, and a **−10%** live
+  drawdown kill switch. These are live-only guardrails for the funded Robinhood
+  account, mirrored in `charter.config.ts` (`LIVE_LIMITS`) and enforced in
+  `lib/server/live-guards.ts`. Paper rails unchanged. Rationale: bound the
+  controlled live pilot in code before any real-money milestone (M5) is gated in.
 - **2026-06-24** — Aligned the risk rails to the Phase 2 build spec (the binding
   source): per-position size cap 15% → **20%**, daily order cap 5 → **6**,
   drawdown halt −8% peak-to-trough → **−10% from the high-water mark**. Added

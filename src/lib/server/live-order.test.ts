@@ -202,6 +202,31 @@ describe("per-trade approval", () => {
     expect(res.brokerOrderId).toBeUndefined();
   });
 
+  it("enforces the live caps on the live path and blocks an over-exposed order", async () => {
+    const gate = await openGate();
+    let reachedBroker = false;
+    const res = await submitTradeApproval(
+      {
+        // 100 @ $50 = $5,000 — far over the $500 account exposure ceiling.
+        order: { ...ORDER, qty: 100, limitPrice: 50, riskPct: 0.01 },
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      {
+        ...gate,
+        snapshot: null, // skip the paper risk recheck; isolate the live caps
+        liveSnapshot: null, // unfunded live account → funded capital 0
+        placeLive: async () => {
+          reachedBroker = true;
+          return { destination: "robinhood", brokerOrderId: "rh-x" };
+        },
+      },
+    );
+    expect(res.outcome).toBe("blocked-caps");
+    expect(reachedBroker).toBe(false); // never reached the broker
+  });
+
   it("surfaces a broker rejection as a clean error, not a crash", async () => {
     const gate = await closedGate();
     const res = await submitTradeApproval(
@@ -237,6 +262,21 @@ describe("per-trade approval", () => {
       {
         ...gate,
         snapshot: null,
+        // A funded live account that clears the M4 exposure / funded caps.
+        liveSnapshot: {
+          account: "live",
+          asOf: "2026-06-24T10:00:00-04:00",
+          currency: "USD",
+          equity: 500,
+          cash: 500,
+          buyingPower: 500,
+          totalPl: 0,
+          totalPlPct: 0,
+          dayPl: 0,
+          dayPlPct: 0,
+          positions: [],
+          equityCurve: [],
+        },
         placeLive: async () => ({
           destination: "robinhood",
           brokerOrderId: "rh-99",

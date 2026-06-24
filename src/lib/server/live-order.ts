@@ -10,6 +10,10 @@ import {
   LIVE_ORDER_TOOLS,
 } from "./gate";
 import {
+  evaluateLiveCaps,
+  liveCapContextFromSnapshot,
+} from "./live-guards";
+import {
   recordRejection,
   recordRiskRejection,
   recordTradeDecision,
@@ -145,6 +149,7 @@ export type ApprovalOutcome =
   | "approved"
   | "denied"
   | "blocked-risk"
+  | "blocked-caps"
   | "blocked-redteam"
   | "error";
 
@@ -171,6 +176,8 @@ export interface ApprovalInput {
 export interface ApprovalOpts extends RouteOpts {
   /** Risk-recheck context source; defaults to the latest paper snapshot. */
   snapshot?: PortfolioSnapshot | null;
+  /** Live-cap context source; defaults to the latest live snapshot. */
+  liveSnapshot?: PortfolioSnapshot | null;
 }
 
 function toProposedOrder(o: ApprovalOrder): ProposedOrder {
@@ -267,10 +274,34 @@ export async function submitTradeApproval(
     }
   }
 
+  // Live-only caps (M4): when this order will actually go live, enforce the
+  // account exposure ceiling + funded-capital guard against the live account.
+  const status = await getLiveTradingStatus(gateOpts(opts));
+  if (status.liveEnabled) {
+    const liveSnap =
+      opts.liveSnapshot !== undefined
+        ? opts.liveSnapshot
+        : await readLatestSnapshot("live");
+    const caps = evaluateLiveCaps(
+      proposed,
+      liveCapContextFromSnapshot(
+        liveSnap,
+        Number(process.env.LIVE_FUNDED_CAPITAL_USD ?? 0),
+      ),
+    );
+    if (!caps.ok) {
+      const { id } = await recordRiskRejection(
+        { ...journalMeta, proposedAction: order.action },
+        caps,
+        { dataDir: opts.dataDir },
+      );
+      return { outcome: "blocked-caps", journalId: id, dryRun: false };
+    }
+  }
+
   // Approved + passed the rails → route through the gate to its destination.
   // A broker rejection (e.g. the sink can't fill the order) must not crash the
   // caller: surface it as a clean `error` outcome with nothing journaled.
-  const status = await getLiveTradingStatus(gateOpts(opts));
   let placed: PlacedAt & { dryRun: boolean };
   try {
     placed = await routeApprovedOrder(proposed, opts);

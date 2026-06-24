@@ -10,6 +10,7 @@ import {
   hasRobinhoodConnection,
   type PortfolioFetcher,
 } from "@/lib/server/robinhood";
+import { enforceLiveDrawdownKill } from "@/lib/server/live-guards";
 import { recordSnapshot } from "@/lib/server/writers";
 import type { PortfolioSnapshot } from "@/lib/types";
 
@@ -95,7 +96,16 @@ export async function getLiveAccount(opts?: {
     await recordSnapshot(snapshot, { dataDir: opts?.dataDir }).catch(() => {
       /* persistence is best-effort; never sink the live read on a write error */
     });
-    return { snapshot, source: "robinhood", connected: true, notice: null };
+    // Live drawdown kill switch (M4): a fresh live read past the threshold
+    // latches live OFF and alerts. Fail-soft — never sink the read.
+    const kill = await enforceLiveDrawdownKill(snapshot, {
+      dataDir: opts?.dataDir,
+    }).catch(() => null);
+    const notice =
+      kill?.halted
+        ? `Live drawdown −${(kill.drawdownPct * 100).toFixed(1)}% tripped the kill switch — live trading halted.`
+        : null;
+    return { snapshot, source: "robinhood", connected: true, notice };
   } catch (err) {
     const snapshot = await readLatestSnapshot("live");
     return {
