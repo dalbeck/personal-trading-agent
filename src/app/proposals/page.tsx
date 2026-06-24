@@ -1,5 +1,7 @@
 import { ProposalsList } from "@/components/proposals-list";
 import { Card, PageTitle } from "@/components/page-shell";
+import { SampleDataBanner } from "@/components/sample-data-badge";
+import { anySample } from "@/lib/sample-data";
 import { readProposals } from "@/lib/server/data";
 import { getLiveTradingStatus } from "@/lib/server/gate";
 
@@ -20,6 +22,7 @@ export default async function ProposalsPage() {
             : "approvals route to the dry-run sink (paper / mock)"
         }`}
       />
+      <SampleDataBanner show={anySample(proposals)} />
       {proposals.length === 0 ? (
         <Card className="border-dashed">
           <p className="text-sm text-fg-muted">No proposals.</p>

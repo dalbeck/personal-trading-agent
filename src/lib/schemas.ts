@@ -146,6 +146,10 @@ export const TradeProposalSchema = z
     status: z.enum(["pending", "approved", "rejected"]).default("pending"),
     redTeam: RedTeamVerdictSchema.nullable().default(null),
     reviewByDate: isoDate.nullable().default(null),
+    // Seeded/demo content. Live records written by the routines/scout omit this
+    // (or set it false). Any view rendering a sample record flags it so demo
+    // data is never shown as if it were live. See `.agents/data-format.md`.
+    sample: z.boolean().default(false),
   })
   .strict();
 
@@ -162,6 +166,9 @@ export const MaterialNewsItemSchema = z
     publishedAt: z.string().nullable().default(null), // raw RFC-822 from RSS
     reason: z.string().min(1),
     seenAt: isoDateTime, // when the scout caught it
+    // Seeded/demo content (see `TradeProposalSchema.sample`). Live scout output
+    // omits this; the News view flags any file containing sample items.
+    sample: z.boolean().default(false),
   })
   .strict();
 

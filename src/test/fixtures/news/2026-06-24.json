@@ -6,7 +6,8 @@
     "source": "MarketWatch",
     "publishedAt": "Wed, 24 Jun 2026 12:10:00 GMT",
     "reason": "Mentions Microsoft (held: MSFT)",
-    "seenAt": "2026-06-24T08:12:00-04:00"
+    "seenAt": "2026-06-24T08:12:00-04:00",
+    "sample": true
   },
   {
     "symbol": "AMD",
@@ -15,6 +16,7 @@
     "source": "CNBC",
     "publishedAt": "Wed, 24 Jun 2026 11:45:00 GMT",
     "reason": "Mentions AMD (held: AMD)",
-    "seenAt": "2026-06-24T08:12:00-04:00"
+    "seenAt": "2026-06-24T08:12:00-04:00",
+    "sample": true
   }
 ]

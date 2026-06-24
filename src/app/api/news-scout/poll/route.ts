@@ -61,6 +61,7 @@ export async function POST(req: Request): Promise<Response> {
     publishedAt: m.headline.publishedAt,
     reason: m.reason,
     seenAt,
+    sample: false, // live scout output — never flagged as sample data
   }));
 
   const added = await recordNewsItems(items);
