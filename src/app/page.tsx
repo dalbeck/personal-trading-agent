@@ -1,4 +1,5 @@
 import { EquityCurve } from "@/components/charts/equity-curve";
+import { DataSourceNotice } from "@/components/data-source-notice";
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -6,13 +7,13 @@ import {
   formatPercent,
   toneForValue,
 } from "@/lib/format";
-import { readLatestSnapshot } from "@/lib/server/data";
+import { getPaperAccount } from "@/lib/server/account";
 
-// Reads mutable local files; never cache at build time.
+// Reads live paper data / mutable local files; never cache at build time.
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
-  const snap = await readLatestSnapshot("paper");
+  const { snapshot: snap, source, notice } = await getPaperAccount();
 
   if (!snap) {
     return (
@@ -37,6 +38,8 @@ export default async function OverviewPage() {
         title="Overview"
         subtitle="Paper account snapshot, equity curve, and benchmark."
       />
+
+      <DataSourceNotice notice={notice} />
 
       <section
         aria-label="Account summary"
@@ -140,6 +143,9 @@ export default async function OverviewPage() {
               PAPER
             </Badge>
             <h2 className="text-sm font-semibold text-fg">Paper account</h2>
+            <span className="ml-auto text-xs text-fg-muted">
+              {source === "alpaca" ? "Live · Alpaca" : "Sample data"}
+            </span>
           </div>
           <dl className="grid grid-cols-2 gap-y-2 text-sm">
             <dt className="text-fg-muted">Equity</dt>
