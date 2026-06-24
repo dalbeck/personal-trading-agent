@@ -41,8 +41,18 @@ Derived from the Robinhood UI design skill (`ihlamury/design-skills`), with its 
 | gain | #00C805 | #00A301 |
 | loss | #FF5000 | #E03A00 |
 
-- Accent (lime) = primary actions, links, and focus **only** — never a surface. (The source skill mislabeled it as a card surface; do not repeat that.)
+- Accent (lime) = primary actions, links, and focus **only** — never a surface, and **never to convey status** (see below). (The source skill mislabeled it as a card surface; do not repeat that.)
 - Maintain ≥4.5:1 text contrast in both themes.
+
+### Status & verdict colors
+- **Never use the lime accent for status** — it's the brand/action color and reads as low-contrast mush on light tints. Status uses **semantic** tones, with the darker stop for text on a light tint (≥4.5:1).
+- **Evaluation verdict:** Go-candidate → success (green), Iterate → warning (amber), No-go → danger (red), Incomplete → neutral/muted. Render as readable text on a light tint of the same hue — never accent-on-accent.
+- Reuse these semantic tones consistently for any pass / warn / fail state.
+
+### Confidence & model self-ratings
+- Display model confidence as a **labeled scale** (Low / Moderate / High) plus the number, with a clear **segmented** meter — not a thin unlabeled bar that gets lost.
+- Keep the meter color **neutral/informational**, NOT gain/loss green-red: high confidence on a bad trade is still a bad trade, so don't imply "good."
+- Always frame it as **model self-rated and uncalibrated** (e.g. a tooltip): one input alongside the risk rails and red-team, not a probability.
 
 ## Components
 - Buttons: primary = accent fill with black text, hover lightens toward `#C3FE09`; secondary = subtle 1px border; ghost = transparent. Disabled = `opacity: 0.5`, `cursor: not-allowed`.
