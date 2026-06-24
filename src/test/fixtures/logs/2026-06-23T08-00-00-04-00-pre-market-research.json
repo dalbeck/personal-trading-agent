@@ -1,0 +1,10 @@
+{
+  "routine": "pre-market-research",
+  "startedAt": "2026-06-23T08:00:00-04:00",
+  "finishedAt": "2026-06-23T08:00:09-04:00",
+  "status": "ok",
+  "summary": "Generated 4 candidate ideas; 1 rejected by the volatility filter (SMCI).",
+  "proposalsConsidered": 4,
+  "ordersPlaced": 0,
+  "rejections": 1
+}

@@ -9,6 +9,8 @@ import {
   recordCoaching,
   recordRejection,
   recordRiskRejection,
+  recordRunLog,
+  recordSnapshot,
   recordTradeDecision,
 } from "./writers";
 
@@ -147,6 +149,52 @@ describe("recordCoaching", () => {
     const { data, body } = parseFrontmatter(await readFile(file, "utf8"));
     expect(data).toMatchObject({ grade: "B", promotedToPlaybook: false });
     expect(body).toContain("**Lesson.**");
+  });
+});
+
+describe("recordRunLog", () => {
+  it("writes a schema-valid run log", async () => {
+    const dir = await tmpData();
+    const { file } = await recordRunLog(
+      {
+        routine: "market-open-execution",
+        startedAt: "2026-06-24T09:35:00-04:00",
+        finishedAt: "2026-06-24T09:35:42-04:00",
+        status: "ok",
+        summary: "Placed 1 order, rejected 1.",
+        proposalsConsidered: 2,
+        ordersPlaced: 1,
+        rejections: 1,
+      },
+      { dataDir: dir },
+    );
+    expect(file).toMatch(/logs\/.*market-open-execution\.json$/);
+    expect(await validateDataDir(dir)).toEqual([]);
+  });
+});
+
+describe("recordSnapshot", () => {
+  it("writes a schema-valid snapshot named by date", async () => {
+    const dir = await tmpData();
+    const { file } = await recordSnapshot(
+      {
+        account: "paper",
+        asOf: "2026-06-24T16:15:00-04:00",
+        currency: "USD",
+        equity: 100_000,
+        cash: 50_000,
+        buyingPower: 100_000,
+        totalPl: 0,
+        totalPlPct: 0,
+        dayPl: 0,
+        dayPlPct: 0,
+        positions: [],
+        equityCurve: [],
+      },
+      { dataDir: dir },
+    );
+    expect(file).toMatch(/snapshots\/2026-06-24\.json$/);
+    expect(await validateDataDir(dir)).toEqual([]);
   });
 });
 

@@ -5,6 +5,7 @@ import {
   CoachingEntrySchema,
   JournalEntrySchema,
   PortfolioSnapshotSchema,
+  RunLogSchema,
   TradeProposalSchema,
 } from "../schemas";
 import { parseFrontmatter } from "./frontmatter";
@@ -34,6 +35,7 @@ const CATEGORIES: Category[] = [
   // Structured → JSON.
   { subdir: "snapshots", format: "json", schema: PortfolioSnapshotSchema },
   { subdir: "proposals", format: "json", schema: TradeProposalSchema },
+  { subdir: "logs", format: "json", schema: RunLogSchema },
 ];
 
 export interface ValidationProblem {

@@ -4,6 +4,7 @@
 - Runs **natively on macOS**. No Docker, no DDEV. The dashboard backend must reach the host-authenticated `claude` and `codex` CLIs and the local filesystem directly — a container boundary would break that.
 - Keep long-running processes alive with **pm2** or **launchd**, not a container.
 - The dashboard is a **local** app (localhost). Never expose it publicly — it can read all accounts and (eventually) place trades.
+- **Scheduled routines:** one launchd job per routine runs `scripts/run-routine.sh <id>`, which POSTs to `/api/routines/<id>` on the always-on dashboard server (the server runtime owns the lockfile, the code-gated execution pipeline, Alpaca paper, and the `codex` red-team). The endpoint runs under a single-instance lockfile and writes a `RunLog` to `data/logs/`. The trigger endpoint places paper orders, so it's gated by `ROUTINE_TRIGGER_TOKEN` (bearer) and must stay localhost-only. `scripts/install-routines.sh` writes the plists but never loads them — loading is a deliberate human act. **Execution is code-gated: every order clears the risk rails + red-team before Alpaca; the LLM proposes, it never executes.**
 
 ## LLM runtime
 - Agents run as **Claude Code (Max plan)** and **Codex CLI (Codex Pro)**, used as harnesses and invoked as subprocesses (`claude -p`, `codex exec`).

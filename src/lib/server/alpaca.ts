@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import type { ProposedOrder } from "@/lib/risk";
 import { PortfolioSnapshotSchema } from "@/lib/schemas";
 import type { PortfolioSnapshot, Position } from "@/lib/types";
 
@@ -173,4 +174,65 @@ export async function getAlpacaPaperSnapshot(): Promise<PortfolioSnapshot> {
   // History is best-effort; a failure shouldn't sink the whole snapshot.
   const history = await getAlpacaHistory().catch(() => null);
   return buildSnapshot({ account, positions, history });
+}
+
+/* ----------------------------- Order placement ----------------------------- */
+
+const OrderResponseSchema = z.object({
+  id: z.string(),
+  status: z.string().default("accepted"),
+});
+
+export interface PlacedOrder {
+  brokerOrderId: string;
+  status: string;
+}
+
+/**
+ * Place a single **paper** order on Alpaca. Marketable-limit only (charter); a
+ * protective stop is attached as a bracket order. `fetchImpl` is injectable so
+ * the execution pipeline can be tested without the network. This is the ONLY
+ * order-placement path and it targets the paper endpoint — never live.
+ */
+export async function placePaperOrder(
+  order: ProposedOrder,
+  opts?: { fetchImpl?: typeof fetch },
+): Promise<PlacedOrder> {
+  const doFetch = opts?.fetchImpl ?? fetch;
+
+  const body: Record<string, unknown> = {
+    symbol: order.symbol,
+    qty: order.qty,
+    side: order.action, // "buy" | "sell"
+    type: "limit", // marketable-limit: a limit priced to fill now
+    time_in_force: "day",
+    limit_price: order.limitPrice,
+  };
+  // Attach the protective stop as a bracket on entries that carry one.
+  if (order.action === "buy" && order.stopPrice !== null) {
+    body.order_class = "bracket";
+    body.stop_loss = { stop_price: order.stopPrice };
+  }
+
+  const res = await doFetch(`${BASE_URL}/v2/orders`, {
+    method: "POST",
+    headers: {
+      "APCA-API-KEY-ID": KEY_ID,
+      "APCA-API-SECRET-KEY": SECRET,
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `Alpaca order rejected → ${res.status} ${res.statusText} ${detail.slice(0, 200)}`,
+    );
+  }
+
+  const parsed = OrderResponseSchema.parse(await res.json());
+  return { brokerOrderId: parsed.id, status: parsed.status };
 }

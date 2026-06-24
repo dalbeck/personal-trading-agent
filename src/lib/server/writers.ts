@@ -13,7 +13,10 @@ import type { RiskDecision } from "@/lib/risk";
 import {
   CoachingEntrySchema,
   JournalEntrySchema,
+  PortfolioSnapshotSchema,
+  RunLogSchema,
 } from "@/lib/schemas";
+import type { PortfolioSnapshot, RunLog } from "@/lib/types";
 import type { z } from "zod";
 import { readStrategyDoc, writeStrategyDoc } from "./strategy";
 import { stringifyFrontmatter } from "./frontmatter";
@@ -49,12 +52,16 @@ async function exists(p: string): Promise<boolean> {
   }
 }
 
-/** Resolve a non-colliding `<base>.md` path, appending -2, -3, … if needed. */
-async function uniquePath(dir: string, base: string): Promise<string> {
-  let candidate = path.join(dir, `${base}.md`);
+/** Resolve a non-colliding `<base><ext>` path, appending -2, -3, … if needed. */
+async function uniquePath(
+  dir: string,
+  base: string,
+  ext = ".md",
+): Promise<string> {
+  let candidate = path.join(dir, `${base}${ext}`);
   let n = 2;
   while (await exists(candidate)) {
-    candidate = path.join(dir, `${base}-${n}.md`);
+    candidate = path.join(dir, `${base}-${n}${ext}`);
     n += 1;
   }
   return candidate;
@@ -78,6 +85,26 @@ async function writeNarrative<S extends z.ZodType>(
   }
   await mkdir(path.dirname(absPath), { recursive: true });
   await writeFile(absPath, stringifyFrontmatter(frontmatter, body), "utf8");
+}
+
+/** Validate a structured record and write it as pretty JSON. */
+async function writeStructured<S extends z.ZodType>(
+  absPath: string,
+  schema: S,
+  record: unknown,
+): Promise<z.infer<S>> {
+  const parsed = schema.safeParse(record);
+  if (!parsed.success) {
+    const detail = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ");
+    throw new Error(
+      `Refusing to write invalid artifact ${path.basename(absPath)}: ${detail}`,
+    );
+  }
+  await mkdir(path.dirname(absPath), { recursive: true });
+  await writeFile(absPath, `${JSON.stringify(parsed.data, null, 2)}\n`, "utf8");
+  return parsed.data;
 }
 
 export interface WriteResult {
@@ -254,6 +281,35 @@ export async function recordCoaching(
 
   await writeNarrative(file, CoachingEntrySchema, frontmatter, body);
   return { id, file };
+}
+
+/* -------------------------------- Run logs ---------------------------------- */
+
+/** Write a structured run-log record for a routine execution (data/logs/). */
+export async function recordRunLog(
+  input: RunLog,
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  const dir = path.join(dataRoot(opts), "logs");
+  const stamp = input.startedAt.replace(/[:.]/g, "-");
+  const file = await uniquePath(dir, `${stamp}-${input.routine}`, ".json");
+  await writeStructured(file, RunLogSchema, input);
+  return { id: `${input.routine}@${input.startedAt}`, file };
+}
+
+/* -------------------------------- Snapshots --------------------------------- */
+
+/** Persist a portfolio snapshot (data/snapshots/) as the shared source of
+ *  truth for the dashboard and the agent. */
+export async function recordSnapshot(
+  snapshot: PortfolioSnapshot,
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  const dir = path.join(dataRoot(opts), "snapshots");
+  const date = snapshot.asOf.slice(0, 10);
+  const file = await uniquePath(dir, date, ".json");
+  await writeStructured(file, PortfolioSnapshotSchema, snapshot);
+  return { id: `snapshot-${date}`, file };
 }
 
 /** Promote a durable lesson into the playbook's Banked lessons, with the date

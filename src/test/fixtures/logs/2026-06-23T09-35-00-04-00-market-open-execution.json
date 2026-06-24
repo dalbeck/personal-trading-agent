@@ -1,0 +1,10 @@
+{
+  "routine": "market-open-execution",
+  "startedAt": "2026-06-23T09:35:00-04:00",
+  "finishedAt": "2026-06-23T09:35:12-04:00",
+  "status": "ok",
+  "summary": "Placed 2 paper orders (MSFT, COST) within risk caps; 1 idea blocked by the red-team.",
+  "proposalsConsidered": 3,
+  "ordersPlaced": 2,
+  "rejections": 1
+}
