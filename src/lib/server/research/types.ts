@@ -14,12 +14,32 @@ export interface ResearchSource {
   url: string;
 }
 
+/**
+ * One structured `finance_results` block from the Perplexity Agent API's
+ * `finance_search` tool — markdown tables (quotes / income / balance /
+ * cash-flow / analyst estimates / earnings) with their own sources.
+ */
+export interface ResearchFinanceResult {
+  categories: string[];
+  tickers: string[];
+  content: string;
+  sources: ResearchSource[];
+}
+
 export interface ResearchResult {
   provider: string;
   symbol: string;
   summary: string;
   sources: ResearchSource[];
   usedAt: string;
+  /** Structured finance_search payload; empty when none was returned. */
+  finance: ResearchFinanceResult[];
+  /** Category tags aggregated across the finance_results blocks. */
+  categories: string[];
+  /** Tickers referenced by the finance_results blocks. */
+  tickers: string[];
+  /** Real per-call cost in USD, when the Agent API reports it. */
+  cost?: number;
 }
 
 export interface ResearchProvider {

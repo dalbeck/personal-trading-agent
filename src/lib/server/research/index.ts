@@ -27,6 +27,7 @@ export function getResearchProvider(
 }
 
 export type {
+  ResearchFinanceResult,
   ResearchProvider,
   ResearchQuery,
   ResearchResult,

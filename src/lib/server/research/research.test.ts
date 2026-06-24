@@ -9,18 +9,41 @@ async function tmp(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "pta-research-"));
 }
 
+// Agent API (`POST /v1/agent`) response shape: one or more `finance_results`
+// items in `output[]` before the final synthesized `message`, plus usage/cost.
 function financeSearchResponse(): Response {
   return new Response(
     JSON.stringify({
-      choices: [
+      output: [
         {
-          message: {
-            content:
-              "Azure growth is re-accelerating; next-print earnings beat looks likely.",
-          },
+          type: "finance_results",
+          categories: ["fundamentals", "earnings"],
+          tickers: ["MSFT"],
+          results: [
+            {
+              content:
+                "| Metric | Value |\n| --- | --- |\n| Revenue (TTM) | $245B |",
+              sources: [
+                { title: "MSFT 10-Q", url: "https://src.test/one" },
+                { title: "Analyst note", url: "https://src.test/two" },
+              ],
+            },
+          ],
+        },
+        {
+          type: "message",
+          content: [
+            {
+              type: "text",
+              text: "Azure growth is re-accelerating; next-print earnings beat looks likely.",
+            },
+          ],
         },
       ],
-      citations: ["https://src.test/one", "https://src.test/two"],
+      usage: {
+        cost: { total_cost: 0.0123 },
+        tool_calls_details: { finance_search: { invocation: 1 } },
+      },
     }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
@@ -43,7 +66,7 @@ describe("getResearchProvider", () => {
 });
 
 describe("createPerplexityProvider", () => {
-  it("calls finance_search and normalizes the result", async () => {
+  it("calls the Agent API finance_search tool and parses structured data", async () => {
     const dir = await tmp();
     const fetchImpl = vi.fn(async () => financeSearchResponse());
     const provider = createPerplexityProvider({
@@ -55,11 +78,53 @@ describe("createPerplexityProvider", () => {
 
     const result = await provider.research({ symbol: "MSFT" });
     expect(fetchImpl).toHaveBeenCalledOnce();
+
+    // Request hits the Agent endpoint with the finance_search tool + namespaced model.
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe("https://api.perplexity.ai/v1/agent");
+    const body = JSON.parse(String(init.body));
+    expect(body.model).toBe("perplexity/sonar");
+    expect(body.tools).toEqual([{ type: "finance_search" }]);
+    expect(body.max_steps).toBe(1);
+    expect(typeof body.input).toBe("string");
+    expect(body.messages).toBeUndefined();
+
     expect(result).not.toBeNull();
     expect(result!.provider).toBe("perplexity");
     expect(result!.symbol).toBe("MSFT");
+    // summary = final synthesized message text.
     expect(result!.summary).toContain("Azure");
+    // Structured finance_results are parsed and surfaced.
+    expect(result!.finance).toHaveLength(1);
+    expect(result!.finance[0].content).toContain("Revenue (TTM)");
+    expect(result!.categories).toEqual(["fundamentals", "earnings"]);
+    expect(result!.tickers).toEqual(["MSFT"]);
+    // sources are aggregated from the finance_results blocks.
     expect(result!.sources).toHaveLength(2);
+    // real per-call cost is captured.
+    expect(result!.cost).toBeCloseTo(0.0123);
+  });
+
+  it("normalizes a bare model name to the namespaced Agent API form", async () => {
+    const dir = await tmp();
+    const fetchImpl = vi.fn(async () => financeSearchResponse());
+    const provider = createPerplexityProvider({
+      apiKey: "k",
+      model: "sonar",
+      fetchImpl,
+      dataDir: dir,
+      now: () => new Date("2026-06-24T08:00:00Z"),
+    });
+    await provider.research({ symbol: "MSFT" });
+    const body = JSON.parse(
+      String(
+        (fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body,
+      ),
+    );
+    expect(body.model).toBe("perplexity/sonar");
   });
 
   it("blocks call N+1 once the daily cap is reached (enforced in code)", async () => {
