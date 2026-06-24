@@ -4,6 +4,7 @@ import type { z } from "zod";
 import {
   CoachingEntrySchema,
   JournalEntrySchema,
+  NewsFileSchema,
   PortfolioSnapshotSchema,
   ResearchUsageSchema,
   RunLogSchema,
@@ -37,6 +38,8 @@ const CATEGORIES: Category[] = [
   { subdir: "snapshots", format: "json", schema: PortfolioSnapshotSchema },
   { subdir: "proposals", format: "json", schema: TradeProposalSchema },
   { subdir: "logs", format: "json", schema: RunLogSchema },
+  // Each news file is an array of material items.
+  { subdir: "news", format: "json", schema: NewsFileSchema },
   { subdir: "research", format: "json", schema: ResearchUsageSchema },
 ];
 

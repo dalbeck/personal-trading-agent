@@ -1,6 +1,6 @@
 import "server-only";
 
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   bankedLessonBullet,
@@ -13,10 +13,15 @@ import type { RiskDecision } from "@/lib/risk";
 import {
   CoachingEntrySchema,
   JournalEntrySchema,
+  NewsFileSchema,
   PortfolioSnapshotSchema,
   RunLogSchema,
 } from "@/lib/schemas";
-import type { PortfolioSnapshot, RunLog } from "@/lib/types";
+import type {
+  MaterialNewsItem,
+  PortfolioSnapshot,
+  RunLog,
+} from "@/lib/types";
 import type { z } from "zod";
 import { readStrategyDoc, writeStrategyDoc } from "./strategy";
 import { stringifyFrontmatter } from "./frontmatter";
@@ -295,6 +300,45 @@ export async function recordRunLog(
   const file = await uniquePath(dir, `${stamp}-${input.routine}`, ".json");
   await writeStructured(file, RunLogSchema, input);
   return { id: `${input.routine}@${input.startedAt}`, file };
+}
+
+/* ---------------------------------- News ------------------------------------ */
+
+/** Append material news items into per-day files (data/news/<date>.json),
+ *  deduped by link. Returns the number of newly-added items. */
+export async function recordNewsItems(
+  items: MaterialNewsItem[],
+  opts?: { dataDir?: string },
+): Promise<number> {
+  if (items.length === 0) return 0;
+  const dir = path.join(dataRoot(opts), "news");
+  // Group incoming items by their seen-date.
+  const byDate = new Map<string, MaterialNewsItem[]>();
+  for (const it of items) {
+    const date = it.seenAt.slice(0, 10);
+    (byDate.get(date) ?? byDate.set(date, []).get(date)!).push(it);
+  }
+
+  let added = 0;
+  for (const [date, incoming] of byDate) {
+    const file = path.join(dir, `${date}.json`);
+    let existing: MaterialNewsItem[] = [];
+    try {
+      existing = NewsFileSchema.parse(JSON.parse(await readFile(file, "utf8")));
+    } catch {
+      existing = []; // missing or unreadable — start fresh
+    }
+    const seen = new Set(existing.map((e) => e.link));
+    const merged = [...existing];
+    for (const it of incoming) {
+      if (seen.has(it.link)) continue;
+      seen.add(it.link);
+      merged.push(it);
+      added += 1;
+    }
+    await writeStructured(file, NewsFileSchema, merged);
+  }
+  return added;
 }
 
 /* -------------------------------- Snapshots --------------------------------- */

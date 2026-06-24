@@ -7,6 +7,7 @@ import { parseFrontmatter } from "./frontmatter";
 import {
   CoachingEntrySchema,
   JournalEntrySchema,
+  NewsFileSchema,
   PortfolioSnapshotSchema,
   RunLogSchema,
   TradeProposalSchema,
@@ -15,6 +16,7 @@ import type {
   Account,
   CoachingEntry,
   JournalEntry,
+  MaterialNewsItem,
   PortfolioSnapshot,
   RunLog,
   TradeProposal,
@@ -197,6 +199,14 @@ export async function readCoachingLog(): Promise<CoachingEntry[]> {
 export async function readRunLogs(): Promise<RunLog[]> {
   const logs = await readJsonDir("logs", RunLogSchema);
   return logs.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}
+
+/* -------------------------------- News --------------------------------- */
+
+/** All material news items (across the per-day files), newest first. */
+export async function readMaterialNews(): Promise<MaterialNewsItem[]> {
+  const files = await readJsonDir("news", NewsFileSchema); // each file is an array
+  return files.flat().sort((a, b) => b.seenAt.localeCompare(a.seenAt));
 }
 
 /** The most recent run log per routine id (for the Routines status view). */

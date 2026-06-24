@@ -5,6 +5,7 @@ import type {
   CoachingEntrySchema,
   EquityPointSchema,
   JournalEntrySchema,
+  MaterialNewsItemSchema,
   PortfolioSnapshotSchema,
   PositionSchema,
   RedTeamVerdictSchema,
@@ -35,3 +36,5 @@ export type TradeProposal = z.infer<typeof TradeProposalSchema>;
 export type CoachingEntry = z.infer<typeof CoachingEntrySchema>;
 
 export type RunLog = z.infer<typeof RunLogSchema>;
+
+export type MaterialNewsItem = z.infer<typeof MaterialNewsItemSchema>;
