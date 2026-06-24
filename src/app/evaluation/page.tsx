@@ -125,7 +125,7 @@ export default async function EvaluationPage() {
   const { window, returns, benchmark, trades, integrity, reliability } = card;
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8">
+    <div className="flex flex-col gap-8">
       <PageTitle
         title="Evaluation"
         subtitle="Phase 2 paper-desk scorecard — the go/no-go gate to the Phase 3 live pilot. Computed live from data/ (snapshots, journal, proposals, run logs)."

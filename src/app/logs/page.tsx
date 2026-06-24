@@ -16,7 +16,7 @@ export default async function LogsPage() {
   const logs = await readRunLogs();
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <PageTitle
         title="Logs"
         subtitle="Structured run logs from the scheduled routines (data/logs/)."

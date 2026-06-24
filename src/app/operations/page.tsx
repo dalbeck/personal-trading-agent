@@ -16,7 +16,7 @@ export default function OperationsPage() {
   const enabled = Boolean(process.env.ROUTINE_TRIGGER_TOKEN);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageTitle
         title="Operations"
         subtitle="Run the desk's operational scripts from the cockpit. Allowlisted, shell-free, paper-only — it can stop/kill but never open the live gate."
