@@ -1,24 +1,40 @@
 # Playbook
 
 The pre-trade checklist and banked lessons. Unlike the charter, this file
-evolves: the weekly coaching pass promotes durable lessons here.
+**evolves**: the weekly coaching pass promotes durable lessons into the banked
+section (each tagged with the date it was promoted and its source).
 
 ## Pre-trade checklist
 
+Every proposal should clear these before it reaches the red-team. A weak answer
+on any single item is a reason to pass or to downsize.
+
 1. **Thesis** — one sentence on why this name, why now.
-2. **Setup** — trend pullback to a rising 20/50-day, or a base breakout retest.
-   Avoid chasing extended moves above the 20-day.
-3. **Risk** — define the protective stop first; size so the stop costs ≤2% of
-   equity. Reward/risk must be **≥2:1**.
-4. **Catalyst & timing** — note any earnings/event risk inside the holding window.
-5. **Correlation** — does this overlap existing book exposure? Trim size if so.
-6. **Red-team** — the prosecutor defaults to "no"; the thesis must survive it.
+2. **Trend** — price above a rising 50-day and 200-day; structure of higher
+   highs / higher lows intact. No counter-trend entries.
+3. **Momentum** — entering on a constructive reset (pullback to the rising
+   20/50-day or a base-breakout retest), not chasing an extended move.
+4. **Relative strength** — leading its sector and outperforming SPY over the
+   recent window; avoid laggards.
+5. **Volatility** — passes the charter volatility filter (20-day ATR within the
+   universe cap); the stop distance is sane relative to ATR.
+6. **Catalyst & timing** — note any earnings/event risk inside the holding
+   window; avoid binary events unless the thesis explicitly accounts for them.
+7. **Sizing** — define the protective stop **first**, then size so the stop
+   costs **≤2%** of equity and the position is **≤20%** of equity. Reward/risk
+   must be **≥2:1**.
+8. **Correlation** — does this overlap existing book exposure? Trim size if so;
+   respect the 5-position cap.
+9. **Red-team** — the prosecutor defaults to "no"; the thesis must survive it.
 
 ## Banked lessons
 
+Durable lessons promoted from the coaching log. Newest first.
+
 - **Prefer pullback entries over breakout chases.** Breakout chases widen the
-  stop and degrade reward/risk. _(Promoted 2026-06-15.)_
+  stop and degrade reward/risk. _(Promoted 2026-06-15, from c-2026-06-15.)_
 - **Honor the trim trigger on losers** approaching the stop rather than hoping
   for a base.
 - **Let the governance filters work** — recorded rejections (volatility cap,
-  risk-cap breaches) have avoided more losers than they've cost in missed upside.
+  risk-cap breaches, red-team "no") have avoided more losers than they've cost
+  in missed upside.
