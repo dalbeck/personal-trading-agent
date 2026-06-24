@@ -8,7 +8,8 @@ export default defineConfig({
     alias: {
       // `server-only` throws when imported outside an RSC graph; stub it for tests.
       "server-only": fromRoot("src/test/empty.ts"),
-      // Mirror the tsconfig `@/*` path alias.
+      // Mirror the tsconfig path aliases.
+      "@strategy": fromRoot("strategy"),
       "@": fromRoot("src"),
     },
   },
