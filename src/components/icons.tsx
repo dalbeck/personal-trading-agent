@@ -93,6 +93,16 @@ export function LogsIcon(props: IconProps) {
   );
 }
 
+export function ChatIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-4.5A8 8 0 1 1 21 12Z" />
+      <path d="M8.5 11h7" />
+      <path d="M8.5 14.5h4" />
+    </svg>
+  );
+}
+
 export function SunIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

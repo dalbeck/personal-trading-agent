@@ -26,6 +26,8 @@
 - Route handlers / API routes own: file I/O on the repo, Alpaca calls, spawning `claude`/`codex` subprocesses, and streaming their stdout to the browser via SSE.
 - Keep broker / LLM / file logic in a server-side `lib/` layer, not in components.
 - **External API responses are untrusted:** zod-validate them server-side too (see `lib/server/alpaca.ts`). Live data views resolve through a resolver that prefers the live source but **falls back to seed data with a non-blocking notice** when keys are absent or the call fails — the app must always render (`lib/server/account.ts`).
+- **Never import a `server-only` module from a client component** — it throws at build. Put shared constants/types in a plain module (e.g. `lib/chat.ts`) and keep spawning/fs/secrets in the `server-only` sibling (`lib/server/chat.ts`).
+- **CLI subprocesses:** stream stdout to the browser via SSE from a `runtime = "nodejs"` route handler (`app/api/chat`). Spawn with argv (no shell) so prompts can't inject; `codex exec` reads stdin, so close it (`child.stdin.end()`) or it hangs. `claude -p` in the repo cwd has file-read tools, which is intended (grounded chat) — keep prompts read-only, never grant order/trade tools.
 
 ## UI
 - All visual decisions come from `.agents/design-system.md`. Do not hardcode colors, spacing, radii, or fonts — use the design tokens.
