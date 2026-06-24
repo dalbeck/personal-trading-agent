@@ -5,6 +5,15 @@
 - Use the installed **Vercel Next.js skills** when scaffolding and for framework conventions.
 - Run natively: `next dev` for development; pm2/launchd for always-on.
 
+## Toolchain & supply-chain security
+- **Node 22**, pinned via `.nvmrc` + `package.json` `engines`. **Package manager: pnpm 11** (never npm), pinned via Corepack `"packageManager": "pnpm@11.x"`.
+- Keep pnpm 11's supply-chain defaults ON, configured in `pnpm-workspace.yaml`:
+  - `minimumReleaseAge: 1440` (≥1-day cooldown; may raise to `4320`).
+  - **Build scripts blocked by default** — allowlist real native builds via `allowBuilds`.
+  - `blockExoticSubdeps: true` (only direct deps may use git/tarball sources).
+- **Frozen lockfile** on every install; commit `pnpm-lock.yaml`. Run `pnpm audit` on install; fail on known criticals.
+- Strict resolution (pnpm symlinked store = no phantom deps).
+
 ## Structure
 - Server Components by default for data fetching (file reads, Alpaca REST).
 - Client Components only where interactivity or streaming is needed (chat, approvals, live updates).
