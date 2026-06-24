@@ -24,6 +24,17 @@
   --accent-foreground: #0a0a0a; /* black text on accent fill */
   --gain: #00a301;
   --loss: #e03a00;
+  /* Semantic status/verdict tones — text on a solid light tint, ≥4.5:1.
+     Distinct from gain/loss (trading P&L) and the lime accent (actions). */
+  --success-fg: #0b6b2e;
+  --success-surface: #e6f4eb;
+  --success-border: #bfe3cc;
+  --warning-fg: #8a5a00;
+  --warning-surface: #fbf0d9;
+  --warning-border: #ecd7a2;
+  --danger-fg: #b5300b;
+  --danger-surface: #fbe7df;
+  --danger-border: #f1c2ad;
   --overlay-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
 }
 
@@ -40,6 +51,16 @@
   --accent-foreground: #0a0a0a;
   --gain: #00c805;
   --loss: #ff5000;
+  /* Semantic status/verdict tones — bright text on a dark tint, ≥4.5:1. */
+  --success-fg: #54e08a;
+  --success-surface: #0f2418;
+  --success-border: #1f5235;
+  --warning-fg: #f2b73c;
+  --warning-surface: #2a2009;
+  --warning-border: #5a4a12;
+  --danger-fg: #ff7a4d;
+  --danger-surface: #2a130c;
+  --danger-border: #5a2a1c;
   --overlay-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.6);
 }
 
@@ -58,6 +79,15 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-gain: var(--gain);
   --color-loss: var(--loss);
+  --color-success: var(--success-fg);
+  --color-success-surface: var(--success-surface);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning-fg);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger-fg);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-border: var(--danger-border);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
