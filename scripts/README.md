@@ -1,7 +1,53 @@
 # Scripts
 
-Helper scripts for the trading agent: the **scheduled routines** (launchd) and
-the encrypted `data/` backups.
+Helper scripts for the trading agent: the **preflight readiness check**, the
+**scheduled routines** (launchd) and the encrypted `data/` backups.
+
+## Preflight readiness check
+
+`preflight.sh` is a one-shot check you run **before** starting the evaluation
+window, so you don't burn weeks of paper trading on a silently misconfigured
+desk. It prints a `PASS` / `WARN` / `FAIL` line per check and a summary, and
+**exits non-zero if any check FAILs** (so it can gate a launch script).
+
+```bash
+scripts/preflight.sh              # readiness check
+scripts/preflight.sh --shakedown  # also fire pre-market-research end-to-end
+```
+
+What it checks:
+
+1. **`.env` + Alpaca vars** — `.env` exists and `ALPACA_API_KEY_ID`,
+   `ALPACA_API_SECRET_KEY`, `ALPACA_BASE_URL` are set (exact names). WARNs if the
+   base URL isn't the paper endpoint, or if the SDK-style `APCA_*` names are
+   present (a common mix-up — this app reads `ALPACA_*`).
+2. **Alpaca connectivity** — authenticates `GET ${ALPACA_BASE_URL}/v2/account`
+   (HTTP headers `APCA-API-KEY-ID` / `APCA-API-SECRET-KEY`) and prints the
+   account status, equity, and buying power. **FAILs** on an auth error.
+3. **Dashboard server** — reachable at `http://127.0.0.1:${PORT:-3000}`? WARNs
+   with start instructions if it's down (routine triggers POST there).
+4. **Trigger token** — reminds you that the running server must share
+   `ROUTINE_TRIGGER_TOKEN`; WARNs (unauthenticated trigger) if it's unset.
+5. **`data/` writable** — ensures `data/` is writable and creates any missing
+   subdirs (`snapshots`, `decision-journal`, `coaching-log`, `logs`,
+   `proposals`, `research`).
+6. **launchd** — lists which `com.tradingdesk.*.plist` exist and which are
+   loaded; WARNs if none are loaded (the desk won't run on a schedule).
+7. **Notifications** — WARNs if both phone heartbeats (`NOTIFY_PROVIDER`) and the
+   dead-man switch (`HEALTHCHECKS_PING_KEY`) are off (a silent failure during the
+   window would go unnoticed).
+8. **Charter** — `strategy/charter.md` and `strategy/charter.config.ts` are
+   present and the config exports `RISK_LIMITS`.
+9. **Timezone** — prints the Mac clock + timezone (routine schedules assume
+   US/Eastern) and the next fire time for each routine.
+
+`--shakedown` additionally triggers `run-routine.sh pre-market-research` against
+the running server, confirms a fresh run log landed in `data/logs/`, and reports
+the proposals / journal entries / rejections that run wrote — proving the
+propose → gates → journal path end-to-end before you rely on the schedule.
+(Requires the dashboard server to be up.)
+
+macOS only — it uses BSD `date` and `launchctl`.
 
 ## Scheduled routines (launchd)
 
