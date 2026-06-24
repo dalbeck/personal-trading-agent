@@ -6,6 +6,7 @@ import type { RunLog } from "@/lib/types";
 import { placePaperOrder, hasAlpacaCredentials } from "@/lib/server/alpaca";
 import { executePendingProposals } from "@/lib/server/execute";
 import { withLock } from "@/lib/server/lockfile";
+import { pingDeadMan, sendHeartbeat } from "@/lib/server/notify";
 import { recordRunLog } from "@/lib/server/writers";
 
 /**
@@ -79,6 +80,10 @@ export async function POST(
     let ordersPlaced = 0;
     let rejections = 0;
 
+    // Dead-man switch + phone heartbeat on start.
+    await pingDeadMan(id, "start");
+    await sendHeartbeat(`Routine started: ${id}`, `Started ${startedAt}`);
+
     try {
       if (id === "market-open-execution") {
         if (!hasAlpacaCredentials()) {
@@ -116,6 +121,22 @@ export async function POST(
       rejections,
     };
     await recordRunLog(log);
+
+    // Dead-man switch + phone heartbeat on completion.
+    if (status === "error") {
+      await pingDeadMan(id, "fail");
+      await sendHeartbeat(`Routine FAILED: ${id}`, log.summary, { priority: 5 });
+    } else {
+      await pingDeadMan(id, "success");
+      await sendHeartbeat(`Routine finished: ${id}`, log.summary);
+      if (rejections > 0) {
+        await sendHeartbeat(
+          `Orders blocked: ${id}`,
+          `${rejections} order(s) blocked by risk rails / red-team.`,
+          { priority: 4 },
+        );
+      }
+    }
     return log;
   });
 

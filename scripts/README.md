@@ -29,6 +29,24 @@ expose the dashboard server publicly. **Execution is code-gated** — every
 proposal clears the risk rails and the red-team before Alpaca paper is called;
 the LLM proposes but never executes.
 
+### Reliability (M6)
+
+The trigger endpoint emits two kinds of alerts (both **fail-soft** and default
+**off** — see `src/lib/server/notify.ts`):
+
+- **Dead-man switch** — each routine pings healthchecks.io on start / success /
+  fail (`HEALTHCHECKS_PING_KEY`). A *missed or stalled* run trips healthchecks on
+  its own channel, so a silent failure still alerts.
+- **Phone heartbeat** — ntfy or Pushover (`NOTIFY_PROVIDER`) on routine
+  start/finish and on **any blocked order**.
+
+`watchdog.sh <command>` keeps a long-running process (the optional M7 news
+scout) alive, restarting it with capped backoff if it dies:
+
+```bash
+scripts/watchdog.sh node scripts/news-scout.mjs   # restarts the scout on crash
+```
+
 ## Encrypted `data/` backups → Cloudflare R2
 
 `data/` (journals, snapshots, chats) is **gitignored** and backed up to
