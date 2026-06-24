@@ -30,6 +30,7 @@
 - **External API responses are untrusted:** zod-validate them server-side too (see `lib/server/alpaca.ts`). Live data views resolve through a resolver that prefers the live source but **falls back to seed data with a non-blocking notice** when keys are absent or the call fails — the app must always render (`lib/server/account.ts`).
 - **Never import a `server-only` module from a client component** — it throws at build. Put shared constants/types in a plain module (e.g. `lib/chat.ts`) and keep spawning/fs/secrets in the `server-only` sibling (`lib/server/chat.ts`).
 - **CLI subprocesses:** stream stdout to the browser via SSE from a `runtime = "nodejs"` route handler (`app/api/chat`). Spawn with argv (no shell) so prompts can't inject; `codex exec` reads stdin, so close it (`child.stdin.end()`) or it hangs. `claude -p` in the repo cwd has file-read tools, which is intended (grounded chat) — keep prompts read-only, never grant order/trade tools.
+- **Red-team gate (`src/lib/server/red-team.ts`):** spawns `codex exec` (a *different model family*) as a hostile prosecutor that defaults to "no". The spawn is injectable (`opts.exec`) so prompt/parse/policy are unit-tested without the CLI. It **fails closed** — if the prosecutor errors or its output is unparseable, the verdict is `reject`. Never change it to fail open.
 
 ## UI
 - All visual decisions come from `.agents/design-system.md`. Do not hardcode colors, spacing, radii, or fonts — use the design tokens.
