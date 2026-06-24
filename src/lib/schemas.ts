@@ -203,6 +203,10 @@ export const ResearchUsageSchema = z
   .object({
     date: isoDate,
     count: z.number().int().nonnegative(),
+    // Cumulative real per-call cost (USD) the Agent API reported, when
+    // available. The count remains the hard daily guardrail; cost is visibility
+    // only. Optional for backward compatibility with pre-cost usage files.
+    costUsd: z.number().nonnegative().optional(),
   })
   .strict();
 

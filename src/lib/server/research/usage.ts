@@ -16,26 +16,44 @@ function usageFile(date: string, dataDir?: string): string {
   return path.join(root, "research", `usage-${date}.json`);
 }
 
+async function readUsage(
+  date: string,
+  dataDir?: string,
+): Promise<{ count: number; costUsd?: number }> {
+  try {
+    const raw = await readFile(usageFile(date, dataDir), "utf8");
+    const parsed = ResearchUsageSchema.parse(JSON.parse(raw));
+    return { count: parsed.count, costUsd: parsed.costUsd };
+  } catch {
+    return { count: 0 }; // no file yet → no calls today
+  }
+}
+
 export async function getResearchCallCount(
   date: string,
   opts?: { dataDir?: string },
 ): Promise<number> {
-  try {
-    const raw = await readFile(usageFile(date, opts?.dataDir), "utf8");
-    return ResearchUsageSchema.parse(JSON.parse(raw)).count;
-  } catch {
-    return 0; // no file yet → no calls today
-  }
+  return (await readUsage(date, opts?.dataDir)).count;
 }
 
-/** Increment + persist today's counter; returns the new count. */
+/**
+ * Increment + persist today's counter; returns the new count. Optionally
+ * accumulates the real per-call `cost` (USD) for cost visibility — the
+ * count-based daily cap remains the hard guardrail.
+ */
 export async function bumpResearchCallCount(
   date: string,
-  opts?: { dataDir?: string },
+  opts?: { dataDir?: string; cost?: number },
 ): Promise<number> {
   const file = usageFile(date, opts?.dataDir);
-  const count = (await getResearchCallCount(date, opts)) + 1;
-  const record = ResearchUsageSchema.parse({ date, count });
+  const prev = await readUsage(date, opts?.dataDir);
+  const count = prev.count + 1;
+  const cost = opts?.cost;
+  const costUsd =
+    cost != null || prev.costUsd != null
+      ? (prev.costUsd ?? 0) + (cost ?? 0)
+      : undefined;
+  const record = ResearchUsageSchema.parse({ date, count, costUsd });
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, `${JSON.stringify(record, null, 2)}\n`, "utf8");
   return count;
