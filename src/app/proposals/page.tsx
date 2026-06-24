@@ -11,7 +11,7 @@ export default async function ProposalsPage() {
   const pendingCount = proposals.filter((p) => p.status === "pending").length;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageTitle
         title="Proposals"
         subtitle={`${pendingCount} pending · ${

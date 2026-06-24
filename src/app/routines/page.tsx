@@ -30,7 +30,7 @@ export default async function RoutinesPage() {
   const healthy = lastBeat !== null && allLogs[0].status !== "error";
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageTitle
         title="Routines"
         subtitle="Scheduled engine jobs (launchd). Status reflects the latest run logs."

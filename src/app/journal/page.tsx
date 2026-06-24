@@ -78,7 +78,7 @@ export default async function JournalPage() {
   const entries = await readJournal();
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageTitle
         title="Decision Journal"
         subtitle="Every trade and rejection, written at decision time."

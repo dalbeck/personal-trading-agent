@@ -9,7 +9,7 @@ export default async function NewsPage() {
   const items = await readMaterialNews();
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageTitle
         title="News"
         subtitle="Headlines the scout judged material to a current paper holding."

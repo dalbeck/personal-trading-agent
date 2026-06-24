@@ -12,7 +12,7 @@ export default async function PositionsPage() {
   const totalUnrealized = positions.reduce((s, p) => s + p.unrealizedPl, 0);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div>
       <PageTitle
         title="Positions"
         subtitle={

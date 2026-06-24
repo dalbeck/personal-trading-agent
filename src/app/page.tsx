@@ -36,7 +36,7 @@ export default async function OverviewPage() {
 
   if (!snap) {
     return (
-      <div className="mx-auto max-w-6xl">
+      <div>
         <PageTitle title="Overview" />
         <Card className="border-dashed">
           <p className="text-sm text-fg-muted">
@@ -52,7 +52,7 @@ export default async function OverviewPage() {
     : null;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div>
       <PageTitle
         title="Overview"
         subtitle="Paper account snapshot, equity curve, and benchmark."

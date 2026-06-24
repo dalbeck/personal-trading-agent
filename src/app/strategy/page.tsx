@@ -18,7 +18,7 @@ export default async function StrategyPage() {
   );
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageTitle
         title="Strategy"
         subtitle="The charter (immutable rules) and playbook (checklist + lessons)."

@@ -36,8 +36,14 @@ export default function RootLayout({
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
             <Header />
-            <main className="flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
-              {children}
+            {/* Fluid full-width shell: comfortable 24–32px gutters, capped at
+                1800px on ultra-wide so line lengths stay sane. The inner
+                wrapper carries the height chain (flex-1) so pages that fill the
+                viewport — e.g. chat — keep a definite height for h-full. */}
+            <main className="flex flex-1 flex-col overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+              <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col">
+                {children}
+              </div>
             </main>
           </div>
         </div>

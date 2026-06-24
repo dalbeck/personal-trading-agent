@@ -58,7 +58,7 @@ export default async function CoachingPage() {
   const entries = await readCoachingLog();
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageTitle
         title="Coaching Log"
         subtitle="Next-morning self-reviews grading prior calls against what actually happened."
