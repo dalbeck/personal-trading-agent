@@ -31,11 +31,16 @@ config from environment variables in `.env` at runtime.
      and Secret Access Key, and your Account ID.
 
 3. **Pick a crypt password + salt** (these encrypt the data — store them in
-   1Password/Keychain and **never lose them**; without both you cannot decrypt):
+   1Password/Keychain and **never lose or change them**; without the exact pair
+   you cannot decrypt your backups). Generate two strong random values:
 
    ```sh
-   rclone genpassword   # run twice → one for R2_CRYPT_PASSWORD, one for R2_CRYPT_SALT
+   openssl rand -base64 24   # → R2_CRYPT_PASSWORD
+   openssl rand -base64 24   # → R2_CRYPT_SALT
    ```
+
+   (Any strong strings work — the scripts run them through `rclone obscure` at
+   runtime, so put the plaintext in `.env`.)
 
 4. **Fill in `.env`** (copy from `.env.example`):
 
