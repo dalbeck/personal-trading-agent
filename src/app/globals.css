@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* Class-based dark mode: `dark:` variants apply when an ancestor has `.dark`.
+   Most components don't need `dark:` at all — the semantic tokens below swap
+   values under `.dark`, so `bg-surface text-fg` is correct in both themes. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens — see .agents/design-system.md (binding).
+   Light is the default; `.dark` on <html> swaps to the dark palette.
+   Raw hexes live ONLY here. Components reference the Tailwind tokens mapped
+   in @theme below (bg-surface, text-fg, text-gain, …) — never hardcoded colors.
+--------------------------------------------------------------------------- */
+:root {
+  /* Light mode */
+  --surface-base: #ffffff;
+  --surface-raised: #f7f7f7;
+  --surface-overlay: #ffffff;
+  --border-default: #e5e5e5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #5c5c5c;
+  --accent: #b7df2f;
+  --accent-hover: #c3fe09; /* hover lightens toward #C3FE09 (design-system) */
+  --accent-foreground: #0a0a0a; /* black text on accent fill */
+  --gain: #00a301;
+  --loss: #e03a00;
+  --overlay-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
+}
+
+.dark {
+  /* Dark mode */
+  --surface-base: #000000;
+  --surface-raised: #0e0e0e;
+  --surface-overlay: #1a1a1a;
+  --border-default: #2a2a2a;
+  --text-primary: #ececec;
+  --text-secondary: #a0a0a0;
+  --accent: #b7df2f;
+  --accent-hover: #c3fe09;
+  --accent-foreground: #0a0a0a;
+  --gain: #00c805;
+  --loss: #ff5000;
+  --overlay-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.6);
+}
+
+/* Map design tokens into Tailwind's theme so utilities resolve to the CSS vars
+   (and therefore auto-switch with the theme). Token names avoid Tailwind
+   keyword collisions (e.g. `surface` not `base`, since `text-base` is a size). */
+@theme inline {
+  --color-surface: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-line: var(--border-default);
+  --color-fg: var(--text-primary);
+  --color-fg-muted: var(--text-secondary);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Radius scale (design-system): cards 12–19px, pills 21px. */
+  --radius-card: 16px;
+  --radius-pill: 21px;
+}
+
+@layer base {
+  /* Tailwind v4 defaults borders to currentColor; default them to our line. */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-line);
+  }
+
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Focus: 2px accent outline, 2px offset (design-system). Never removed. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Motion: respect reduced-motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Elevated surfaces (overlays/cards that float) carry a shadow in both themes. */
+@utility shadow-overlay {
+  box-shadow: var(--overlay-shadow);
+}
