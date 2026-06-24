@@ -13,12 +13,17 @@ out/
 dist/
 build/
 *.tsbuildinfo
+next-env.d.ts
+/coverage
+.vercel
+*.pem
 
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
 # OS / editor
 .DS_Store
