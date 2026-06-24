@@ -1,13 +1,99 @@
-import { PageTitle, Placeholder } from "@/components/page-shell";
+import { Card, PageTitle } from "@/components/page-shell";
+import { Badge } from "@/components/ui/badge";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { readJournal } from "@/lib/server/data";
+import type { JournalEntry } from "@/lib/types";
 
-export default function JournalPage() {
+export const dynamic = "force-dynamic";
+
+const rejectedByLabel: Record<string, string> = {
+  "codex-redteam": "Codex red-team",
+  rules: "Charter rules",
+  human: "Human",
+};
+
+function EntryCard({ entry }: { entry: JournalEntry }) {
+  const isTrade = entry.kind === "trade";
   return (
-    <div className="mx-auto max-w-6xl">
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {isTrade ? (
+            <Badge tone={entry.action === "buy" ? "gain" : "loss"}>
+              {entry.action.toUpperCase()}
+            </Badge>
+          ) : (
+            <Badge tone="muted">REJECTED</Badge>
+          )}
+          <span className="font-semibold text-fg">{entry.symbol}</span>
+          {isTrade ? (
+            <span className="text-sm tabular-nums text-fg-muted">
+              {entry.qty} @ {formatCurrency(entry.price)}
+            </span>
+          ) : (
+            <span className="text-sm text-fg-muted">
+              {entry.proposedAction} · {rejectedByLabel[entry.rejectedBy]}
+            </span>
+          )}
+        </div>
+        <time className="text-xs text-fg-muted" dateTime={entry.timestamp}>
+          {formatDateTime(entry.timestamp)}
+        </time>
+      </div>
+
+      <p className="mt-3 text-pretty text-sm text-fg">{entry.thesis}</p>
+      <p className="mt-2 text-pretty text-sm text-fg-muted">{entry.reasoning}</p>
+
+      {isTrade && (entry.stopPrice !== null || entry.takeProfit !== null) ? (
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-fg-muted">
+          {entry.stopPrice !== null ? (
+            <span>Stop {formatCurrency(entry.stopPrice)}</span>
+          ) : null}
+          {entry.takeProfit !== null ? (
+            <span>Target {formatCurrency(entry.takeProfit)}</span>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+        <div className="flex flex-wrap gap-1.5">
+          {entry.tags.map((t) => (
+            <span
+              key={t}
+              className="rounded-pill bg-surface-overlay px-2 py-0.5 text-xs text-fg-muted"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+        <span className="text-xs text-fg-muted">
+          Review {formatDate(entry.reviewDate)}
+        </span>
+      </div>
+    </Card>
+  );
+}
+
+export default async function JournalPage() {
+  const entries = await readJournal();
+
+  return (
+    <div className="mx-auto max-w-3xl">
       <PageTitle
         title="Decision Journal"
-        subtitle="Reverse-chronological log of trades and rejections with thesis and review dates."
+        subtitle="Every trade and rejection, written at decision time."
       />
-      <Placeholder note="The decision feed ships in M3, reading journal fixtures via the lib layer." />
+      {entries.length === 0 ? (
+        <Card className="border-dashed">
+          <p className="text-sm text-fg-muted">No journal entries yet.</p>
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {entries.map((e) => (
+            <EntryCard key={e.id} entry={e} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

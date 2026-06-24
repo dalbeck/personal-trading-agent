@@ -36,6 +36,39 @@ export function Card({
   );
 }
 
+/** Single labelled figure (equity, P&L, …). Numbers use tabular-nums. */
+export function StatCard({
+  label,
+  value,
+  delta,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  delta?: string;
+  tone?: "gain" | "loss" | "neutral";
+}) {
+  const toneClass =
+    tone === "gain"
+      ? "text-gain"
+      : tone === "loss"
+        ? "text-loss"
+        : "text-fg";
+  return (
+    <Card>
+      <p className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+        {label}
+      </p>
+      <p className={`mt-2 text-2xl font-semibold tabular-nums ${toneClass}`}>
+        {value}
+      </p>
+      {delta ? (
+        <p className={`mt-1 text-sm tabular-nums ${toneClass}`}>{delta}</p>
+      ) : null}
+    </Card>
+  );
+}
+
 /** Placeholder body for routes whose real views ship in later milestones. */
 export function Placeholder({ note }: { note: string }) {
   return (
