@@ -13,6 +13,7 @@
   - `blockExoticSubdeps: true` (only direct deps may use git/tarball sources).
 - **Frozen lockfile** on every install; commit `pnpm-lock.yaml`. Run `pnpm audit` on install; fail on known criticals.
 - Strict resolution (pnpm symlinked store = no phantom deps).
+- **Pin deps whose `@types` lag the runtime.** `pnpm add js-yaml` resolves the new **5.x** major, but the only published types are `@types/js-yaml@4.0.9` (for v4), so v5 typechecks wrong. We pin **`js-yaml@4.1.0`** (mature, types-matched, exports `JSON_SCHEMA`). Check `@types` coverage before accepting a fresh major.
 
 ## Scaffold lessons (M1 — learned, do not relearn)
 - **Node in PATH vs. the pin.** `node`/`npm` are nvm shell functions, but the default binary on PATH is **Homebrew Node 25**, so `pnpm`/`next` run under 25 unless you switch. Always run dev/build/lint/typecheck under Node 22: `nvm use 22` first (pnpm otherwise warns `Unsupported engine`). The pin lives in `.nvmrc` (`22`) + `engines.node`.

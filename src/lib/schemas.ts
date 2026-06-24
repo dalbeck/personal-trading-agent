@@ -83,10 +83,11 @@ const JournalBase = {
   id: z.string().min(1),
   timestamp: isoDateTime,
   symbol,
-  thesis: z.string().min(1),
-  reasoning: z.string().min(1),
   reviewDate: isoDate,
   tags: z.array(z.string()).default([]),
+  // The narrative (thesis + reasoning) is the markdown body of the `.md` file;
+  // the fields above are its YAML frontmatter. See `.agents/data-format.md`.
+  body: z.string().min(1),
 };
 
 export const TradeJournalEntrySchema = z
@@ -159,9 +160,9 @@ export const CoachingEntrySchema = z
     symbol: symbol.nullable().default(null),
     relatedJournalIds: z.array(z.string()).default([]),
     grade: z.enum(["A", "B", "C", "D", "F"]),
-    expected: z.string().min(1),
-    actual: z.string().min(1),
-    lesson: z.string().min(1),
     promotedToPlaybook: z.boolean().default(false),
+    // The self-review prose (expected / actual / lesson) is the markdown body
+    // of the `.md` file; the fields above are its frontmatter.
+    body: z.string().min(1),
   })
   .strict();

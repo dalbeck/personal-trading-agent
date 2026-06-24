@@ -3,6 +3,7 @@ import "server-only";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { z } from "zod";
+import { parseFrontmatter } from "./frontmatter";
 import {
   CoachingEntrySchema,
   JournalEntrySchema,
@@ -80,6 +81,52 @@ async function readJsonDir<S extends z.ZodType>(
   subdir: string,
   schema: S,
 ): Promise<z.infer<S>[]> {
+  return readDir(subdir, ".json", readJsonFile, schema);
+}
+
+/** Parse + validate a single Markdown + YAML-frontmatter file. The frontmatter
+ *  fields plus a `body` (the markdown prose) are validated against `schema`. */
+async function readMarkdownFile<S extends z.ZodType>(
+  absPath: string,
+  schema: S,
+): Promise<z.infer<S>> {
+  const raw = await readFile(absPath, "utf8");
+  let frontmatter: { data: Record<string, unknown>; body: string };
+  try {
+    frontmatter = parseFrontmatter(raw);
+  } catch (err) {
+    throw new Error(
+      `Malformed frontmatter in ${path.relative(process.cwd(), absPath)}: ${
+        (err as Error).message
+      }`,
+    );
+  }
+  const candidate = { ...frontmatter.data, body: frontmatter.body };
+  const result = schema.safeParse(candidate);
+  if (!result.success) {
+    throw new DataValidationError(
+      path.relative(process.cwd(), absPath),
+      result.error.issues,
+    );
+  }
+  return result.data;
+}
+
+/** Read + validate every `*.md` file in a `data/` subdirectory (sorted). */
+async function readMarkdownDir<S extends z.ZodType>(
+  subdir: string,
+  schema: S,
+): Promise<z.infer<S>[]> {
+  return readDir(subdir, ".md", readMarkdownFile, schema);
+}
+
+/** Shared dir walk: read every file with `ext` through `readOne` (sorted). */
+async function readDir<S extends z.ZodType>(
+  subdir: string,
+  ext: ".json" | ".md",
+  readOne: (absPath: string, schema: S) => Promise<z.infer<S>>,
+  schema: S,
+): Promise<z.infer<S>[]> {
   const dir = path.join(DATA_DIR, subdir);
   let names: string[];
   try {
@@ -88,8 +135,8 @@ async function readJsonDir<S extends z.ZodType>(
     if (isENOENT(err)) return []; // no fixtures yet — empty, not an error
     throw err;
   }
-  const files = names.filter((n) => n.endsWith(".json")).sort();
-  return Promise.all(files.map((f) => readJsonFile(path.join(dir, f), schema)));
+  const files = names.filter((n) => n.endsWith(ext)).sort();
+  return Promise.all(files.map((f) => readOne(path.join(dir, f), schema)));
 }
 
 /* ----------------------------- Snapshots ------------------------------- */
@@ -113,9 +160,10 @@ export async function readLatestSnapshot(
 
 /* --------------------------- Decision journal -------------------------- */
 
-/** Journal entries (trades + rejections), reverse-chronological. */
+/** Journal entries (trades + rejections), reverse-chronological. Narrative
+ *  artifacts: Markdown + YAML frontmatter (see `.agents/data-format.md`). */
 export async function readJournal(): Promise<JournalEntry[]> {
-  const entries = await readJsonDir("decision-journal", JournalEntrySchema);
+  const entries = await readMarkdownDir("decision-journal", JournalEntrySchema);
   return entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
 
@@ -134,8 +182,9 @@ export async function readProposals(
 
 /* ----------------------------- Coaching log ---------------------------- */
 
-/** Coaching entries, newest first. */
+/** Coaching entries, newest first. Narrative artifacts: Markdown + YAML
+ *  frontmatter (see `.agents/data-format.md`). */
 export async function readCoachingLog(): Promise<CoachingEntry[]> {
-  const entries = await readJsonDir("coaching-log", CoachingEntrySchema);
+  const entries = await readMarkdownDir("coaching-log", CoachingEntrySchema);
   return entries.sort((a, b) => b.date.localeCompare(a.date));
 }
