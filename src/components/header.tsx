@@ -1,6 +1,8 @@
 import { LiveStatusControl } from "@/components/live-status";
+import { MarketStatusPill } from "@/components/market-status-pill";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getLiveTradingStatus } from "@/lib/server/gate";
+import { getMarketStatusSnapshot } from "@/lib/server/market";
 
 /**
  * Top bar. Surfaces the active trading environment. PAPER is the proving ground
@@ -9,7 +11,10 @@ import { getLiveTradingStatus } from "@/lib/server/gate";
  * (.agents/nextjs.md safety).
  */
 export async function Header() {
-  const live = await getLiveTradingStatus();
+  const [live, marketStatus] = await Promise.all([
+    getLiveTradingStatus(),
+    getMarketStatusSnapshot(),
+  ]);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 md:px-8">
@@ -28,6 +33,7 @@ export async function Header() {
       </div>
 
       <div className="flex items-center gap-2">
+        <MarketStatusPill initial={marketStatus} />
         <ThemeToggle />
       </div>
     </header>
