@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSnapshot, mapPosition } from "./alpaca";
+import { buildSnapshot, mapBarsToCloses, mapPosition } from "./alpaca";
 
 const apiPosition = {
   symbol: "AAPL",
@@ -60,5 +60,16 @@ describe("alpaca mapping", () => {
     expect(snap.totalPl).toBeCloseTo(100);
     expect(snap.positions).toHaveLength(1);
     expect(snap.equityCurve).toHaveLength(2);
+  });
+
+  it("maps daily bars to a (date, close) equity series", () => {
+    const closes = mapBarsToCloses([
+      { t: "2026-05-01T04:00:00Z", c: 512.3 },
+      { t: "2026-05-02T04:00:00Z", c: 515.1 },
+    ]);
+    expect(closes).toEqual([
+      { date: "2026-05-01", equity: 512.3 },
+      { date: "2026-05-02", equity: 515.1 },
+    ]);
   });
 });
