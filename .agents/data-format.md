@@ -56,12 +56,16 @@ is never contaminated.
 
 **Proposal `account` / `advisory` (live vs paper).** A `TradeProposal` carries
 `account` (`paper` | `live`, default `paper`) and `advisory` (default `false`).
-A **live-advisory** proposal (`account: "live"`, `advisory: true`) is read-only
-guidance against the Robinhood Agentic account — the human executes it manually.
-Its only terminal states are `reviewed` / `dismissed` (set via
-`POST /api/proposals/review`); it is **never** routed to an order path (the
-approval endpoint refuses it — see `.agents/infra.md`). The order/approval path
-only ever writes `approved` / `rejected`.
+**`advisory` is the intent flag, independent of account** (M5a):
+- **advisory `true`** — manual guidance; terminal states `reviewed` / `dismissed`
+  (via `POST /api/proposals/review`); **never** routed to an order path (the
+  approval endpoint refuses it).
+- **advisory `false`** — approvable; flows the approval path
+  (`POST /api/live/approve`) → terminal `approved` / `rejected`. A **paper**
+  one routes to the paper engine; an **approvable live** one
+  (`account: "live"`, `advisory: false`, written by `recordApprovableLiveProposal`)
+  routes by the order gate — closed → dry-run sink, open → Robinhood. The gate,
+  not the account, is the real-money boundary (see `.agents/infra.md`).
 
 ## Frontmatter conventions
 

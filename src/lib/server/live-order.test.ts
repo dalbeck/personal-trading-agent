@@ -157,6 +157,35 @@ describe("per-trade approval", () => {
     expect(body).not.toMatch(/robinhood/i);
   });
 
+  it("an approvable LIVE order, gate closed, routes to the dry-run sink — never Robinhood", async () => {
+    // M5a: live proposals are now approvable, but the GATE is the real-money
+    // boundary. Gate closed → the human-approved live order lands in the
+    // dry-run sink (paper/mock), proving no real Robinhood order is reachable.
+    const gate = await closedGate();
+    let reachedRobinhood = false;
+    const res = await submitTradeApproval(
+      {
+        order: { ...ORDER, account: "live" },
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      {
+        ...gate,
+        snapshot: null,
+        mockOrderId: "mock-live",
+        placeLive: async () => {
+          reachedRobinhood = true;
+          return { destination: "robinhood", brokerOrderId: "rh-nope" };
+        },
+      },
+    );
+    expect(res.outcome).toBe("approved");
+    expect(res.dryRun).toBe(true);
+    expect(res.destination).not.toBe("robinhood");
+    expect(reachedRobinhood).toBe(false);
+  });
+
   it("a red-team reject can never be approved into an order", async () => {
     const gate = await closedGate();
     const res = await submitTradeApproval(

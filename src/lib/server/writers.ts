@@ -450,6 +450,32 @@ export async function recordAdvisoryProposal(
   return { id: input.id, file };
 }
 
+/**
+ * Emit an **approvable live** proposal (Phase 3 M5a) — a live idea the human can
+ * approve so the app places it. Stamped `account: "live"`, `advisory: false`,
+ * `status: "pending"`. Unlike an advisory proposal, this flows the approval path
+ * — but the **order gate** is the real-money boundary: with the gate closed
+ * (the shipped state) an approval routes to the dry-run sink (paper/mock), never
+ * Robinhood. Per-trade human approval is always required; the app never
+ * auto-trades. Use {@link recordAdvisoryProposal} for manual guidance instead.
+ */
+export async function recordApprovableLiveProposal(
+  input: AdvisoryProposalInput,
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  const proposal = TradeProposalSchema.parse({
+    ...input,
+    side: input.side ?? "long",
+    account: "live",
+    advisory: false,
+    status: "pending",
+  });
+  const dir = path.join(dataRoot(opts), "proposals");
+  const file = await uniquePath(dir, input.id, ".json");
+  await writeStructured(file, TradeProposalSchema, proposal);
+  return { id: input.id, file };
+}
+
 /* -------------------------------- Watchlist --------------------------------- */
 
 /** Normalize + dedupe entries by symbol (first occurrence wins), dropping

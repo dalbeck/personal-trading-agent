@@ -29,7 +29,7 @@ export default async function ProposalsPage() {
         title="Proposals"
         subtitle={
           isLive
-            ? `${pendingCount} pending · live advisory — execute manually in Robinhood. No automated execution.`
+            ? `${pendingCount} pending · live — you approve each order before anything is placed (gate closed → dry-run). No automated execution.`
             : `${pendingCount} pending · ${
                 liveEnabled
                   ? "LIVE — approvals place real orders"
@@ -41,7 +41,7 @@ export default async function ProposalsPage() {
         <ViewingBadge mode={mode} />
         <span className="text-xs text-fg-muted">
           {isLive
-            ? "Advisory proposals for the live account"
+            ? "Proposals for the live account"
             : "Proposals for the paper desk"}
         </span>
       </div>
