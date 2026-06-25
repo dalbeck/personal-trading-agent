@@ -27,6 +27,12 @@ import {
   type MarketConditions,
 } from "./market-conditions";
 import { incrementOrdersToday, readOrdersToday } from "./order-counter";
+import {
+  deriveClientOrderId,
+  readPlacedOrder,
+  recordPlacedOrder,
+  runSingleFlight,
+} from "./order-idempotency";
 import { getEffectiveRiskConfig } from "./risk-settings";
 import {
   runRedTeam,
@@ -81,6 +87,9 @@ export interface RouteOpts {
   fetchImpl?: typeof fetch;
   /** Deterministic id for the mock broker (tests). */
   mockOrderId?: string;
+  /** Stable client order id, passed to the broker where supported (Alpaca paper)
+   *  and used as the mock id, so even the broker sees one id per approval. */
+  clientOrderId?: string;
   /** Gate overrides (tests). */
   cwd?: string;
   dataDir?: string;
@@ -99,11 +108,16 @@ export async function placeDryRunOrder(
 ): Promise<PlacedAt> {
   if (opts.placeDryRun) return opts.placeDryRun(order);
   if (hasAlpacaCredentials()) {
-    const placed = await placePaperOrder(order, { fetchImpl: opts.fetchImpl });
+    const placed = await placePaperOrder(order, {
+      fetchImpl: opts.fetchImpl,
+      clientOrderId: opts.clientOrderId,
+    });
     return { destination: "alpaca-paper", brokerOrderId: placed.brokerOrderId };
   }
   const id =
-    opts.mockOrderId ?? `mock-${order.symbol}-${order.qty}-${Date.now()}`;
+    opts.mockOrderId ??
+    opts.clientOrderId ??
+    `mock-${order.symbol}-${order.qty}-${Date.now()}`;
   return { destination: "mock", brokerOrderId: id };
 }
 
@@ -264,6 +278,9 @@ export interface ApprovalResult {
   dryRun: boolean;
   /** Populated on `outcome: "error"` — e.g. the broker rejected the order. */
   error?: string;
+  /** True when this result was de-duplicated (a prior identical placement was
+   *  returned instead of placing again). The order placed exactly once. */
+  idempotent?: boolean;
 }
 
 /**
@@ -292,6 +309,10 @@ export interface ApprovalInput {
   /** Present (with a non-empty comment) to override a red-team reject and/or a
    *  rail/cap violation at this approval. */
   override?: ApprovalOverride | null;
+  /** Stable idempotency key for this approval (the proposal id, from the approve
+   *  route). Two taps/retries with the same key place at most once. Omitted →
+   *  derived from the order's stable fields. NEVER the per-request timestamp. */
+  idempotencyKey?: string | null;
 }
 
 export interface ApprovalOpts extends RouteOpts {
@@ -466,7 +487,7 @@ export async function submitTradeApproval(
   input: ApprovalInput,
   opts: ApprovalOpts = {},
 ): Promise<ApprovalResult> {
-  const { order, approver, timestamp } = input;
+  const { order, timestamp } = input;
   const journalMeta = {
     timestamp,
     symbol: order.symbol,
@@ -489,6 +510,55 @@ export async function submitTradeApproval(
     );
     return { outcome: "denied", journalId: id, dryRun: true };
   }
+
+  // Idempotency (M2): a stable client order id per approval — the supplied key
+  // (the proposal id) or a derivation from the order's stable fields, NEVER the
+  // per-request timestamp — so a double-tap or retry places at most once.
+  const clientOrderId =
+    opts.clientOrderId ??
+    deriveClientOrderId({ idempotencyKey: input.idempotencyKey, order });
+
+  // Already placed (an earlier tap, a retry, or after a restart)? Return the
+  // recorded placement and place nothing.
+  const prior = await readPlacedOrder(clientOrderId, { dataDir: opts.dataDir });
+  if (prior) {
+    return {
+      outcome: "approved",
+      journalId: prior.journalId,
+      destination: prior.destination,
+      brokerOrderId: prior.brokerOrderId,
+      dryRun: prior.dryRun,
+      idempotent: true,
+    };
+  }
+
+  // Concurrent identical submits (a fast double-tap) share ONE in-flight
+  // placement, so they cannot both reach the broker.
+  return runSingleFlight(clientOrderId, () =>
+    runApproval(input, { ...opts, clientOrderId }, clientOrderId),
+  );
+}
+
+/**
+ * The approval body: evaluate the blocks, route a clean/overridden order to its
+ * destination, journal it, and **record the placement** so an idempotent retry
+ * returns it instead of placing again. Reached only after the idempotency gate
+ * in {@link submitTradeApproval}.
+ */
+async function runApproval(
+  input: ApprovalInput,
+  opts: ApprovalOpts,
+  clientOrderId: string,
+): Promise<ApprovalResult> {
+  const { order, approver, timestamp } = input;
+  const journalMeta = {
+    timestamp,
+    symbol: order.symbol,
+    reviewDate: order.reviewDate,
+    tags: order.tags,
+    thesis: order.thesis,
+    research: order.research,
+  };
 
   // One ET-day basis for both the cap read (in evaluateApprovalBlocks) and the
   // post-placement increment, so the daily-order counter stays consistent.
@@ -603,6 +673,21 @@ export async function submitTradeApproval(
       research: order.research,
       redTeam: order.redTeam?.notes,
       decision: `Approved by ${approver}; routed to ${placed.destination}${sinkNote}. Broker order ${placed.brokerOrderId}.${overrideNote}`,
+    },
+    { dataDir: opts.dataDir },
+  );
+
+  // Record the placement so a later retry of the same approval returns this
+  // result instead of placing a second order. Best-effort: the order already
+  // placed, so a record-write failure must not turn success into an error.
+  await recordPlacedOrder(
+    {
+      clientOrderId,
+      destination: placed.destination,
+      brokerOrderId: placed.brokerOrderId,
+      journalId: id,
+      dryRun: placed.dryRun,
+      placedAt: timestamp,
     },
     { dataDir: opts.dataDir },
   );

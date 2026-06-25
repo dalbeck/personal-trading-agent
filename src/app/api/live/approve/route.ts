@@ -79,6 +79,10 @@ export async function POST(req: Request): Promise<Response> {
       approver: "human",
       timestamp,
       reason: body.reason,
+      // Stable idempotency key = the proposal id, so a double-tap or retry of
+      // this approval places at most once (the per-request timestamp must NOT
+      // be the key — it changes every call).
+      idempotencyKey: proposalId,
       // A non-empty override comment lets the human override a red-team reject
       // and/or a rail violation; the server re-checks the comment is non-empty
       // (`hasValidOverride`), so a blank comment never bypasses a block.
