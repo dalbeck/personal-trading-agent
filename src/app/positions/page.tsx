@@ -1,4 +1,5 @@
 import { DataSourceNotice } from "@/components/data-source-notice";
+import { LiveRefreshButton } from "@/components/live-refresh-button";
 import { PositionsTable } from "@/components/positions-table";
 import { Badge } from "@/components/ui/badge";
 import { Card, PageTitle } from "@/components/page-shell";
@@ -48,9 +49,14 @@ export default async function PositionsPage() {
           >
             Live account
           </h2>
-          <span className="ml-auto text-xs text-fg-muted">
-            Robinhood Agentic · read-only
-          </span>
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-xs text-fg-muted">
+              Robinhood Agentic · read-only
+            </span>
+            {live.connected ? (
+              <LiveRefreshButton asOf={live.snapshot?.asOf} />
+            ) : null}
+          </div>
         </div>
         {/* Privacy: the Robinhood MCP can read every linked account, but the
             desk surfaces ONLY the Agentic account — it never enumerates or

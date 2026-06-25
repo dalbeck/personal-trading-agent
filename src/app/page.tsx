@@ -8,6 +8,7 @@ import { GuardrailHeadroom } from "@/components/overview/guardrail-headroom";
 import { RoutinesHealthModule } from "@/components/overview/routines-health";
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
+import { LiveRefreshButton } from "@/components/live-refresh-button";
 import {
   formatCurrency,
   formatPercent,
@@ -197,13 +198,18 @@ export default async function OverviewPage() {
             >
               Live account
             </h2>
-            <span className="ml-auto text-xs font-semibold tabular-nums">
-              <span className={gate.liveEnabled ? "text-gain" : "text-fg-muted"}>
-                {gate.liveEnabled
-                  ? "LIVE TRADING: ON"
-                  : "LIVE TRADING: OFF"}
+            <div className="ml-auto flex items-center gap-3">
+              {live.connected ? (
+                <LiveRefreshButton asOf={live.snapshot?.asOf} />
+              ) : null}
+              <span className="text-xs font-semibold tabular-nums">
+                <span
+                  className={gate.liveEnabled ? "text-gain" : "text-fg-muted"}
+                >
+                  {gate.liveEnabled ? "LIVE TRADING: ON" : "LIVE TRADING: OFF"}
+                </span>
               </span>
-            </span>
+            </div>
           </div>
 
           <dl className="mb-3 grid grid-cols-1 gap-1.5 rounded-card border border-line bg-surface p-3 text-xs">
