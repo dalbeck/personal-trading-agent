@@ -30,7 +30,7 @@ and routines must follow this. The runtime contracts live in
 | `data/fills/` | `.json` | _(added in Phase 2)_ |
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
 | `data/research/` | `.json` | `ResearchUsageSchema` (per-day metered-API call counter) |
-| `data/research/cache/` | `.json` | symbol-research day cache (`<date>-<SYMBOL>.json`, internal state — not a contract) |
+| `data/research/cache/` | `.json` | symbol-research cache (`<SYMBOL>.json`, `fetchedAt`-stamped freshness, internal state — not a contract) |
 
 **Tracked universe + account scoping (M2/M3).** The **watchlist** — the editable
 half of the tracked universe — is a small JSON state file
@@ -63,6 +63,16 @@ paper batch + every human approval) and read back as `RiskContext.ordersToday`
 so the charter daily-order cap (≤6/day) fires across runs and across paths, and
 resets at the New York day boundary (`src/lib/server/order-counter.ts`). Another
 internal state file — written directly, not a `data/` artifact contract.
+`data/control/market-conditions.json` (`{ vix, fetchedAt }`) is the **short-TTL
+VIX cache** (~10 min) so the slow Robinhood `get_index_quotes` spawn doesn't
+block every approval — likewise an internal state file
+(`src/lib/server/market-conditions.ts`). The **research cache**
+(`data/research/cache/<SYMBOL>.json`) is now keyed by symbol (not symbol+date)
+and carries a `fetchedAt` stamp: `getSymbolResearch` serves it unless older than
+a soft max-age (`RESEARCH_MAX_AGE_DAYS`, default 7) or a manual refresh forces a
+refetch, so crossing midnight no longer re-spends a metered call. The
+Perplexity daily cap still gates every refetch; a capped refresh keeps the
+existing cache.
 
 **Proposal `account` / `advisory` (live vs paper).** A `TradeProposal` carries
 `account` (`paper` | `live`, default `paper`) and `advisory` (default `false`).

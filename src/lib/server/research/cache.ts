@@ -5,10 +5,17 @@ import path from "node:path";
 import type { SymbolResearch } from "./types";
 
 /**
- * Per-symbol, per-day cache for the merged symbol-research payload. Auto-loading
- * the symbol page would otherwise re-spend a Perplexity call (real $) and a slow
- * Robinhood CLI read on every refresh / navigate-away-and-back; caching the
- * result for the calendar day makes the first view pay and the rest free.
+ * Per-symbol cache for the merged symbol-research payload. Auto-loading the
+ * symbol page would otherwise re-spend a Perplexity call (real $) and a slow
+ * Robinhood CLI read on every visit; caching the result makes the first view pay
+ * and the rest free.
+ *
+ * **Freshness, not day-expiry.** The entry is keyed by **symbol only** (not
+ * symbol+date) and carries a `fetchedAt` timestamp. The *expiry policy* lives in
+ * `getSymbolResearch` (serve unless older than a soft max-age, or a manual
+ * refresh forces it) — this module just persists and returns the latest entry
+ * with its age, so the UI can show "fetched N ago" and offer a Refresh. Crossing
+ * midnight no longer silently re-spends.
  *
  * An internal state file (like the usage counter / halt latch), NOT a `data/`
  * artifact contract — written by us, read best-effort. A malformed or unreadable
@@ -16,33 +23,37 @@ import type { SymbolResearch } from "./types";
  */
 
 /** Bump when the cached shape changes so stale entries are re-fetched, not
- *  served with missing fields (e.g. the company `name` / `domain` added for the
- *  header + logo; v4 added the `earnings` / `catalysts` / `sections` fields for
- *  the redesigned research card). */
-const CACHE_VERSION = 4;
+ *  served with missing fields. v5 re-keyed the cache by symbol (dropping the
+ *  date from the filename) and added the `fetchedAt` freshness stamp. */
+const CACHE_VERSION = 5;
 
-function cacheFile(symbol: string, date: string, dataDir?: string): string {
+function cacheFile(symbol: string, dataDir?: string): string {
   const root =
     dataDir ?? process.env.TRADING_DATA_DIR ?? path.join(process.cwd(), "data");
-  return path.join(root, "research", "cache", `${date}-${symbol}.json`);
+  return path.join(root, "research", "cache", `${symbol}.json`);
 }
 
-/** Read today's cached research for a symbol, or null on miss / unreadable. */
+/** Read a symbol's cached research (any age), or null on miss / unreadable /
+ *  stale-shape. The returned copy is marked `cached: true` and carries the
+ *  stored `fetchedAt`; the caller decides whether it is fresh enough to serve. */
 export async function readResearchCache(
   symbol: string,
-  date: string,
   opts?: { dataDir?: string },
 ): Promise<SymbolResearch | null> {
   try {
-    const raw = await readFile(cacheFile(symbol, date, opts?.dataDir), "utf8");
-    const parsed = JSON.parse(raw) as SymbolResearch & { version?: number };
+    const raw = await readFile(cacheFile(symbol, opts?.dataDir), "utf8");
+    const parsed = JSON.parse(raw) as SymbolResearch & {
+      version?: number;
+      fetchedAt?: string;
+    };
     // Minimal shape check + version gate — a stale-shape entry is a miss, so it
     // gets re-fetched with the current fields rather than served half-empty.
     if (
       parsed &&
       typeof parsed === "object" &&
       "perplexity" in parsed &&
-      parsed.version === CACHE_VERSION
+      parsed.version === CACHE_VERSION &&
+      typeof parsed.fetchedAt === "string"
     ) {
       return { ...parsed, cached: true };
     }
@@ -52,19 +63,24 @@ export async function readResearchCache(
   }
 }
 
-/** Persist today's merged research for a symbol. Best-effort; never throws. */
+/** Persist a symbol's merged research, stamped with `fetchedAt`. Best-effort;
+ *  never throws (a cache write must never break the page). */
 export async function writeResearchCache(
   symbol: string,
-  date: string,
   value: SymbolResearch,
+  fetchedAt: string,
   opts?: { dataDir?: string },
 ): Promise<void> {
   try {
-    const file = cacheFile(symbol, date, opts?.dataDir);
+    const file = cacheFile(symbol, opts?.dataDir);
     await mkdir(path.dirname(file), { recursive: true });
     await writeFile(
       file,
-      `${JSON.stringify({ ...value, cached: false, version: CACHE_VERSION }, null, 2)}\n`,
+      `${JSON.stringify(
+        { ...value, fetchedAt, cached: false, version: CACHE_VERSION },
+        null,
+        2,
+      )}\n`,
       "utf8",
     );
   } catch {

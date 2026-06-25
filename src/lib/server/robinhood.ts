@@ -66,13 +66,19 @@ export const READ_ONLY_TOOLS = [
   "get_equity_orders",
 ] as const;
 
-/** Read-only **market-data** tools — symbol-scoped, NOT account-scoped (no
+/** Read-only **market-data** tools — symbol/index-scoped, NOT account-scoped (no
  *  account number is referenced). `get_equity_fundamentals` returns valuation
  *  ratios, market cap, dividend schedule, and a company profile — the free
- *  source for the symbol page's stats grid + profile rail. It places nothing and
- *  reads no account, so it is kept separate from the account-scoped
- *  {@link READ_ONLY_TOOLS}; like them, none of {@link FORBIDDEN_TOOLS} may leak in. */
-export const MARKET_DATA_TOOLS = ["get_equity_fundamentals"] as const;
+ *  source for the symbol page's stats grid + profile rail. `get_index_quotes`
+ *  returns index levels (e.g. VIX) — the free source for the emergency-stop
+ *  rail's volatility signal (the Alpaca stock feed has no `^VIX`). Both place
+ *  nothing and read no account, so they are kept separate from the
+ *  account-scoped {@link READ_ONLY_TOOLS}; like them, none of
+ *  {@link FORBIDDEN_TOOLS} may leak in. */
+export const MARKET_DATA_TOOLS = [
+  "get_equity_fundamentals",
+  "get_index_quotes",
+] as const;
 
 /** Tools that must NEVER be allow-listed: `get_accounts` enumerates every linked
  *  account (breaks Agentic-only privacy), and the order tools place real trades.
@@ -466,8 +472,11 @@ export function buildFundamentalsCliCommand(symbol: string): {
     args: [
       "-p",
       prompt,
+      // Least privilege: this read needs only fundamentals, not every
+      // market-data tool. (`get_index_quotes` is in MARKET_DATA_TOOLS but is
+      // allow-listed only by the VIX command.)
       "--allowedTools",
-      ...MARKET_DATA_TOOLS.map(toolId),
+      toolId("get_equity_fundamentals"),
       "--disallowedTools",
       ...FORBIDDEN_TOOLS.map(toolId),
     ],
@@ -549,6 +558,83 @@ export async function getRobinhoodFundamentals(
   try {
     const raw = await (opts?.fetcher ?? defaultFetchFundamentals)(symbol);
     return mapRobinhoodFundamentals(RhFundamentalsSchema.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/* --------------------------- get_index_quotes (VIX) ------------------------ */
+// Free, read-only, index-scoped volatility signal for the charter emergency-stop
+// rail (SPY −2% / VIX>30). The Alpaca stock feed returns "asset not found" for
+// `^VIX`, so the live VIX level comes from Robinhood's index quotes instead.
+// Index data, NOT order pricing — Alpaca stays the price-of-record for equities.
+
+const RhVixSchema = z
+  .object({ vix: z.coerce.number().nullable().catch(null) })
+  .passthrough();
+
+/** Injectable raw VIX fetch (tests bypass the CLI). */
+export type VixFetcher = () => Promise<unknown>;
+
+/**
+ * Build the `claude -p` argv that reads the current VIX level through the host
+ * CLI's Robinhood MCP session. Pure + exported so the safety invariants are
+ * unit-tested without spawning: ONLY `get_index_quotes` is allow-listed, every
+ * order / enumeration tool is explicitly disallowed, and — like the other
+ * market-data reads — no account number is referenced.
+ */
+export function buildVixCliCommand(): { cmd: string; args: string[] } {
+  const prompt = [
+    `Use the ${MCP_SERVER} MCP for READ-ONLY market data.`,
+    `Do NOT call get_accounts, do NOT read any brokerage account, do NOT place or cancel any order.`,
+    `Call get_index_quotes for the CBOE Volatility Index ("VIX") — this places nothing.`,
+    `Then output ONLY a single minified JSON object — no prose, no markdown` +
+      ` fences — copying the value verbatim from the tool result (never compute,` +
+      ` estimate, or invent it; use null if unavailable): {"vix":NUMBER_OR_NULL}.`,
+  ].join(" ");
+
+  return {
+    cmd: "claude",
+    args: [
+      "-p",
+      prompt,
+      // Least privilege: only the index-quote tool.
+      "--allowedTools",
+      toolId("get_index_quotes"),
+      "--disallowedTools",
+      ...FORBIDDEN_TOOLS.map(toolId),
+    ],
+  };
+}
+
+async function defaultFetchVix(): Promise<unknown> {
+  const { cmd, args } = buildVixCliCommand();
+  const { stdout } = await run(cmd, args, {
+    cwd: process.cwd(),
+    timeout: CLI_TIMEOUT_MS,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  return extractJsonObject(stdout);
+}
+
+/**
+ * Current VIX level from Robinhood (read-only, no account, no metered cost), or
+ * null when unavailable. Gated on {@link hasRobinhoodConnection} unless a
+ * `fetcher` is injected for tests. Best-effort: any failure (or a non-positive /
+ * absent value) returns null so the caller degrades to a neutral reading rather
+ * than throwing. A sane upper bound rejects an obviously bogus parse.
+ */
+export async function getRobinhoodVix(opts?: {
+  fetcher?: VixFetcher;
+}): Promise<number | null> {
+  if (!opts?.fetcher && !hasRobinhoodConnection()) return null;
+  try {
+    const raw = await (opts?.fetcher ?? defaultFetchVix)();
+    const { vix } = RhVixSchema.parse(raw);
+    if (vix == null || !Number.isFinite(vix) || vix <= 0 || vix > 200) {
+      return null;
+    }
+    return vix;
   } catch {
     return null;
   }

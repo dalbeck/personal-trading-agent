@@ -4,10 +4,12 @@ import {
   buildLiveSnapshot,
   buildOrdersCliCommand,
   buildPortfolioCliCommand,
+  buildVixCliCommand,
   FORBIDDEN_TOOLS,
   getRobinhoodFundamentals,
   getRobinhoodLiveSnapshot,
   getRobinhoodLiveTrades,
+  getRobinhoodVix,
   hasRobinhoodConnection,
   mapLiveTrades,
   MARKET_DATA_TOOLS,
@@ -214,6 +216,66 @@ describe("robinhood read-only client", () => {
       expect(MARKET_DATA_TOOLS as readonly string[]).not.toContain(forbidden);
     }
     expect(MARKET_DATA_TOOLS as readonly string[]).not.toContain("get_accounts");
+  });
+
+  describe("buildVixCliCommand — read-only index data, no account", () => {
+    const { cmd, args } = buildVixCliCommand();
+    const joined = args.join(" ");
+    const allowIdx = args.indexOf("--allowedTools");
+    const disallowIdx = args.indexOf("--disallowedTools");
+    const allowed = args.slice(allowIdx + 1, disallowIdx);
+
+    it("spawns the host claude CLI and allow-lists ONLY get_index_quotes", () => {
+      expect(cmd).toBe("claude");
+      expect(args[0]).toBe("-p");
+      expect(allowed).toEqual(["mcp__robinhood-trading__get_index_quotes"]);
+      // Never an account, order, or cancel tool in the allow-list.
+      for (const forbidden of FORBIDDEN_TOOLS) {
+        expect(allowed).not.toContain(`mcp__robinhood-trading__${forbidden}`);
+      }
+    });
+
+    it("disallows every order + enumeration tool and references no account", () => {
+      for (const forbidden of FORBIDDEN_TOOLS) {
+        expect(joined).toContain(`mcp__robinhood-trading__${forbidden}`);
+      }
+      expect(joined).toMatch(/Do NOT call get_accounts/);
+      expect(joined).toMatch(/do NOT read any brokerage account/i);
+      expect(joined).toMatch(/READ-ONLY market data/);
+      expect(joined).toMatch(/VIX/);
+    });
+  });
+
+  describe("getRobinhoodVix — best-effort index level", () => {
+    it("returns null when not connected and no fetcher (default-off)", async () => {
+      expect(await getRobinhoodVix()).toBeNull();
+    });
+
+    it("maps a real-shaped index quote through an injected fetcher", async () => {
+      expect(await getRobinhoodVix({ fetcher: async () => ({ vix: 17.4 }) })).toBe(
+        17.4,
+      );
+      // String-coerced too (MCP payloads are often string-typed).
+      expect(await getRobinhoodVix({ fetcher: async () => ({ vix: "31.2" }) })).toBe(
+        31.2,
+      );
+    });
+
+    it("returns null for an absent / nonsensical / out-of-range value", async () => {
+      expect(await getRobinhoodVix({ fetcher: async () => ({ vix: null }) })).toBeNull();
+      expect(await getRobinhoodVix({ fetcher: async () => ({ vix: 0 }) })).toBeNull();
+      expect(await getRobinhoodVix({ fetcher: async () => ({ vix: 9999 }) })).toBeNull();
+      expect(await getRobinhoodVix({ fetcher: async () => ({}) })).toBeNull();
+    });
+
+    it("survives a thrown fetch without crashing", async () => {
+      const res = await getRobinhoodVix({
+        fetcher: async () => {
+          throw new Error("CLI blew up");
+        },
+      });
+      expect(res).toBeNull();
+    });
   });
 
   describe("getRobinhoodFundamentals — maps the fundamentals + profile", () => {

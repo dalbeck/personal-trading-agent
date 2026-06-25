@@ -2,7 +2,11 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { getSymbolResearch, mergeSymbolResearch } from "./symbol-research";
+import {
+  getResearchFreshness,
+  getSymbolResearch,
+  mergeSymbolResearch,
+} from "./symbol-research";
 import type {
   ResearchFundamentals,
   ResearchProfile,
@@ -118,7 +122,7 @@ describe("mergeSymbolResearch", () => {
 });
 
 describe("getSymbolResearch", () => {
-  it("merges Robinhood + Perplexity and caches per-symbol-per-day", async () => {
+  it("merges Robinhood + Perplexity, caches by symbol, and serves a fresh cache", async () => {
     const dir = await tmp();
     const fetchRobinhood = vi.fn(async () => rhData());
     const research = vi.fn(async () => pplxResult());
@@ -132,12 +136,13 @@ describe("getSymbolResearch", () => {
       now: NOW,
     });
     expect(first.cached).toBe(false);
+    expect(first.fetchedAt).toBe("2026-06-25T12:00:00.000Z");
     expect(first.fundamentalsSource).toBe("robinhood");
     expect(first.consensus!.rating).toBe("Buy");
     expect(fetchRobinhood).toHaveBeenCalledOnce();
     expect(research).toHaveBeenCalledOnce();
 
-    // Second view the same day is served from cache — no fresh calls re-spent.
+    // A later view within the soft max-age is served from cache — no re-spend.
     const second = await getSymbolResearch("MSFT", {
       dataDir: dir,
       robinhoodConnected: true,
@@ -146,9 +151,82 @@ describe("getSymbolResearch", () => {
       now: () => new Date("2026-06-25T15:00:00Z"),
     });
     expect(second.cached).toBe(true);
+    expect(second.fetchedAt).toBe("2026-06-25T12:00:00.000Z"); // original stamp
     expect(second.fundamentals!.marketCap).toBe(4e12);
     expect(fetchRobinhood).toHaveBeenCalledOnce(); // not called again
     expect(research).toHaveBeenCalledOnce(); // not called again
+  });
+
+  it("a manual refresh (force) re-spends even when the cache is fresh", async () => {
+    const dir = await tmp();
+    const fetchRobinhood = vi.fn(async () => rhData());
+    const research = vi.fn(async () => pplxResult());
+    const provider: ResearchProvider = { name: "perplexity", research };
+    const base = {
+      dataDir: dir,
+      robinhoodConnected: true,
+      fetchRobinhood,
+      provider,
+    };
+
+    await getSymbolResearch("MSFT", { ...base, now: NOW });
+    const forced = await getSymbolResearch("MSFT", {
+      ...base,
+      now: () => new Date("2026-06-25T13:00:00Z"),
+      force: true,
+    });
+    expect(forced.cached).toBe(false);
+    expect(forced.fetchedAt).toBe("2026-06-25T13:00:00.000Z"); // re-stamped
+    expect(fetchRobinhood).toHaveBeenCalledTimes(2);
+    expect(research).toHaveBeenCalledTimes(2);
+  });
+
+  it("auto-refetches when the cache is older than the soft max-age", async () => {
+    const dir = await tmp();
+    const fetchRobinhood = vi.fn(async () => rhData());
+    const research = vi.fn(async () => pplxResult());
+    const provider: ResearchProvider = { name: "perplexity", research };
+    const base = {
+      dataDir: dir,
+      robinhoodConnected: true,
+      fetchRobinhood,
+      provider,
+      maxAgeMs: 7 * 86_400_000,
+    };
+
+    await getSymbolResearch("MSFT", { ...base, now: NOW });
+    // 10 days later → past the 7-day soft cap → refetch.
+    const stale = await getSymbolResearch("MSFT", {
+      ...base,
+      now: () => new Date("2026-07-05T12:00:00Z"),
+    });
+    expect(stale.cached).toBe(false);
+    expect(fetchRobinhood).toHaveBeenCalledTimes(2);
+  });
+
+  it("a capped refresh keeps the prior cache and surfaces the capped status", async () => {
+    const dir = await tmp();
+    // First: a good cache (Robinhood + Perplexity).
+    await getSymbolResearch("MSFT", {
+      dataDir: dir,
+      robinhoodConnected: true,
+      fetchRobinhood: async () => rhData(),
+      provider: { name: "perplexity", research: async () => pplxResult() },
+      now: NOW,
+    });
+    // Forced refresh that comes back empty (no Robinhood, provider null, capped).
+    const refreshed = await getSymbolResearch("MSFT", {
+      dataDir: dir,
+      robinhoodConnected: false,
+      provider: { name: "perplexity", research: async () => null },
+      dailyCap: 0,
+      force: true,
+      now: () => new Date("2026-06-25T16:00:00Z"),
+    });
+    expect(refreshed.perplexity).toBe("capped");
+    // The good prior data is preserved — a capped refresh never wipes the cache.
+    expect(refreshed.fundamentals!.marketCap).toBe(4e12);
+    expect(refreshed.fetchedAt).toBe("2026-06-25T12:00:00.000Z");
   });
 
   it("reports perplexity 'off' without calling the provider, still uses Robinhood", async () => {
@@ -184,5 +262,31 @@ describe("getSymbolResearch", () => {
       now: NOW,
     });
     expect(unavailable.perplexity).toBe("unavailable");
+  });
+});
+
+describe("getResearchFreshness", () => {
+  it("returns the cached fetchedAt without fetching (no spend)", async () => {
+    const dir = await tmp();
+    const research = vi.fn(async () => pplxResult());
+    await getSymbolResearch("MSFT", {
+      dataDir: dir,
+      robinhoodConnected: true,
+      fetchRobinhood: async () => rhData(),
+      provider: { name: "perplexity", research },
+      now: NOW,
+    });
+    research.mockClear();
+
+    const fresh = await getResearchFreshness("MSFT", { dataDir: dir });
+    expect(fresh.fetchedAt).toBe("2026-06-25T12:00:00.000Z");
+    expect(research).not.toHaveBeenCalled(); // cache-only — never fetches
+  });
+
+  it("returns null fetchedAt when nothing is cached", async () => {
+    const dir = await tmp();
+    expect(await getResearchFreshness("AMD", { dataDir: dir })).toEqual({
+      fetchedAt: null,
+    });
   });
 });

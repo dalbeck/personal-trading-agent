@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type {
   PerplexityStatus,
   SymbolResearch,
@@ -38,12 +46,31 @@ const FALLBACK: SymbolResearch = {
   robinhoodConnected: false,
   perplexity: "unavailable",
   cached: false,
+  fetchedAt: null,
 };
 
 const ResearchContext = createContext<ResearchState>({ status: "loading" });
 
+/** Manual-refresh controls, kept in a separate context so the data islands
+ *  (stats grid, profile, consensus) don't re-render on `refreshing` toggles. */
+export interface ResearchControls {
+  /** Force a refetch (re-spends Robinhood + a metered Perplexity call). */
+  refresh: () => void;
+  /** True while a manual refresh is in flight. */
+  refreshing: boolean;
+}
+
+const ResearchControlsContext = createContext<ResearchControls>({
+  refresh: () => {},
+  refreshing: false,
+});
+
 export function useSymbolResearch(): ResearchState {
   return useContext(ResearchContext);
+}
+
+export function useResearchRefresh(): ResearchControls {
+  return useContext(ResearchControlsContext);
 }
 
 export function SymbolResearchProvider({
@@ -54,7 +81,11 @@ export function SymbolResearchProvider({
   children: ReactNode;
 }) {
   const [state, setState] = useState<ResearchState>({ status: "loading" });
+  const [refreshing, setRefreshing] = useState(false);
+  // Guards against a double-tap kicking off two concurrent refetches.
+  const inFlight = useRef(false);
 
+  // Auto-load once on mount (cache-first); the manual Refresh below force-refetches.
   useEffect(() => {
     let cancelled = false;
     // All state writes happen after an await so this never trips the
@@ -83,9 +114,34 @@ export function SymbolResearchProvider({
     };
   }, [symbol]);
 
+  const refresh = useCallback(() => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setRefreshing(true);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/symbol/${encodeURIComponent(symbol)}/research/refresh`,
+          { method: "POST" },
+        );
+        const data = (await res.json()) as SymbolResearch;
+        if (data && typeof data === "object" && "perplexity" in data) {
+          setState({ status: "loaded", research: data });
+        }
+      } catch {
+        // Keep the existing data on a failed refresh — never blank the card.
+      } finally {
+        inFlight.current = false;
+        setRefreshing(false);
+      }
+    })();
+  }, [symbol]);
+
   return (
     <ResearchContext.Provider value={state}>
-      {children}
+      <ResearchControlsContext.Provider value={{ refresh, refreshing }}>
+        {children}
+      </ResearchControlsContext.Provider>
     </ResearchContext.Provider>
   );
 }

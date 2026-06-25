@@ -6,6 +6,8 @@ import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/page-shell";
+import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
+import { RedTeamRerunButton } from "@/components/red-team-rerun-button";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
@@ -249,6 +251,13 @@ export function ProposalsList({
               {p.redTeam ? (
                 <RedTeamVerdict verdict={p.redTeam} className="mt-3" />
               ) : null}
+
+              {/* Linked-symbol research freshness (cache-only read, no spend) +
+                  a confirm-gated red-team re-run for pending proposals. */}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <ProposalResearchFreshness symbol={p.symbol} />
+                {pending ? <RedTeamRerunButton proposalId={p.id} /> : null}
+              </div>
 
               {advisory ? (
                 <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">

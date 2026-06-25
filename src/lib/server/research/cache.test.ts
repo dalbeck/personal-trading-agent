@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,8 @@ import type { SymbolResearch } from "./types";
 async function tmp(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "pta-research-cache-"));
 }
+
+const FETCHED_AT = "2026-06-25T14:00:00.000Z";
 
 function payload(): SymbolResearch {
   return {
@@ -39,64 +41,54 @@ function payload(): SymbolResearch {
     robinhoodConnected: true,
     perplexity: "off",
     cached: false,
+    fetchedAt: null,
   };
 }
 
+const cacheFilePath = (dir: string, symbol: string) =>
+  path.join(dir, "research", "cache", `${symbol}.json`);
+
 describe("research cache", () => {
-  it("round-trips a payload, marking the read copy as cached", async () => {
+  it("round-trips a payload, marking the read copy cached and stamping fetchedAt", async () => {
     const dir = await tmp();
-    await writeResearchCache("MSFT", "2026-06-25", payload(), { dataDir: dir });
-    const got = await readResearchCache("MSFT", "2026-06-25", { dataDir: dir });
+    await writeResearchCache("MSFT", payload(), FETCHED_AT, { dataDir: dir });
+    const got = await readResearchCache("MSFT", { dataDir: dir });
     expect(got).not.toBeNull();
     expect(got!.cached).toBe(true);
+    expect(got!.fetchedAt).toBe(FETCHED_AT);
     expect(got!.fundamentals!.marketCap).toBe(3e12);
     expect(got!.profile!.ceo).toBe("Satya Nadella");
   });
 
-  it("returns null on a miss (no file)", async () => {
+  it("is keyed by symbol only (no date in the filename)", async () => {
     const dir = await tmp();
-    expect(await readResearchCache("AMD", "2026-06-25", { dataDir: dir })).toBeNull();
+    await writeResearchCache("MSFT", payload(), FETCHED_AT, { dataDir: dir });
+    // The file lives at <SYMBOL>.json, and a different symbol is a miss.
+    await expect(readFile(cacheFilePath(dir, "MSFT"), "utf8")).resolves.toContain(
+      "Satya Nadella",
+    );
+    expect(await readResearchCache("AMD", { dataDir: dir })).toBeNull();
   });
 
-  it("is scoped per symbol and per day", async () => {
+  it("returns null on a miss (no file)", async () => {
     const dir = await tmp();
-    await writeResearchCache("MSFT", "2026-06-25", payload(), { dataDir: dir });
-    expect(await readResearchCache("MSFT", "2026-06-26", { dataDir: dir })).toBeNull();
-    expect(await readResearchCache("AMD", "2026-06-25", { dataDir: dir })).toBeNull();
+    expect(await readResearchCache("AMD", { dataDir: dir })).toBeNull();
   });
 
   it("treats a malformed cache file as a miss (never throws)", async () => {
     const dir = await tmp();
-    const file = path.join(dir, "research", "cache", "2026-06-25-MSFT.json");
+    const file = cacheFilePath(dir, "MSFT");
     await mkdir(path.dirname(file), { recursive: true });
     await writeFile(file, "{ not json", "utf8");
-    expect(await readResearchCache("MSFT", "2026-06-25", { dataDir: dir })).toBeNull();
+    expect(await readResearchCache("MSFT", { dataDir: dir })).toBeNull();
   });
 
-  it("treats a stale-version (pre-name) entry as a miss so it is re-fetched", async () => {
+  it("treats a prior-version (date-keyed, no fetchedAt) entry as a miss", async () => {
     const dir = await tmp();
-    const file = path.join(dir, "research", "cache", "2026-06-25-MSFT.json");
+    const file = cacheFilePath(dir, "MSFT");
     await mkdir(path.dirname(file), { recursive: true });
-    // An old cache entry with the marker but no current version.
-    await writeFile(
-      file,
-      JSON.stringify({ ...payload(), version: 1 }),
-      "utf8",
-    );
-    expect(await readResearchCache("MSFT", "2026-06-25", { dataDir: dir })).toBeNull();
-  });
-
-  it("treats a prior-version entry missing new fields as a miss (no half-empty serve)", async () => {
-    const dir = await tmp();
-    const file = path.join(dir, "research", "cache", "2026-06-25-MSFT.json");
-    await mkdir(path.dirname(file), { recursive: true });
-    // A v3 entry written before earnings/catalysts/sections existed — must NOT
-    // be served (it would crash the card on `research.earnings.length`).
-    const legacy: Record<string, unknown> = { ...payload(), version: 3 };
-    delete legacy.earnings;
-    delete legacy.catalysts;
-    delete legacy.sections;
-    await writeFile(file, JSON.stringify(legacy), "utf8");
-    expect(await readResearchCache("MSFT", "2026-06-25", { dataDir: dir })).toBeNull();
+    // An old v4 entry without the version/fetchedAt the current shape requires.
+    await writeFile(file, JSON.stringify({ ...payload(), version: 4 }), "utf8");
+    expect(await readResearchCache("MSFT", { dataDir: dir })).toBeNull();
   });
 });

@@ -1,6 +1,10 @@
 import "server-only";
 
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { z } from "zod";
 import { getStockSnapshot, hasAlpacaCredentials } from "./alpaca";
+import { getRobinhoodVix } from "./robinhood";
 
 /**
  * Live market conditions for the charter **emergency-stop** rail (SPY −2%
@@ -37,8 +41,78 @@ export const NEUTRAL_MARKET: MarketConditions = {
 
 /** SPY snapshot getter seam (defaults to Alpaca's IEX snapshot). */
 export type SpyChangeGetter = () => Promise<number | null>;
-/** VIX level getter seam (no reliable free Alpaca feed — injected/neutral). */
+/** VIX level getter seam (defaults to Robinhood `get_index_quotes`, TTL-cached). */
 export type VixGetter = () => Promise<number | null>;
+
+/** How long a fetched VIX is reused before the (slow) Robinhood CLI is re-spawned.
+ *  VIX is a live signal, so this is a short time-TTL — not the manual-refresh
+ *  policy used for symbol research. */
+const VIX_TTL_MS = Number(process.env.VIX_CACHE_TTL_MS ?? 10 * 60_000);
+
+const VixCacheSchema = z.object({
+  vix: z.number(),
+  fetchedAt: z.string(),
+});
+
+function marketCondFile(dataDir?: string): string {
+  const root =
+    dataDir ?? process.env.TRADING_DATA_DIR ?? path.join(process.cwd(), "data");
+  return path.join(root, "control", "market-conditions.json");
+}
+
+/** Read the cached VIX if it is within the TTL window, else null. Best-effort. */
+async function readVixCache(
+  dataDir: string | undefined,
+  nowMs: number,
+  ttlMs: number,
+): Promise<number | null> {
+  try {
+    const raw = await readFile(marketCondFile(dataDir), "utf8");
+    const { vix, fetchedAt } = VixCacheSchema.parse(JSON.parse(raw));
+    const age = nowMs - Date.parse(fetchedAt);
+    if (Number.isFinite(age) && age >= 0 && age <= ttlMs && vix > 0) return vix;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist a freshly-fetched VIX with its timestamp. Best-effort; never throws. */
+async function writeVixCache(
+  vix: number,
+  dataDir: string | undefined,
+  nowIso: string,
+): Promise<void> {
+  try {
+    const file = marketCondFile(dataDir);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(
+      file,
+      `${JSON.stringify({ vix, fetchedAt: nowIso }, null, 2)}\n`,
+      "utf8",
+    );
+  } catch {
+    /* a cache write must never break the order path */
+  }
+}
+
+/** Default VIX getter: serve a TTL-fresh cached value, else spawn the Robinhood
+ *  read once and cache it. Returns null (→ neutral) when no source is available.
+ *  `fetcher` is the injectable raw Robinhood read (tests bypass the CLI). */
+async function cachedRobinhoodVix(opts: {
+  dataDir?: string;
+  now: Date;
+  ttlMs: number;
+  fetcher?: () => Promise<unknown>;
+}): Promise<number | null> {
+  const cached = await readVixCache(opts.dataDir, opts.now.getTime(), opts.ttlMs);
+  if (cached != null) return cached;
+  const fresh = await getRobinhoodVix(
+    opts.fetcher ? { fetcher: opts.fetcher } : undefined,
+  );
+  if (fresh != null) await writeVixCache(fresh, opts.dataDir, opts.now.toISOString());
+  return fresh;
+}
 
 /** SPY intraday change as a fraction from the Alpaca snapshot, or null. */
 async function alpacaSpyChange(
@@ -60,13 +134,31 @@ export async function getMarketConditions(opts?: {
   spyChange?: SpyChangeGetter;
   vix?: VixGetter;
   fetchImpl?: typeof fetch;
+  /** Data dir + clock for the VIX TTL cache (tests pin them). */
+  dataDir?: string;
+  now?: Date;
+  /** Override the VIX cache TTL (tests). */
+  vixTtlMs?: number;
+  /** Raw Robinhood VIX fetch flowing through the TTL cache (tests bypass the CLI). */
+  vixFetcher?: () => Promise<unknown>;
 }): Promise<MarketConditions> {
+  const now = opts?.now ?? new Date();
   const spyChange =
     opts?.spyChange ??
     (hasAlpacaCredentials() || opts?.fetchImpl
       ? () => alpacaSpyChange(opts?.fetchImpl)
       : null);
-  const vixGetter = opts?.vix ?? null;
+  // Default VIX: TTL-cached Robinhood read. getRobinhoodVix self-gates on a
+  // Robinhood connection and returns null (→ neutral) when absent.
+  const vixGetter =
+    opts?.vix ??
+    (() =>
+      cachedRobinhoodVix({
+        dataDir: opts?.dataDir,
+        now,
+        ttlMs: opts?.vixTtlMs ?? VIX_TTL_MS,
+        fetcher: opts?.vixFetcher,
+      }));
 
   let spyIntradayChangePct = NEUTRAL_MARKET.spyIntradayChangePct;
   if (spyChange) {
