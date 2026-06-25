@@ -11,6 +11,7 @@ import {
   PortfolioSnapshotSchema,
   RunLogSchema,
   TradeProposalSchema,
+  WatchlistSchema,
 } from "@/lib/schemas";
 import type {
   Account,
@@ -207,6 +208,24 @@ export async function readRunLogs(): Promise<RunLog[]> {
 export async function readMaterialNews(): Promise<MaterialNewsItem[]> {
   const files = await readJsonDir("news", NewsFileSchema); // each file is an array
   return files.flat().sort((a, b) => b.seenAt.localeCompare(a.seenAt));
+}
+
+/* ------------------------------ Watchlist ------------------------------ */
+
+/** The manual watchlist symbols (the editable half of the tracked universe).
+ *  A single small JSON state file under `data/control/`. Missing/unreadable ⇒
+ *  an empty watchlist (the shipped default), never an error. */
+export async function readWatchlist(
+  opts?: { dataDir?: string },
+): Promise<string[]> {
+  const root = opts?.dataDir ?? DATA_DIR;
+  const file = path.join(root, "control", "watchlist.json");
+  try {
+    const raw = await readFile(file, "utf8");
+    return WatchlistSchema.parse(JSON.parse(raw)).symbols;
+  } catch {
+    return [];
+  }
 }
 
 /** The most recent run log per routine id (for the Routines status view). */

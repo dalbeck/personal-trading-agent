@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLiveSnapshot,
+  buildOrdersCliCommand,
   buildPortfolioCliCommand,
   FORBIDDEN_TOOLS,
   getRobinhoodLiveSnapshot,
+  getRobinhoodLiveTrades,
   hasRobinhoodConnection,
+  mapLiveTrades,
   READ_ONLY_TOOLS,
+  RobinhoodOrdersSchema,
   RobinhoodPortfolioSchema,
 } from "./robinhood";
 
@@ -32,11 +36,13 @@ const SAMPLE = {
 
 describe("robinhood read-only client", () => {
   it("exposes only account-scoped read tools — no order placement", () => {
-    // The allow-list is the contract: portfolio + positions reads and nothing
-    // else. A regression that adds an order tool fails here.
+    // The allow-list is the contract: portfolio + positions + read-only order
+    // *history* and nothing else. A regression that adds an order-placement tool
+    // fails here.
     expect([...READ_ONLY_TOOLS]).toEqual([
       "get_portfolio",
       "get_equity_positions",
+      "get_equity_orders",
     ]);
   });
 
@@ -91,6 +97,101 @@ describe("robinhood read-only client", () => {
 
   it("getRobinhoodLiveSnapshot throws when not connected and no fetcher", async () => {
     await expect(getRobinhoodLiveSnapshot()).rejects.toThrow(/not connected/i);
+  });
+
+  describe("buildOrdersCliCommand — read-only order history, safe by construction", () => {
+    const { cmd, args } = buildOrdersCliCommand("1AB23456");
+    const joined = args.join(" ");
+
+    it("spawns the host claude CLI in print mode and allow-lists get_equity_orders", () => {
+      expect(cmd).toBe("claude");
+      expect(args[0]).toBe("-p");
+      expect(joined).toContain("mcp__robinhood-trading__get_equity_orders");
+    });
+
+    it("disallows every order-placement + enumeration tool, allow-lists none", () => {
+      const allowIdx = args.indexOf("--allowedTools");
+      const disallowIdx = args.indexOf("--disallowedTools");
+      const allowed = args.slice(allowIdx + 1, disallowIdx);
+      for (const forbidden of FORBIDDEN_TOOLS) {
+        const id = `mcp__robinhood-trading__${forbidden}`;
+        expect(allowed).not.toContain(id);
+        expect(joined).toContain(id);
+      }
+      expect(joined).toMatch(/Do NOT call get_accounts/);
+      expect(joined).toMatch(/READ-ONLY/);
+    });
+
+    it("references only the one supplied account number", () => {
+      expect(joined).toContain("1AB23456");
+    });
+  });
+
+  describe("mapLiveTrades — keep only filled, usable fills", () => {
+    it("filters out non-filled / zero-qty / no-price orders and maps the rest", () => {
+      const orders = RobinhoodOrdersSchema.parse({
+        orders: [
+          {
+            id: "a",
+            symbol: "NVDA",
+            side: "buy",
+            quantity: "2",
+            average_price: "196.97",
+            state: "filled",
+            filled_at: "2026-06-24T14:31:00-04:00",
+          },
+          {
+            id: "b",
+            symbol: "AAPL",
+            side: "sell",
+            quantity: "1",
+            average_price: "210",
+            state: "cancelled",
+          },
+          {
+            id: "c",
+            symbol: "TSLA",
+            side: "buy",
+            quantity: "0",
+            average_price: "250",
+            state: "filled",
+          },
+        ],
+      });
+      const trades = mapLiveTrades(orders);
+      expect(trades).toHaveLength(1);
+      expect(trades[0]).toMatchObject({
+        orderId: "a",
+        symbol: "NVDA",
+        action: "buy",
+        qty: 2,
+        price: 196.97,
+      });
+    });
+  });
+
+  it("getRobinhoodLiveTrades throws when not connected and no fetcher", async () => {
+    await expect(getRobinhoodLiveTrades()).rejects.toThrow(/not connected/i);
+  });
+
+  it("getRobinhoodLiveTrades maps through an injected fetcher (network-free)", async () => {
+    const trades = await getRobinhoodLiveTrades({
+      fetcher: async () => ({
+        orders: [
+          {
+            id: "x",
+            symbol: "MSFT",
+            side: "buy",
+            quantity: "1",
+            average_price: "410",
+            state: "filled",
+            filled_at: "2026-06-24T10:00:00-04:00",
+          },
+        ],
+      }),
+    });
+    expect(trades).toHaveLength(1);
+    expect(trades[0].symbol).toBe("MSFT");
   });
 
   it("maps a get_portfolio result into a validated live snapshot", () => {

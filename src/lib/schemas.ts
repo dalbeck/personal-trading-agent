@@ -83,6 +83,11 @@ const JournalBase = {
   id: z.string().min(1),
   timestamp: isoDateTime,
   symbol,
+  // Which book the entry belongs to. Paper desk decisions default to `paper`;
+  // a `live` entry is a trade the human placed manually in Robinhood, ingested
+  // read-only for coaching (see `manual` on the trade entry). Older entries
+  // without the field read as `paper`.
+  account: AccountKind.default("paper"),
   reviewDate: isoDate,
   tags: z.array(z.string()).default([]),
   // The narrative (thesis + reasoning) is the markdown body of the `.md` file;
@@ -101,6 +106,10 @@ export const TradeJournalEntrySchema = z
     stopPrice: money.nullable().default(null),
     takeProfit: money.nullable().default(null),
     riskPct: ratio.nullable().default(null),
+    // True when the human executed this trade by hand (live account) rather than
+    // the paper desk placing it. Manual live trades are ingested read-only from
+    // Robinhood order history for coaching — never executed by this app.
+    manual: z.boolean().default(false),
   })
   .strict();
 
@@ -236,6 +245,11 @@ export const CoachingEntrySchema = z
     id: z.string().min(1),
     date: isoDate,
     period: z.enum(["daily", "weekly"]),
+    // Which book this self-review covers. `paper` = the autonomous desk's own
+    // decisions (the default and the bulk of coaching); `live` = a review of
+    // the human's manually-placed live trades. Coaching stays behavior-driven
+    // either way — it reviews decisions, not mere ownership.
+    account: AccountKind.default("paper"),
     symbol: symbol.nullable().default(null),
     relatedJournalIds: z.array(z.string()).default([]),
     grade: z.enum(["A", "B", "C", "D", "F"]),
@@ -243,5 +257,19 @@ export const CoachingEntrySchema = z
     // The self-review prose (expected / actual / lesson) is the markdown body
     // of the `.md` file; the fields above are its frontmatter.
     body: z.string().min(1),
+  })
+  .strict();
+
+/* --------------------------------------------------------------------------
+ * Watchlist — the manual half of the tracked universe (data/control/
+ * watchlist.json). The other half is the active book's holdings. Together they
+ * feed the news scout and the research routine, and drive symbol auto-surfacing
+ * (see `src/lib/server/universe.ts`). A single small JSON state file, like the
+ * funding tracker / live-halt latch.
+ * ------------------------------------------------------------------------ */
+export const WatchlistSchema = z
+  .object({
+    symbols: z.array(symbol).default([]),
+    updatedAt: isoDateTime.nullable().default(null),
   })
   .strict();

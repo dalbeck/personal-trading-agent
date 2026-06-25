@@ -17,7 +17,11 @@ import {
   PortfolioSnapshotSchema,
   RunLogSchema,
   TradeProposalSchema,
+  WatchlistSchema,
 } from "@/lib/schemas";
+import { dedupeSymbols } from "@/lib/universe";
+import { normalizeSymbol } from "@/lib/symbol";
+import { readWatchlist } from "./data";
 import type {
   MaterialNewsItem,
   PortfolioSnapshot,
@@ -137,6 +141,10 @@ export interface TradeDecisionInput {
   research?: string;
   redTeam?: string;
   decision: string;
+  /** Which book the trade belongs to (default paper). */
+  account?: "paper" | "live";
+  /** True for a live trade the human executed by hand (ingested read-only). */
+  manual?: boolean;
 }
 
 /** Journal a placed trade at decision time. */
@@ -155,6 +163,7 @@ export async function recordTradeDecision(
     id,
     timestamp: input.timestamp,
     symbol: input.symbol,
+    account: input.account ?? "paper",
     action: input.action,
     side: input.side ?? "long",
     qty: input.qty,
@@ -162,6 +171,7 @@ export async function recordTradeDecision(
     stopPrice: input.stopPrice ?? null,
     takeProfit: input.takeProfit ?? null,
     riskPct: input.riskPct ?? null,
+    manual: input.manual ?? false,
     reviewDate: input.reviewDate,
     tags: input.tags ?? [],
   };
@@ -253,6 +263,7 @@ export async function recordRiskRejection(
 export interface CoachingInput {
   date: string;
   period: "daily" | "weekly";
+  account?: "paper" | "live";
   symbol?: string | null;
   relatedJournalIds?: string[];
   grade: "A" | "B" | "C" | "D" | "F";
@@ -275,6 +286,7 @@ export async function recordCoaching(
     id,
     date: input.date,
     period: input.period,
+    account: input.account ?? "paper",
     symbol: input.symbol ?? null,
     relatedJournalIds: input.relatedJournalIds ?? [],
     grade: input.grade,
@@ -435,6 +447,45 @@ export async function recordAdvisoryProposal(
   const file = await uniquePath(dir, input.id, ".json");
   await writeStructured(file, TradeProposalSchema, proposal);
   return { id: input.id, file };
+}
+
+/* -------------------------------- Watchlist --------------------------------- */
+
+/** Overwrite the manual watchlist (data/control/watchlist.json), normalizing +
+ *  deduping the symbols and stamping `updatedAt`. Returns the persisted list. */
+export async function writeWatchlist(
+  symbols: string[],
+  opts?: { dataDir?: string; at?: string },
+): Promise<string[]> {
+  const cleaned = dedupeSymbols(symbols);
+  const file = path.join(dataRoot(opts), "control", "watchlist.json");
+  await writeStructured(file, WatchlistSchema, {
+    symbols: cleaned,
+    updatedAt: opts?.at ?? new Date().toISOString(),
+  });
+  return cleaned;
+}
+
+/** Add one symbol to the watchlist (idempotent). Returns the updated list. */
+export async function addToWatchlist(
+  symbol: string,
+  opts?: { dataDir?: string; at?: string },
+): Promise<string[]> {
+  const current = await readWatchlist(opts);
+  return writeWatchlist([...current, symbol], opts);
+}
+
+/** Remove one symbol from the watchlist (idempotent). Returns the updated list. */
+export async function removeFromWatchlist(
+  symbol: string,
+  opts?: { dataDir?: string; at?: string },
+): Promise<string[]> {
+  const target = normalizeSymbol(symbol);
+  const current = await readWatchlist(opts);
+  return writeWatchlist(
+    current.filter((s) => s !== target),
+    opts,
+  );
 }
 
 /** Promote a durable lesson into the playbook's Banked lessons, with the date

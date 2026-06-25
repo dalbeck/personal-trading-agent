@@ -1,14 +1,24 @@
 import { ModuleCard, ModuleEmpty } from "@/components/overview/module-card";
+import { OwnershipBadge } from "@/components/mode-scope";
 import { TickerLink } from "@/components/ticker-link";
 import { formatDateTime } from "@/lib/format";
+import { classifyOwnership, type TrackedUniverse } from "@/lib/universe";
 import type { ActivityItem } from "@/lib/server/overview";
 
 /**
  * Latest activity — a compact, newest-first feed of fills, journal entries,
  * and rejections from `data/decision-journal/`. Each row carries its timestamp
- * so you can see the desk's recent decisions at a glance.
+ * so you can see the desk's recent decisions at a glance. When a `universe` is
+ * given, a row for an owned/watched symbol auto-surfaces with a Held/Watchlist
+ * badge (M2 ownership-driven surfacing).
  */
-export function ActivityFeed({ activity }: { activity: ActivityItem[] }) {
+export function ActivityFeed({
+  activity,
+  universe,
+}: {
+  activity: ActivityItem[];
+  universe?: TrackedUniverse;
+}) {
   return (
     <ModuleCard
       title="Latest activity"
@@ -45,6 +55,11 @@ export function ActivityFeed({ activity }: { activity: ActivityItem[] }) {
                 <span className="min-w-0 flex-1 truncate text-sm tabular-nums text-fg-muted">
                   {item.detail}
                 </span>
+                {universe && item.symbol ? (
+                  <OwnershipBadge
+                    ownership={classifyOwnership(item.symbol, universe)}
+                  />
+                ) : null}
                 <time
                   className="shrink-0 text-xs tabular-nums text-fg-muted"
                   dateTime={item.timestamp}

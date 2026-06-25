@@ -3,13 +3,18 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { SymbolHighlights } from "@/components/symbol/highlights";
 import { LinkOuts } from "@/components/symbol/link-outs";
+import { OwnershipBadge } from "@/components/mode-scope";
 import { PriceChart } from "@/components/symbol/price-chart";
 import { QuoteStats } from "@/components/symbol/quote-stats";
 import { DataSourceNotice } from "@/components/data-source-notice";
 import { Card } from "@/components/page-shell";
 import { formatCurrency, formatDateTime, formatPercent } from "@/lib/format";
+import { MODE_LABEL } from "@/lib/mode";
 import { isValidSymbol, normalizeSymbol, DEFAULT_RANGE } from "@/lib/symbol";
+import { classifyOwnership } from "@/lib/universe";
+import { getViewMode } from "@/lib/server/mode";
 import { getSymbolDetail } from "@/lib/server/symbol";
+import { getTrackedUniverse } from "@/lib/server/universe";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +37,15 @@ export default async function SymbolPage({
   const symbol = normalizeSymbol(ticker);
   if (!isValidSymbol(symbol)) notFound();
 
-  const detail = await getSymbolDetail(symbol, DEFAULT_RANGE);
+  const [detail, mode] = await Promise.all([
+    getSymbolDetail(symbol, DEFAULT_RANGE),
+    getViewMode(),
+  ]);
   const { quote, available, news } = detail;
+
+  // Ownership is mode-scoped (held/watched in the active book); the price/news
+  // data itself is market data, the same in either view.
+  const ownership = classifyOwnership(symbol, await getTrackedUniverse(mode));
 
   const changeTone =
     quote?.change == null
@@ -62,6 +74,7 @@ export default async function SymbolPage({
           <h1 className="text-3xl font-semibold tracking-tight text-fg">
             {symbol}
           </h1>
+          <OwnershipBadge ownership={ownership} />
           {quote?.price != null ? (
             <span className="text-2xl font-semibold tabular-nums text-fg">
               {formatCurrency(quote.price)}
@@ -79,10 +92,12 @@ export default async function SymbolPage({
         </div>
       </header>
 
-      {/* Market & research data — sourced from Alpaca, the same regardless of
-          the Paper/Live view. Ownership-driven auto-tracking arrives in M2. */}
+      {/* Market & research data is sourced from Alpaca — the same regardless of
+          the Paper/Live view. The Held/Watchlist badge above reflects the active
+          book's tracked universe. */}
       <p className="text-xs text-fg-muted">
-        Market &amp; research data — independent of the Paper/Live view.
+        Market &amp; research data — independent of the Paper/Live view (the
+        Held/Watchlist tag reflects the {MODE_LABEL[mode]} book).
       </p>
 
       <DataSourceNotice notice={detail.notice} />
