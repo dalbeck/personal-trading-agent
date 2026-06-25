@@ -21,6 +21,7 @@ import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
 import { getLiveTradingStatus } from "@/lib/server/gate";
 import { liveDrawdown } from "@/lib/server/live-guards";
 import { getViewMode } from "@/lib/server/mode";
+import { getTrackedUniverse } from "@/lib/server/universe";
 import { getOverviewModules } from "@/lib/server/overview";
 import { LIVE_LIMITS } from "@strategy/charter.config";
 
@@ -35,6 +36,7 @@ export default async function OverviewPage() {
     getOverviewModules(snap),
     getViewMode(),
   ]);
+  const universe = await getTrackedUniverse(mode);
 
   // The view mode picks which book the hero KPIs + equity curve render. Both
   // books are still fetched (both engines run); this only switches the display.
@@ -211,7 +213,7 @@ export default async function OverviewPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <ActivityFeed activity={modules.activity} />
+        <ActivityFeed activity={modules.activity} universe={universe} />
         <RoutinesHealthModule health={modules.routinesHealth} />
       </section>
 

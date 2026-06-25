@@ -1,18 +1,22 @@
 import type { MaterialNewsItem } from "@/lib/types";
-import { readLatestSnapshot } from "@/lib/server/data";
 import {
   bookFromSymbols,
   DEFAULT_FEEDS,
   type Feed,
   runNewsScout,
 } from "@/lib/server/news-scout";
+import { getScoutSymbols } from "@/lib/server/universe";
 import { recordNewsItems } from "@/lib/server/writers";
 
 /**
  * One scout scan cycle: fetch the RSS feeds, triage each headline against the
- * current paper book, and persist the material items to `data/news/`. The
- * always-on `scripts/news-scout.sh` curls this on an interval (supervised by
+ * **tracked universe** (paper AND live holdings + the manual watchlist), and
+ * persist the material items to `data/news/`. The always-on
+ * `scripts/news-scout.sh` curls this on an interval (supervised by
  * `scripts/watchdog.sh`). Read-only w.r.t. trading — it never places orders.
+ *
+ * The universe is global (not mode-scoped) so live holdings are watched too
+ * (M2) — the dashboard then filters News to the active book's universe.
  *
  * LOCAL only; optionally gated by `ROUTINE_TRIGGER_TOKEN`.
  */
@@ -41,8 +45,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const snapshot = await readLatestSnapshot("paper");
-  const symbols = snapshot?.positions.map((p) => p.symbol) ?? [];
+  const symbols = await getScoutSymbols();
   if (symbols.length === 0) {
     return Response.json({ book: 0, material: 0, added: 0 });
   }

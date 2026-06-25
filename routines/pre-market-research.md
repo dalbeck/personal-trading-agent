@@ -8,14 +8,19 @@ trades. Work entirely from this repo.
 - `strategy/charter.md` — the binding constitution (universe + hard risk rails).
 - `strategy/playbook.md` — the pre-trade checklist and banked lessons.
 - `data/snapshots/` (latest) — current paper equity and open positions.
+- `data/control/watchlist.json` — the manual watchlist. Together with current
+  holdings this is the **tracked universe** the desk follows (see
+  `src/lib/server/universe.ts`).
 - `data/decision-journal/` — recent decisions and rejections (don't repeat
   mistakes the coaching log already flagged).
-- `data/news/` — material headlines the news scout (M7, if running) surfaced
-  for current holdings; weigh them when reviewing open positions and ideas.
+- `data/news/` — material headlines the news scout surfaced for the tracked
+  universe (holdings + watchlist); weigh them when reviewing positions and ideas.
 
 ## Do
-1. Scan the watchlist / market regime for swing candidates that fit the
-   playbook (trend, momentum, relative strength, a catalyst, sane volatility).
+1. Start from the **tracked universe** (current holdings + the manual
+   watchlist), then scan the broader market regime for swing candidates that fit
+   the playbook (trend, momentum, relative strength, a catalyst, sane
+   volatility). Watchlist names are explicit human interest — give them a look.
 2. For each genuine candidate, size it stop-first per the charter (≤2% risk,
    ≤20% size, reward/risk ≥2:1) with a **marketable-limit** entry and a
    protective stop.

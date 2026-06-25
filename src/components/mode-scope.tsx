@@ -1,5 +1,24 @@
 import { Badge } from "@/components/ui/badge";
 import { MODE_LABEL, type ViewMode } from "@/lib/mode";
+import type { Ownership } from "@/lib/universe";
+
+/**
+ * Auto-surfacing badge: marks a symbol that is part of the tracked universe.
+ * `held` (owned in the active book) reads as the accent proving-ground tone;
+ * `watchlist` reads muted. `none` renders nothing.
+ */
+export function OwnershipBadge({ ownership }: { ownership: Ownership }) {
+  if (ownership === "none") return null;
+  return ownership === "held" ? (
+    <Badge tone="accent" dot>
+      Held
+    </Badge>
+  ) : (
+    <Badge tone="muted" dot>
+      Watchlist
+    </Badge>
+  );
+}
 
 /**
  * Small "you are viewing X" badge for labelling a panel's scope. PAPER reads as

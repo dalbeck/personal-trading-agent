@@ -31,6 +31,23 @@ and routines must follow this. The runtime contracts live in
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
 | `data/research/` | `.json` | `ResearchUsageSchema` (per-day metered-API call counter) |
 
+**Tracked universe + account scoping (M2).** The **watchlist** — the manual half
+of the tracked universe — is a small JSON state file `data/control/watchlist.json`
+(`WatchlistSchema`: `{ symbols, updatedAt }`), read by `readWatchlist` and written
+by `writeWatchlist`/`addToWatchlist`/`removeFromWatchlist`. Holdings (the auto
+half) come from the snapshots; the union (`src/lib/server/universe.ts`) feeds the
+news scout and research routine and drives ownership badges. Journal and coaching
+entries now carry an **`account`** (`paper` | `live`, default `paper`); a trade
+entry also carries **`manual`** (default `false`). A `live` + `manual: true`
+journal entry is a trade the human placed by hand, ingested **read-only** from
+Robinhood order history (`syncLiveTrades`) for coaching — the desk never places
+it. `data/control/live-trades.json` tracks already-ingested broker order ids so
+the sync is idempotent (an internal state file, like the halt latch / funding
+tracker — written directly, not a `data/` artifact contract). Coaching entries
+stay behavior-driven: `paper` reviews grade the desk; `live` reviews coach the
+human's manual execution, kept in separate entries so the paper-desk evaluation
+is never contaminated.
+
 **Proposal `account` / `advisory` (live vs paper).** A `TradeProposal` carries
 `account` (`paper` | `live`, default `paper`) and `advisory` (default `false`).
 A **live-advisory** proposal (`account: "live"`, `advisory: true`) is read-only

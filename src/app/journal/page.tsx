@@ -1,4 +1,5 @@
 import { Markdown } from "@/components/markdown";
+import { ViewingBadge } from "@/components/mode-scope";
 import { Card, PageTitle } from "@/components/page-shell";
 import { TickerLink } from "@/components/ticker-link";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,9 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
           ) : (
             <Badge tone="muted">REJECTED</Badge>
           )}
+          {isTrade && entry.manual ? (
+            <Badge tone="muted">manual · live</Badge>
+          ) : null}
           <TickerLink symbol={entry.symbol} className="font-semibold text-fg" />
           {isTrade ? (
             <span className="text-sm tabular-nums text-fg-muted">
@@ -77,25 +81,32 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
 }
 
 export default async function JournalPage() {
-  const [entries, mode] = await Promise.all([readJournal(), getViewMode()]);
+  const [all, mode] = await Promise.all([readJournal(), getViewMode()]);
+  const isLive = mode === "live";
+  // Scope to the active book: paper = the autonomous desk's decisions; live =
+  // the human's manual live trades (ingested read-only from Robinhood orders).
+  const entries = all.filter((e) => e.account === mode);
 
   return (
     <div>
       <PageTitle
         title="Decision Journal"
-        subtitle="Every trade and rejection the desk reasoned through, written at decision time."
+        subtitle={
+          isLive
+            ? "Your manually-placed live trades, ingested read-only from Robinhood order history."
+            : "Every trade and rejection the paper desk reasoned through, written at decision time."
+        }
       />
-      {/* Behavior-driven (not ownership-driven): the journal records the desk's
-          own decisions, so it is the autonomous paper desk's record regardless
-          of view mode. Live trades you place manually aren't journaled here. */}
-      <p className="mb-4 text-pretty text-xs text-fg-muted">
-        {mode === "live"
-          ? "Showing the desk's decision record (paper desk). Live trades you place manually in Robinhood are not journaled here."
-          : "The autonomous paper desk's decision record."}
-      </p>
+      <div className="mb-4 flex items-center gap-2">
+        <ViewingBadge mode={mode} />
+      </div>
       {entries.length === 0 ? (
         <Card className="border-dashed">
-          <p className="text-sm text-fg-muted">No journal entries yet.</p>
+          <p className="text-pretty text-sm text-fg-muted">
+            {isLive
+              ? "No manual live trades recorded yet. Sync them from the Coaching page (read-only) — the desk never places live orders."
+              : "No journal entries yet."}
+          </p>
         </Card>
       ) : (
         <div className="flex flex-col gap-4">

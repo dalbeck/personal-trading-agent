@@ -43,9 +43,15 @@ const run = promisify(execFile);
 
 /** The complete set of Robinhood MCP tools this build is allowed to call —
  *  read-only and **account-scoped** (each is invoked with the configured Agentic
- *  account number). Order tools are intentionally absent; a regression that adds
- *  one — or an enumeration tool — fails the unit test against {@link FORBIDDEN_TOOLS}. */
-export const READ_ONLY_TOOLS = ["get_portfolio", "get_equity_positions"] as const;
+ *  account number). `get_equity_orders` is read-only order *history* (used to
+ *  ingest the human's manual live trades for coaching, M2) — it places nothing.
+ *  Order-placement tools are intentionally absent; a regression that adds one —
+ *  or an enumeration tool — fails the unit test against {@link FORBIDDEN_TOOLS}. */
+export const READ_ONLY_TOOLS = [
+  "get_portfolio",
+  "get_equity_positions",
+  "get_equity_orders",
+] as const;
 
 /** Tools that must NEVER be allow-listed: `get_accounts` enumerates every linked
  *  account (breaks Agentic-only privacy), and the order tools place real trades.
@@ -259,4 +265,128 @@ export async function getRobinhoodLiveSnapshot(opts?: {
   const raw = await (opts?.fetcher ?? defaultFetchPortfolio)();
   const portfolio = RobinhoodPortfolioSchema.parse(raw);
   return buildLiveSnapshot(portfolio, opts?.asOf ?? new Date().toISOString());
+}
+
+/* --------------------- get_equity_orders (read-only history) --------------- */
+// Read-only ingestion of the human's MANUAL live trades for coaching (M2).
+// `get_equity_orders` returns order *history* — it places nothing. We keep only
+// FILLED orders and map them to a minimal trade record; everything else is the
+// same Agentic-account-only, defensive-parse pattern as the portfolio read.
+
+const RhOrderSchema = z
+  .object({
+    id: z.string(),
+    symbol: z.string(),
+    side: z.enum(["buy", "sell"]).catch("buy"),
+    quantity: z.coerce.number().catch(0),
+    average_price: z.coerce.number().nullable().catch(null),
+    state: z.string().catch(""), // "filled" | "cancelled" | "rejected" | …
+    filled_at: z.string().nullable().catch(null),
+    created_at: z.string().nullable().catch(null),
+  })
+  .passthrough();
+
+export const RobinhoodOrdersSchema = z
+  .object({ orders: z.array(RhOrderSchema).default([]) })
+  .passthrough();
+
+export type RobinhoodOrders = z.infer<typeof RobinhoodOrdersSchema>;
+
+/** A single executed manual live trade, mapped from Robinhood order history. */
+export interface LiveTrade {
+  /** The broker order id — the stable dedupe key for idempotent ingestion. */
+  orderId: string;
+  symbol: string;
+  action: "buy" | "sell";
+  qty: number;
+  price: number;
+  /** ISO timestamp of the fill (falls back to created_at, else now). */
+  filledAt: string;
+}
+
+export type OrdersFetcher = () => Promise<unknown>;
+
+/**
+ * Build the `claude -p` argv that reads ONE account's equity order history
+ * through the host CLI. Pure + exported so the safety invariants are unit-tested
+ * without spawning: only read-only tools are allow-listed, every
+ * order-placement / enumeration tool is explicitly disallowed, and the account
+ * number is the only account ever referenced. `get_equity_orders` is read-only.
+ */
+export function buildOrdersCliCommand(account: string): {
+  cmd: string;
+  args: string[];
+} {
+  const prompt = [
+    `Use the ${MCP_SERVER} MCP. Read ONLY brokerage account ${account}.`,
+    `Do NOT call get_accounts, do NOT place or cancel any order.`,
+    `Call get_equity_orders with account_number "${account}" to read order` +
+      ` history (this is READ-ONLY; it places nothing).`,
+    `Then output ONLY a single minified JSON object — no prose, no markdown` +
+      ` fences — copying values verbatim from the tool result (never compute or` +
+      ` invent a number; use null for an unavailable timestamp/price):`,
+    `{"orders":[{"id":STRING,"symbol":STRING,"side":"buy"|"sell",` +
+      `"quantity":NUMBER,"average_price":NUMBER_OR_NULL,"state":STRING,` +
+      `"filled_at":STRING_OR_NULL,"created_at":STRING_OR_NULL}]}`,
+  ].join(" ");
+
+  return {
+    cmd: "claude",
+    args: [
+      "-p",
+      prompt,
+      "--allowedTools",
+      ...READ_ONLY_TOOLS.map(toolId),
+      "--disallowedTools",
+      ...FORBIDDEN_TOOLS.map(toolId),
+    ],
+  };
+}
+
+async function defaultFetchOrders(): Promise<unknown> {
+  if (!AGENTIC_ACCOUNT) {
+    throw new Error("ROBINHOOD_AGENTIC_ACCOUNT_NUMBER is not set");
+  }
+  const { cmd, args } = buildOrdersCliCommand(AGENTIC_ACCOUNT);
+  const { stdout } = await run(cmd, args, {
+    cwd: process.cwd(),
+    timeout: CLI_TIMEOUT_MS,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  return extractJsonObject(stdout);
+}
+
+/** Keep only filled orders with a usable qty + price, mapped to {@link LiveTrade}. */
+export function mapLiveTrades(orders: RobinhoodOrders): LiveTrade[] {
+  const out: LiveTrade[] = [];
+  for (const o of orders.orders) {
+    if (o.state.toLowerCase() !== "filled") continue;
+    const qty = Math.abs(o.quantity);
+    if (qty === 0 || o.average_price === null || o.average_price <= 0) continue;
+    out.push({
+      orderId: o.id,
+      symbol: o.symbol,
+      action: o.side,
+      qty,
+      price: o.average_price,
+      filledAt: o.filled_at ?? o.created_at ?? new Date().toISOString(),
+    });
+  }
+  return out;
+}
+
+/**
+ * Fetch the live account's executed (filled) trades from Robinhood order
+ * history. Read-only — it can never place an order. Throws if the connection is
+ * not configured (callers gate on {@link hasRobinhoodConnection}). `fetcher` is
+ * injectable for tests so mapping is verified without a CLI or a live account.
+ */
+export async function getRobinhoodLiveTrades(opts?: {
+  fetcher?: OrdersFetcher;
+}): Promise<LiveTrade[]> {
+  if (!opts?.fetcher && !hasRobinhoodConnection()) {
+    throw new Error("Robinhood Agentic account is not connected");
+  }
+  const raw = await (opts?.fetcher ?? defaultFetchOrders)();
+  return mapLiveTrades(RobinhoodOrdersSchema.parse(raw));
 }

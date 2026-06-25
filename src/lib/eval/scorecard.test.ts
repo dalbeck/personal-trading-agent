@@ -30,10 +30,12 @@ function tradeEntry(
 ): JournalEntry {
   return {
     kind: "trade",
+    account: "paper",
     side: "long",
     stopPrice: 1,
     takeProfit: null,
     riskPct: null,
+    manual: false,
     reviewDate: "2026-07-01",
     tags: [],
     body: "x",
@@ -44,6 +46,7 @@ function tradeEntry(
 function rejection(rejectedBy: "rules" | "codex-redteam" | "human"): JournalEntry {
   return {
     kind: "rejection",
+    account: "paper",
     id: `r-${rejectedBy}`,
     timestamp: "2026-06-10T10:00:00-04:00",
     symbol: "AMD",

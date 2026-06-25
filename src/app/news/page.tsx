@@ -1,72 +1,64 @@
-import { ViewingBadge } from "@/components/mode-scope";
+import { OwnershipBadge, ViewingBadge } from "@/components/mode-scope";
 import { Card, PageTitle } from "@/components/page-shell";
 import { SampleDataBadge, SampleDataBanner } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
-import { Badge } from "@/components/ui/badge";
+import { TrackedUniverseCard } from "@/components/tracked-universe";
 import { formatDateTime } from "@/lib/format";
 import { anySample } from "@/lib/sample-data";
+import { classifyOwnership } from "@/lib/universe";
 import { readMaterialNews } from "@/lib/server/data";
 import { getViewMode } from "@/lib/server/mode";
+import { getTrackedUniverse } from "@/lib/server/universe";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewsPage() {
   const [items, mode] = await Promise.all([readMaterialNews(), getViewMode()]);
-  const isLive = mode === "live";
+  const universe = await getTrackedUniverse(mode);
 
-  // M1: the scout watches the PAPER book only. Wiring it to live holdings is the
-  // tracked-universe milestone (M2), so the live view is honest about that gap
-  // rather than showing paper headlines under a live label.
-  if (isLive) {
-    return (
+  // The scout watches the global universe (paper + live holdings + watchlist);
+  // this page scopes News to the ACTIVE book's universe so the view matches the
+  // selected mode. Owned/watched names are the only ones the scout tags.
+  const tracked = new Set(universe.symbols);
+  const visible = items.filter((it) => tracked.has(it.symbol));
+
+  return (
+    <div className="flex flex-col gap-6">
       <div>
         <PageTitle
           title="News"
-          subtitle="Headlines material to a current holding."
+          subtitle="Headlines the scout judged material to a tracked name — holdings + your watchlist."
         />
-        <div className="mb-4 flex items-center gap-2">
-          <ViewingBadge mode="live" />
+        <div className="mt-2 flex items-center gap-2">
+          <ViewingBadge mode={mode} />
         </div>
+      </div>
+
+      <TrackedUniverseCard universe={universe} mode={mode} />
+
+      <SampleDataBanner show={anySample(visible)} />
+
+      {visible.length === 0 ? (
         <Card className="border-dashed">
           <p className="text-pretty text-sm text-fg-muted">
-            The scout currently watches the{" "}
-            <span className="font-medium text-fg">paper book</span> only.
-            Live-holdings news lands with the tracked-universe milestone (M2).
-            Switch to the <span className="font-medium text-fg">Paper</span>{" "}
-            view to see material headlines today.
-          </p>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <PageTitle
-        title="News"
-        subtitle="Headlines the scout judged material to a current paper holding."
-      />
-      <div className="mb-4 flex items-center gap-2">
-        <ViewingBadge mode="paper" readOnly={false} />
-        <span className="text-xs text-fg-muted">Paper holdings</span>
-      </div>
-      <SampleDataBanner show={anySample(items)} />
-      {items.length === 0 ? (
-        <Card className="border-dashed">
-          <p className="text-sm text-fg-muted">
-            No material news yet. The scout surfaces only headlines relevant to
-            an open position.
+            {universe.symbols.length === 0
+              ? `Nothing tracked in the ${mode} book yet — hold a position or add a watchlist symbol, then the scout will surface material headlines here.`
+              : "No material news yet for the tracked universe. The scout surfaces only headlines relevant to a held or watched name."}
           </p>
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          {items.map((item) => (
+          {visible.map((item) => (
             <Card key={`${item.seenAt}-${item.link}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Badge tone="accent">
-                    <TickerLink symbol={item.symbol} />
-                  </Badge>
+                  <TickerLink
+                    symbol={item.symbol}
+                    className="font-semibold text-fg"
+                  />
+                  <OwnershipBadge
+                    ownership={classifyOwnership(item.symbol, universe)}
+                  />
                   {item.sample ? <SampleDataBadge /> : null}
                 </div>
                 <time className="text-xs text-fg-muted" dateTime={item.seenAt}>

@@ -1,8 +1,11 @@
 import { Markdown } from "@/components/markdown";
+import { ViewingBadge } from "@/components/mode-scope";
 import { Card, PageTitle } from "@/components/page-shell";
+import { SyncLiveTradesButton } from "@/components/sync-live-trades-button";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 import { readCoachingLog } from "@/lib/server/data";
+import { getViewMode } from "@/lib/server/mode";
 import type { CoachingEntry } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -55,17 +58,45 @@ function EntryCard({ entry }: { entry: CoachingEntry }) {
 }
 
 export default async function CoachingPage() {
-  const entries = await readCoachingLog();
+  const [all, mode] = await Promise.all([readCoachingLog(), getViewMode()]);
+  const isLive = mode === "live";
+  // Coaching stays behavior-driven: paper = the autonomous desk's own calls;
+  // live = reviews of the human's manually-placed live trades (ingested
+  // read-only from Robinhood order history). Scope to the active book.
+  const entries = all.filter((e) => e.account === mode);
 
   return (
     <div>
       <PageTitle
         title="Coaching Log"
-        subtitle="Next-morning self-reviews grading prior calls against what actually happened."
+        subtitle={
+          isLive
+            ? "Reviews of your manual live trades — graded against what actually happened."
+            : "Next-morning self-reviews grading the paper desk's prior calls against what actually happened."
+        }
       />
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <ViewingBadge mode={mode} />
+        {isLive ? (
+          <>
+            <span className="text-xs text-fg-muted">
+              Manual live trades ingested read-only from Robinhood order history.
+            </span>
+            <span className="ml-auto">
+              <SyncLiveTradesButton />
+            </span>
+          </>
+        ) : null}
+      </div>
+
       {entries.length === 0 ? (
         <Card className="border-dashed">
-          <p className="text-sm text-fg-muted">No coaching entries yet.</p>
+          <p className="text-pretty text-sm text-fg-muted">
+            {isLive
+              ? "No live-trade coaching yet. Use “Sync live trades” to pull your manual Robinhood fills into the journal, then the review routine can grade them. The desk never places these trades — you do."
+              : "No coaching entries yet."}
+          </p>
         </Card>
       ) : (
         <div className="flex flex-col gap-4">
