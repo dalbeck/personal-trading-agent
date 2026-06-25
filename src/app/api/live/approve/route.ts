@@ -1,6 +1,7 @@
 import { readProposals } from "@/lib/server/data";
 import { submitTradeApproval } from "@/lib/server/live-order";
 import { setProposalStatus } from "@/lib/server/writers";
+import { isAdvisoryProposal } from "@/lib/proposal-advisory";
 
 /**
  * Per-trade human approval endpoint (Phase 3 M3). The dashboard posts the
@@ -46,6 +47,22 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json(
       { error: `proposal already ${proposal.status}` },
       { status: 409 },
+    );
+  }
+
+  // HARD GUARD: a live-advisory proposal must NEVER reach the order router.
+  // It is guidance the human executes manually in Robinhood; this endpoint is
+  // the only entry to submitTradeApproval → routeApprovedOrder, so refusing
+  // here (before any broker/sink call) makes execution unreachable for advisory
+  // proposals by construction. Use POST /api/proposals/review to record that
+  // the guidance was reviewed or dismissed.
+  if (isAdvisoryProposal(proposal)) {
+    return Response.json(
+      {
+        error:
+          "advisory proposal: execute manually in Robinhood. No automated execution path exists — use the review/dismiss action.",
+      },
+      { status: 422 },
     );
   }
 

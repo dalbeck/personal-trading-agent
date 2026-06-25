@@ -6,6 +6,7 @@ import { parseFrontmatter } from "./frontmatter";
 import { validateDataDir } from "./validate-data";
 import {
   promoteLessonToPlaybook,
+  recordAdvisoryProposal,
   recordCoaching,
   recordRejection,
   recordRiskRejection,
@@ -13,6 +14,7 @@ import {
   recordSnapshot,
   recordTradeDecision,
 } from "./writers";
+import { TradeProposalSchema } from "@/lib/schemas";
 
 let dataDir = "";
 let strategyDir = "";
@@ -227,5 +229,52 @@ describe("promoteLessonToPlaybook", () => {
     expect(out.indexOf("Honor the trim trigger")).toBeLessThan(
       out.indexOf("Old lesson"),
     );
+  });
+});
+
+describe("recordAdvisoryProposal", () => {
+  const advInput = {
+    id: "adv-2026-06-24-nvda",
+    createdAt: "2026-06-24T10:00:00-04:00",
+    symbol: "NVDA",
+    action: "sell" as const,
+    qty: 0.2,
+    limitPrice: 148.0,
+    riskPct: 0.004,
+    thesis: "Trim the fractional NVDA into strength to lock a gain.",
+    reasoning: "Position is up; advisory trim keeps risk within the live caps.",
+  };
+
+  it("stamps account=live, advisory=true, status=pending and validates", async () => {
+    const dir = await tmpData();
+    const { id, file } = await recordAdvisoryProposal(advInput, { dataDir: dir });
+    expect(id).toBe("adv-2026-06-24-nvda");
+
+    const written = TradeProposalSchema.parse(
+      JSON.parse(await readFile(file, "utf8")),
+    );
+    expect(written.account).toBe("live");
+    expect(written.advisory).toBe(true);
+    expect(written.status).toBe("pending");
+    expect(written.symbol).toBe("NVDA");
+
+    // The whole data dir still validates against the contracts.
+    const problems = await validateDataDir(dir);
+    expect(problems).toEqual([]);
+  });
+
+  it("cannot be coerced into a paper or pre-approved proposal", async () => {
+    const dir = await tmpData();
+    const { file } = await recordAdvisoryProposal(
+      // Hostile caller trying to smuggle in paper/approved fields.
+      { ...advInput, account: "paper", advisory: false, status: "approved" } as never,
+      { dataDir: dir },
+    );
+    const written = TradeProposalSchema.parse(
+      JSON.parse(await readFile(file, "utf8")),
+    );
+    expect(written.account).toBe("live");
+    expect(written.advisory).toBe(true);
+    expect(written.status).toBe("pending");
   });
 });

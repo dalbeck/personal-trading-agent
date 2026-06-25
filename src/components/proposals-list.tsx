@@ -10,6 +10,11 @@ import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
 import { formatCurrency, formatPercent } from "@/lib/format";
+import {
+  ADVISORY_TAG,
+  isAdvisoryProposal,
+  type AdvisoryDecision,
+} from "@/lib/proposal-advisory";
 import type { TradeProposal } from "@/lib/types";
 
 type Status = TradeProposal["status"];
@@ -18,6 +23,13 @@ const statusTone: Record<Status, BadgeTone> = {
   pending: "accent",
   approved: "gain",
   rejected: "loss",
+  reviewed: "gain",
+  dismissed: "muted",
+};
+
+const advisoryStatusLabel: Partial<Record<Status, string>> = {
+  reviewed: "Reviewed",
+  dismissed: "Dismissed",
 };
 
 const redTeamTone: Record<string, BadgeTone> = {
@@ -49,10 +61,15 @@ export function ProposalsList({
 }) {
   const router = useRouter();
   const [results, setResults] = useState<Record<string, DecisionResult>>({});
+  const [advResults, setAdvResults] = useState<
+    Record<string, AdvisoryDecision>
+  >({});
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const statusOf = (p: TradeProposal): Status => {
+    const adv = advResults[p.id];
+    if (adv) return adv;
     const r = results[p.id];
     if (!r) return p.status;
     return r.outcome === "approved" ? "approved" : "rejected";
@@ -77,6 +94,25 @@ export function ProposalsList({
     }
   }
 
+  // Advisory proposals never touch the order path: this records the human's
+  // review/dismiss via the status-only endpoint (no /api/live/approve).
+  async function review(id: string, decision: AdvisoryDecision) {
+    setBusyId(id);
+    try {
+      const res = await fetch("/api/proposals/review", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ proposalId: id, decision }),
+      });
+      if (res.ok) {
+        setAdvResults((r) => ({ ...r, [id]: decision }));
+        router.refresh();
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const confirmProposal = proposals.find((p) => p.id === confirmId) ?? null;
   const redTeamRejected =
     confirmProposal?.redTeam?.verdict === "reject";
@@ -88,9 +124,13 @@ export function ProposalsList({
           const status = statusOf(p);
           const pending = status === "pending";
           const result = results[p.id];
+          const advisory = isAdvisoryProposal(p);
           const estCost = p.qty * p.limitPrice;
           return (
-            <Card key={p.id}>
+            <Card
+              key={p.id}
+              className={advisory ? "border-accent/50" : undefined}
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Badge tone={p.action === "buy" ? "gain" : "loss"}>
@@ -102,6 +142,11 @@ export function ProposalsList({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  {advisory ? (
+                    <span className="inline-flex items-center rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide text-fg">
+                      {ADVISORY_TAG}
+                    </span>
+                  ) : null}
                   {p.sample ? <SampleDataBadge /> : null}
                   <Badge tone={statusTone[status]} dot>
                     {status.toUpperCase()}
@@ -153,53 +198,86 @@ export function ProposalsList({
                 </div>
               ) : null}
 
-              <div className="mt-4 flex items-center justify-end gap-2 border-t border-line pt-4">
-                {pending ? (
-                  <>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      disabled={busyId === p.id}
-                      onClick={() => decide(p.id, "deny")}
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      disabled={busyId === p.id}
-                      onClick={() => setConfirmId(p.id)}
-                    >
-                      Approve…
-                    </Button>
-                  </>
-                ) : (
-                  <span className="text-xs text-fg-muted">
-                    {result ? (
-                      <>
-                        {outcomeLabel[result.outcome]}
-                        {result.outcome === "approved" ? (
-                          <>
-                            {" "}
-                            · routed to{" "}
-                            <span className="font-medium text-fg">
-                              {result.destination}
-                            </span>
-                            {result.dryRun ? " (dry-run sink)" : " (LIVE)"}
-                            {result.brokerOrderId ? (
-                              <> · {result.brokerOrderId}</>
-                            ) : null}
-                          </>
-                        ) : null}
-                      </>
-                    ) : status === "approved" ? (
-                      "Approved"
-                    ) : (
-                      "Rejected"
-                    )}
-                  </span>
-                )}
-              </div>
+              {advisory ? (
+                <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
+                  {pending ? (
+                    <>
+                      <span className="mr-auto text-pretty text-xs text-fg-muted">
+                        Advisory only — no automated execution. Place this trade
+                        yourself in Robinhood if you agree.
+                      </span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={busyId === p.id}
+                        onClick={() => review(p.id, "dismissed")}
+                      >
+                        Dismiss
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={busyId === p.id}
+                        onClick={() => review(p.id, "reviewed")}
+                      >
+                        Mark reviewed
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-fg-muted">
+                      {advisoryStatusLabel[status] ?? status}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-4 flex items-center justify-end gap-2 border-t border-line pt-4">
+                  {pending ? (
+                    <>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        disabled={busyId === p.id}
+                        onClick={() => decide(p.id, "deny")}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={busyId === p.id}
+                        onClick={() => setConfirmId(p.id)}
+                      >
+                        Approve…
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-fg-muted">
+                      {result ? (
+                        <>
+                          {outcomeLabel[result.outcome]}
+                          {result.outcome === "approved" ? (
+                            <>
+                              {" "}
+                              · routed to{" "}
+                              <span className="font-medium text-fg">
+                                {result.destination}
+                              </span>
+                              {result.dryRun ? " (dry-run sink)" : " (LIVE)"}
+                              {result.brokerOrderId ? (
+                                <> · {result.brokerOrderId}</>
+                              ) : null}
+                            </>
+                          ) : null}
+                        </>
+                      ) : status === "approved" ? (
+                        "Approved"
+                      ) : (
+                        "Rejected"
+                      )}
+                    </span>
+                  )}
+                </div>
+              )}
             </Card>
           );
         })}
