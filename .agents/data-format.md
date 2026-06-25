@@ -67,6 +67,31 @@ is never contaminated.
   routes by the order gate — closed → dry-run sink, open → Robinhood. The gate,
   not the account, is the real-money boundary (see `.agents/infra.md`).
 
+**Red-team verdict (structured rationale).** The prosecutor's verdict on a
+proposal is **structured, not one text blob** (`RedTeamVerdictSchema` in
+`src/lib/schemas.ts`):
+
+- **`verdict`** — `approve` | `concern` | `reject`. Drives the semantic verdict
+  badge (approve → success/green, concern → warning/amber, reject → danger/red,
+  per `.agents/design-system.md`'s verdict rule) and the order policy
+  (`reject` → block unless human-overridden; see `.agents/infra.md`).
+- **`notes`** — the prosecutor's primary objection (or, when approving, why the
+  thesis survived). Required, kept for back-compatibility: older proposals that
+  predate the structured fields carry only `verdict` + `notes`.
+- **`factors`** — an ordered array of keyed assessments
+  (`RedTeamFactorSchema`: `{ label, assessment, stance }`). `label` names the
+  dimension (`Entry`, `Target`, `Stop`, `Edge`, `Risk/Reward`, …); `assessment`
+  is the prosecutor's short take; `stance` is `supports` | `refutes` |
+  `neutral` and colours the row. Defaults to `[]` — the UI falls back to
+  `notes` when empty so old records still render.
+- **`basis`** — a one-line "how it decided" / conviction summary. Nullable
+  (`null` for older records).
+
+The gate still **fails closed**: an unparseable/unavailable prosecutor yields
+`verdict: reject` with an explanatory `notes` and no factors. The structured
+shape is parsed best-effort — a prosecutor that returns only `{verdict, notes}`
+is still valid.
+
 ## Frontmatter conventions
 
 - The frontmatter is a flat YAML **mapping** (`key: value`), delimited by `---`
