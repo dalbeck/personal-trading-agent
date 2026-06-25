@@ -1,6 +1,7 @@
 import { ViewingBadge } from "@/components/mode-scope";
 import { ProposalsList } from "@/components/proposals-list";
 import { Card, PageTitle } from "@/components/page-shell";
+import { RunHint } from "@/components/run-hint";
 import { SampleDataBanner } from "@/components/sample-data-badge";
 import { anySample } from "@/lib/sample-data";
 import { readProposals } from "@/lib/server/data";
@@ -50,6 +51,11 @@ export default async function ProposalsPage() {
           <p className="text-sm text-fg-muted">
             {isLive ? "No live advisory proposals." : "No paper proposals."}
           </p>
+          <RunHint
+            message="Proposals appear after a discovery run — the desk hasn't run it yet."
+            href="/routines"
+            cta="Run Pre-market research →"
+          />
         </Card>
       ) : (
         <ProposalsList proposals={proposals} liveEnabled={liveEnabled} />

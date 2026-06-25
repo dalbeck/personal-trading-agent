@@ -22,6 +22,15 @@ export interface RoutineRun extends RoutineInfo {
   lastStatus: RunStatus;
 }
 
+/** Routines that place (paper) orders — a "Run now" of these is confirm-gated
+ *  in the UI (AlertDialog) before it triggers. The rest are read/write-only
+ *  (research, scans, summaries, coaching) and run without a confirm. */
+export const ORDER_PLACING_ROUTINES: RoutineId[] = ["market-open-execution"];
+
+export function routinePlacesOrders(id: RoutineId): boolean {
+  return ORDER_PLACING_ROUTINES.includes(id);
+}
+
 export const ROUTINE_CATALOG: RoutineInfo[] = [
   {
     id: "pre-market-research",

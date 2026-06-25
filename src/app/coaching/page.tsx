@@ -1,6 +1,7 @@
 import { Markdown } from "@/components/markdown";
 import { ViewingBadge } from "@/components/mode-scope";
 import { Card, PageTitle } from "@/components/page-shell";
+import { RunHint } from "@/components/run-hint";
 import { SyncLiveTradesButton } from "@/components/sync-live-trades-button";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
@@ -94,9 +95,14 @@ export default async function CoachingPage() {
         <Card className="border-dashed">
           <p className="text-pretty text-sm text-fg-muted">
             {isLive
-              ? "No live-trade coaching yet. Use “Sync live trades” to pull your manual Robinhood fills into the journal, then the review routine can grade them. The desk never places these trades — you do."
+              ? "No live-trade coaching yet. Step 1: “Sync live trades” pulls your manual Robinhood fills into the Journal (read-only). Step 2: the Weekly review routine grades them here. The desk never places these trades — you do."
               : "No coaching entries yet."}
           </p>
+          <RunHint
+            message="Coaching is written by the Weekly review routine — it hasn't run yet."
+            href="/routines"
+            cta="Run Weekly review →"
+          />
         </Card>
       ) : (
         <div className="flex flex-col gap-4">
