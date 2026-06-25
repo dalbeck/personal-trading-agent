@@ -50,8 +50,34 @@ scan "$DATA_DIR/research" "$JSON_MARKER"
 scan "$DATA_DIR/decision-journal" "$MD_MARKER"
 scan "$DATA_DIR/coaching-log" "$MD_MARKER"
 
+# Count the artifact files still in $DATA_DIR so the report is HONEST: clearing
+# only sample-flagged files must never imply the panels are empty when unflagged
+# (live/seed-without-marker) records are still being rendered. The runtime/safety
+# dirs (locks/, control/) are excluded — they aren't desk artifacts. This mirrors
+# the dir set that "Reset desk data" (reset-desk-data.sh) operates on.
+ARTIFACT_DIRS=(
+  snapshots decision-journal coaching-log chats
+  proposals news fills logs research
+)
+remaining=0
+for d in "${ARTIFACT_DIRS[@]}"; do
+  dir="$DATA_DIR/$d"
+  [[ -d "$dir" ]] || continue
+  while IFS= read -r -d '' _; do
+    remaining=$((remaining + 1))
+  done < <(find "$dir" -type f \( -name '*.json' -o -name '*.md' \) -print0)
+done
+
 if [[ "$removed" -eq 0 ]]; then
-  echo "No sample-flagged files found in $DATA_DIR — nothing to clear."
+  if [[ "$remaining" -eq 0 ]]; then
+    echo "No sample-flagged files found in $DATA_DIR — nothing to clear."
+  else
+    echo "No sample-flagged files found in $DATA_DIR, but $remaining other file(s) remain."
+    echo "These are not seed-flagged, so the panels still render them — use Reset desk data to clear everything."
+  fi
 else
   echo "Cleared $removed sample-flagged file(s) from $DATA_DIR."
+  if [[ "$remaining" -gt 0 ]]; then
+    echo "$remaining other (unflagged) file(s) remain — use Reset desk data to clear everything."
+  fi
 fi

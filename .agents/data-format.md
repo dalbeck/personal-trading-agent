@@ -98,13 +98,23 @@ fabricated content as if it were live — a real trust hazard for a trading tool
   (`src/components/sample-data-badge.tsx`), gated on `anySample()`
   (`src/lib/sample-data.ts`). News, Proposals, and the Overview "Awaiting review"
   module already do this.
-- **Clearing:** `scripts/clear-seed-data.sh` removes only sample-flagged files
-  from `data/` (idempotent), leaving live records in place, so the user can get
-  the honest empty states. It's allowlisted in the Operations panel as the
-  confirm-gated `clear-seed-data` action (`src/lib/ops.ts`).
-- The running app reads only from `data/`; the committed fixtures
-  (`src/test/fixtures/`, all `sample: true`) are a test-only data source, wired
-  in via `TRADING_DATA_DIR` — never a live source.
+- **Clearing (two actions, both confirm-gated in the Operations panel,
+  `src/lib/ops.ts`):**
+  - `scripts/clear-seed-data.sh` (`clear-seed-data`) removes only
+    sample-flagged files (idempotent), leaving live records in place. It reports
+    **honestly**: when nothing is flagged but unflagged artifacts still remain,
+    it says so and points at Reset desk data — it never implies the panels are
+    clean while they still render records.
+  - `scripts/reset-desk-data.sh` (`reset-desk-data`) clears **all** desk
+    artifacts (flagged or not) so every panel shows its honest empty state. Both
+    resolve `DATA_DIR` as `${TRADING_DATA_DIR:-<repo>/data}` — the same directory
+    the app reads from — and both leave the runtime/safety dirs (`locks/`,
+    `control/`: the trading HALT latch + funding tracker) untouched.
+- The running app reads only from the resolved `DATA_DIR`; the committed
+  fixtures (`src/test/fixtures/`, all `sample: true`) are a **test-only** data
+  source, wired in via `TRADING_DATA_DIR` solely by `vitest.config.ts` — never a
+  live source. `src/test/no-fixtures-at-runtime.test.ts` is the tripwire: it
+  fails if any runtime config surface points the app at the fixtures.
 
 ## Writing
 
