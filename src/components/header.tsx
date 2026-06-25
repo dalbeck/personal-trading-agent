@@ -1,27 +1,36 @@
 import { LiveStatusControl } from "@/components/live-status";
 import { MarketStatusPill } from "@/components/market-status-pill";
+import { ModeToggle } from "@/components/mode-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getLiveTradingStatus } from "@/lib/server/gate";
 import { getMarketStatusSnapshot } from "@/lib/server/market";
+import { getViewMode } from "@/lib/server/mode";
 
 /**
- * Top bar. Surfaces the active trading environment. PAPER is the proving ground
- * (accent-outlined); the LIVE chip reflects the real two-gate status (M2) and
- * carries a one-click disconnect. Paper vs. live must always read as distinct
- * (.agents/nextjs.md safety).
+ * Top bar. The Paper | Live toggle picks which **book** the panels display — a
+ * view switch, not an engine switch (both desks run; toggling never arms
+ * trading). The LIVE TRADING chip beside it reflects the real two-gate order
+ * status and carries a one-click disconnect — kept separate so the view mode is
+ * never mistaken for the execution gate. Paper vs. live must always read as
+ * distinct (.agents/nextjs.md safety).
  */
 export async function Header() {
-  const [live, marketStatus] = await Promise.all([
+  const [mode, live, marketStatus] = await Promise.all([
+    getViewMode(),
     getLiveTradingStatus(),
     getMarketStatusSnapshot(),
   ]);
 
+  // Name the *other* book so the toggle makes clear both run concurrently.
+  const otherBookHint =
+    mode === "live" ? "Paper desk running" : "Live book read-only";
+
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 md:px-8">
       <div className="flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-pill border border-accent px-2.5 py-1 text-xs font-semibold text-fg">
-          <span aria-hidden className="size-1.5 rounded-pill bg-accent" />
-          PAPER
+        <ModeToggle mode={mode} />
+        <span className="hidden text-xs text-fg-muted lg:inline">
+          · {otherBookHint}
         </span>
         <LiveStatusControl
           status={{

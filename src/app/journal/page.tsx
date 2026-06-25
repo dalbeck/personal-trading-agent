@@ -4,6 +4,7 @@ import { TickerLink } from "@/components/ticker-link";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { readJournal } from "@/lib/server/data";
+import { getViewMode } from "@/lib/server/mode";
 import type { JournalEntry } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -76,14 +77,22 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
 }
 
 export default async function JournalPage() {
-  const entries = await readJournal();
+  const [entries, mode] = await Promise.all([readJournal(), getViewMode()]);
 
   return (
     <div>
       <PageTitle
         title="Decision Journal"
-        subtitle="Every trade and rejection, written at decision time."
+        subtitle="Every trade and rejection the desk reasoned through, written at decision time."
       />
+      {/* Behavior-driven (not ownership-driven): the journal records the desk's
+          own decisions, so it is the autonomous paper desk's record regardless
+          of view mode. Live trades you place manually aren't journaled here. */}
+      <p className="mb-4 text-pretty text-xs text-fg-muted">
+        {mode === "live"
+          ? "Showing the desk's decision record (paper desk). Live trades you place manually in Robinhood are not journaled here."
+          : "The autonomous paper desk's decision record."}
+      </p>
       {entries.length === 0 ? (
         <Card className="border-dashed">
           <p className="text-sm text-fg-muted">No journal entries yet.</p>

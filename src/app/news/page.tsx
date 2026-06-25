@@ -1,3 +1,4 @@
+import { ViewingBadge } from "@/components/mode-scope";
 import { Card, PageTitle } from "@/components/page-shell";
 import { SampleDataBadge, SampleDataBanner } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
@@ -5,11 +6,39 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
 import { anySample } from "@/lib/sample-data";
 import { readMaterialNews } from "@/lib/server/data";
+import { getViewMode } from "@/lib/server/mode";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewsPage() {
-  const items = await readMaterialNews();
+  const [items, mode] = await Promise.all([readMaterialNews(), getViewMode()]);
+  const isLive = mode === "live";
+
+  // M1: the scout watches the PAPER book only. Wiring it to live holdings is the
+  // tracked-universe milestone (M2), so the live view is honest about that gap
+  // rather than showing paper headlines under a live label.
+  if (isLive) {
+    return (
+      <div>
+        <PageTitle
+          title="News"
+          subtitle="Headlines material to a current holding."
+        />
+        <div className="mb-4 flex items-center gap-2">
+          <ViewingBadge mode="live" />
+        </div>
+        <Card className="border-dashed">
+          <p className="text-pretty text-sm text-fg-muted">
+            The scout currently watches the{" "}
+            <span className="font-medium text-fg">paper book</span> only.
+            Live-holdings news lands with the tracked-universe milestone (M2).
+            Switch to the <span className="font-medium text-fg">Paper</span>{" "}
+            view to see material headlines today.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -17,6 +46,10 @@ export default async function NewsPage() {
         title="News"
         subtitle="Headlines the scout judged material to a current paper holding."
       />
+      <div className="mb-4 flex items-center gap-2">
+        <ViewingBadge mode="paper" readOnly={false} />
+        <span className="text-xs text-fg-muted">Paper holdings</span>
+      </div>
       <SampleDataBanner show={anySample(items)} />
       {items.length === 0 ? (
         <Card className="border-dashed">

@@ -8,6 +8,7 @@ import { GuardrailHeadroom } from "@/components/overview/guardrail-headroom";
 import { RoutinesHealthModule } from "@/components/overview/routines-health";
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
+import { DeskScopeNote } from "@/components/mode-scope";
 import { LiveRefreshButton } from "@/components/live-refresh-button";
 import {
   formatCurrency,
@@ -15,9 +16,11 @@ import {
   formatQty,
   toneForValue,
 } from "@/lib/format";
+import { MODE_LABEL } from "@/lib/mode";
 import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
 import { getLiveTradingStatus } from "@/lib/server/gate";
 import { liveDrawdown } from "@/lib/server/live-guards";
+import { getViewMode } from "@/lib/server/mode";
 import { getOverviewModules } from "@/lib/server/overview";
 import { LIVE_LIMITS } from "@strategy/charter.config";
 
@@ -26,11 +29,33 @@ export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const { snapshot: snap, source, notice } = await getPaperAccount();
-  const [live, gate, modules] = await Promise.all([
+  const [live, gate, modules, mode] = await Promise.all([
     getLiveAccount(),
     getLiveTradingStatus(),
     getOverviewModules(snap),
+    getViewMode(),
   ]);
+
+  // The view mode picks which book the hero KPIs + equity curve render. Both
+  // books are still fetched (both engines run); this only switches the display.
+  // The desk-behavior modules below stay paper-scoped (the autonomous engine).
+  const isLive = mode === "live";
+  const hero = isLive
+    ? {
+        snapshot: live.snapshot,
+        notice: live.notice,
+        sourceLabel: live.connected
+          ? "Robinhood Agentic · read-only"
+          : "Not connected",
+        readOnly: true,
+      }
+    : {
+        snapshot: snap,
+        notice,
+        sourceLabel: source === "alpaca" ? "Live · Alpaca" : "Sample data",
+        readOnly: false,
+      };
+  const heroSnap = hero.snapshot;
 
   // Live pilot caps (M4) for the LIVE panel — configured limits, with current
   // exposure/drawdown when a real live snapshot is present.
@@ -46,8 +71,9 @@ export default async function OverviewPage() {
     killBreached: dd ? dd.breached : false,
   };
 
-  const excess = snap?.benchmark
-    ? snap.benchmark.portfolioReturnPct - snap.benchmark.benchmarkReturnPct
+  const excess = heroSnap?.benchmark
+    ? heroSnap.benchmark.portfolioReturnPct -
+      heroSnap.benchmark.benchmarkReturnPct
     : null;
 
   return (
@@ -55,86 +81,120 @@ export default async function OverviewPage() {
       <div>
         <PageTitle
           title="Overview"
-          subtitle="What needs you, how the desk is tracking, and the guardrails it runs inside."
+          subtitle={
+            isLive
+              ? "The live book — read-only and advisory. The paper desk keeps running underneath."
+              : "What needs you, how the desk is tracking, and the guardrails it runs inside."
+          }
         />
-        <DataSourceNotice notice={notice} />
+        <DataSourceNotice notice={hero.notice} />
       </div>
 
       <AttentionStrip attention={modules.attention} />
 
-      {snap ? (
+      <DeskScopeNote mode={mode} />
+
+      {heroSnap ? (
         <>
           <section
-            aria-label="Account summary"
-            className="grid grid-cols-2 gap-4 lg:grid-cols-5"
+            aria-label={`${MODE_LABEL[mode]} account summary`}
+            className="flex flex-col gap-3"
           >
-            <StatCard label="Equity" value={formatCurrency(snap.equity)} />
-            <StatCard
-              label="Total P&L"
-              value={formatCurrency(snap.totalPl, { signed: true })}
-              delta={formatPercent(snap.totalPlPct)}
-              tone={toneForValue(snap.totalPl)}
-            />
-            <StatCard
-              label="Day P&L"
-              value={formatCurrency(snap.dayPl, { signed: true })}
-              delta={formatPercent(snap.dayPlPct)}
-              tone={toneForValue(snap.dayPl)}
-            />
-            <StatCard
-              label="vs SPY (excess)"
-              value={excess !== null ? formatPercent(excess) : "—"}
-              delta={
-                snap.benchmark
-                  ? `you ${formatPercent(
-                      snap.benchmark.portfolioReturnPct,
-                    )} · SPY ${formatPercent(snap.benchmark.benchmarkReturnPct)}`
-                  : undefined
-              }
-              tone={excess !== null ? toneForValue(excess) : "neutral"}
-            />
-            <StatCard
-              label="Buying power"
-              value={formatCurrency(snap.buyingPower)}
-            />
-          </section>
-
-          <section>
-            <Card>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-fg">Equity curve</h2>
-                  <p className="text-xs text-fg-muted">
-                    Since inception · paper account
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="inline-flex items-center gap-2 text-fg-muted">
-                    <span aria-hidden className="h-0.5 w-4 rounded bg-accent" />
-                    Portfolio
-                  </span>
-                  <span className="inline-flex items-center gap-2 text-fg-muted">
-                    <span
-                      aria-hidden
-                      className="h-0 w-4 border-t-2 border-dashed border-fg-muted"
-                    />
-                    SPY
-                  </span>
-                </div>
-              </div>
-
-              <EquityCurve
-                points={snap.equityCurve}
-                benchmarkReturnPct={snap.benchmark?.benchmarkReturnPct}
+            <div className="flex items-center gap-2">
+              <Badge tone={isLive ? "muted" : "accent"} dot>
+                {MODE_LABEL[mode].toUpperCase()}
+              </Badge>
+              <h2 className="text-sm font-semibold text-fg">
+                {isLive ? "Live account" : "Paper account"}
+              </h2>
+              {hero.readOnly ? (
+                <span className="text-xs text-fg-muted">read-only</span>
+              ) : null}
+              <span className="ml-auto text-xs text-fg-muted">
+                {hero.sourceLabel}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+              <StatCard label="Equity" value={formatCurrency(heroSnap.equity)} />
+              <StatCard
+                label="Total P&L"
+                value={formatCurrency(heroSnap.totalPl, { signed: true })}
+                delta={formatPercent(heroSnap.totalPlPct)}
+                tone={toneForValue(heroSnap.totalPl)}
               />
-            </Card>
+              <StatCard
+                label="Day P&L"
+                value={formatCurrency(heroSnap.dayPl, { signed: true })}
+                delta={formatPercent(heroSnap.dayPlPct)}
+                tone={toneForValue(heroSnap.dayPl)}
+              />
+              {heroSnap.benchmark ? (
+                <StatCard
+                  label="vs SPY (excess)"
+                  value={excess !== null ? formatPercent(excess) : "—"}
+                  delta={`you ${formatPercent(
+                    heroSnap.benchmark.portfolioReturnPct,
+                  )} · SPY ${formatPercent(heroSnap.benchmark.benchmarkReturnPct)}`}
+                  tone={excess !== null ? toneForValue(excess) : "neutral"}
+                />
+              ) : (
+                <StatCard label="Cash" value={formatCurrency(heroSnap.cash)} />
+              )}
+              <StatCard
+                label="Buying power"
+                value={formatCurrency(heroSnap.buyingPower)}
+              />
+            </div>
           </section>
+
+          {heroSnap.equityCurve.length > 1 ? (
+            <section>
+              <Card>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-fg">
+                      Equity curve
+                    </h2>
+                    <p className="text-xs text-fg-muted">
+                      Since inception · {mode} account
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="inline-flex items-center gap-2 text-fg-muted">
+                      <span
+                        aria-hidden
+                        className="h-0.5 w-4 rounded bg-accent"
+                      />
+                      Portfolio
+                    </span>
+                    {heroSnap.benchmark ? (
+                      <span className="inline-flex items-center gap-2 text-fg-muted">
+                        <span
+                          aria-hidden
+                          className="h-0 w-4 border-t-2 border-dashed border-fg-muted"
+                        />
+                        SPY
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <EquityCurve
+                  points={heroSnap.equityCurve}
+                  benchmarkReturnPct={heroSnap.benchmark?.benchmarkReturnPct}
+                />
+              </Card>
+            </section>
+          ) : null}
         </>
       ) : (
         <Card className="border-dashed">
-          <p className="text-sm text-fg-muted">
-            No paper snapshot found in <code>data/snapshots/</code>. KPIs and the
-            equity curve appear once a snapshot is written.
+          <p className="text-pretty text-sm text-fg-muted">
+            {isLive
+              ? live.connected
+                ? "No live snapshot yet — use Refresh on the live card below to pull the account."
+                : "Live account not connected — this view is read-only. Real-money execution stays behind a two-gate human approval."
+              : "No paper snapshot found in data/snapshots/. KPIs and the equity curve appear once a snapshot is written."}
           </p>
         </Card>
       )}
@@ -147,7 +207,7 @@ export default async function OverviewPage() {
 
       <section className="grid gap-4 lg:grid-cols-2">
         <GuardrailHeadroom guardrails={modules.guardrails} />
-        <EvalSnapshotModule evaluation={modules.evaluation} />
+        <EvalSnapshotModule evaluation={modules.evaluation} mode={mode} />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">

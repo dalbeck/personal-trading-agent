@@ -79,6 +79,12 @@ export default async function SymbolPage({
         </div>
       </header>
 
+      {/* Market & research data — sourced from Alpaca, the same regardless of
+          the Paper/Live view. Ownership-driven auto-tracking arrives in M2. */}
+      <p className="text-xs text-fg-muted">
+        Market &amp; research data — independent of the Paper/Live view.
+      </p>
+
       <DataSourceNotice notice={detail.notice} />
 
       {available ? (

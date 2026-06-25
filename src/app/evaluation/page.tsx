@@ -1,6 +1,7 @@
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { formatPercent, toneForValue } from "@/lib/format";
 import { getEvaluationScorecard } from "@/lib/server/eval";
+import { getViewMode } from "@/lib/server/mode";
 import { verdictStyle } from "@/lib/eval/verdict-style";
 import type { Scorecard } from "@/lib/eval/scorecard";
 
@@ -100,6 +101,38 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 }
 
 export default async function EvaluationPage() {
+  const mode = await getViewMode();
+
+  // The scorecard grades the PAPER desk — the autonomous engine being proven.
+  // In the live view, showing the paper score would be misleading, so render a
+  // read-only / advisory paper-only-gate note instead (per the M1 spec).
+  if (mode === "live") {
+    return (
+      <div className="flex flex-col gap-8">
+        <PageTitle
+          title="Evaluation"
+          subtitle="Live view — read-only and advisory."
+        />
+        <Card className="border-dashed">
+          <h2 className="text-sm font-semibold text-fg">Paper-only gate</h2>
+          <p className="mt-2 text-pretty text-sm text-fg-muted">
+            The Phase 2 go/no-go scorecard grades the{" "}
+            <span className="font-medium text-fg">paper desk</span> — the
+            autonomous engine being proven before any live pilot. The live book
+            is <span className="font-medium text-fg">read-only and advisory</span>{" "}
+            (you place every real trade yourself), so it is not scored here, and
+            automated real-money execution stays gated on a passing paper
+            scorecard.
+          </p>
+          <p className="mt-3 text-sm text-fg-muted">
+            Switch to the <span className="font-medium text-fg">Paper</span> view
+            (header toggle) to see the full rubric.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   const card = await getEvaluationScorecard();
   const { window, returns, benchmark, trades, integrity, reliability } = card;
 

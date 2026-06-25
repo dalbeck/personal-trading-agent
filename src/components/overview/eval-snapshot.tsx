@@ -1,6 +1,7 @@
 import { ModuleCard } from "@/components/overview/module-card";
 import { formatPercent } from "@/lib/format";
 import { verdictStyle } from "@/lib/eval/verdict-style";
+import type { ViewMode } from "@/lib/mode";
 import type { EvalSnapshot } from "@/lib/server/overview";
 
 /**
@@ -8,8 +9,38 @@ import type { EvalSnapshot } from "@/lib/server/overview";
  * size, current excess return vs SPY, process-integrity status, and the
  * advisory verdict pill. Reads the same `getEvaluationScorecard` the
  * Evaluation page uses; links there for the full rubric.
+ *
+ * The scorecard grades the **paper desk** (the autonomous engine being proven).
+ * In the **live** view it would be misleading to show the paper score, so the
+ * module renders a paper-only-gate note instead (per the M1 spec).
  */
-export function EvalSnapshotModule({ evaluation }: { evaluation: EvalSnapshot }) {
+export function EvalSnapshotModule({
+  evaluation,
+  mode,
+}: {
+  evaluation: EvalSnapshot;
+  mode: ViewMode;
+}) {
+  if (mode === "live") {
+    return (
+      <ModuleCard
+        title="Evaluation gate"
+        subtitle="Paper-only gate"
+        href="/evaluation"
+        hrefLabel="Full scorecard"
+      >
+        <p className="text-pretty text-sm text-fg-muted">
+          The go/no-go scorecard grades the{" "}
+          <span className="font-medium text-fg">paper desk</span> — the
+          autonomous engine being proven for a future live pilot. The live book
+          is <span className="font-medium text-fg">read-only and advisory</span>
+          , so it isn&apos;t scored here. Switch to the Paper view to see the
+          gate.
+        </p>
+      </ModuleCard>
+    );
+  }
+
   const v = verdictStyle[evaluation.verdict];
   const excess = evaluation.excessReturnPct;
   const excessTone =

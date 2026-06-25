@@ -1,86 +1,115 @@
 import { DataSourceNotice } from "@/components/data-source-notice";
 import { LiveRefreshButton } from "@/components/live-refresh-button";
+import { ViewingBadge } from "@/components/mode-scope";
 import { PositionsTable } from "@/components/positions-table";
-import { Badge } from "@/components/ui/badge";
 import { Card, PageTitle } from "@/components/page-shell";
 import { formatCurrency } from "@/lib/format";
+import { MODE_LABEL, otherMode } from "@/lib/mode";
 import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
+import { getViewMode } from "@/lib/server/mode";
 import type { Position } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function PositionsPage() {
-  // Paper (Alpaca / seed) and live (Robinhood Agentic, read-only) resolve
-  // independently; either may be empty without affecting the other.
-  const [paper, live] = await Promise.all([getPaperAccount(), getLiveAccount()]);
-  const paperPositions = paper.snapshot?.positions ?? [];
-  const livePositions = live.snapshot?.positions ?? [];
+  // Both books resolve independently (both engines run); the view mode only
+  // picks which one is the primary section. Paper = Alpaca/seed; live =
+  // Robinhood Agentic, read-only.
+  const [paper, live, mode] = await Promise.all([
+    getPaperAccount(),
+    getLiveAccount(),
+    getViewMode(),
+  ]);
+  const isLive = mode === "live";
+  const otherLabel = MODE_LABEL[otherMode(mode)];
+  const otherPositions =
+    (isLive ? paper.snapshot : live.snapshot)?.positions ?? [];
 
   return (
     <div className="space-y-8">
       <PageTitle
         title="Positions"
-        subtitle="Open positions across the paper and live accounts, with cost basis and unrealized P&L."
+        subtitle={
+          isLive
+            ? "Open positions in the live Robinhood Agentic account — read-only."
+            : "Open positions in the paper account, with cost basis and unrealized P&L."
+        }
       />
 
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <Badge tone="accent" dot>
-            PAPER
-          </Badge>
-          <h2 className="text-sm font-semibold text-fg">Paper account</h2>
-          <span className="ml-auto text-xs text-fg-muted">
-            {paper.source === "alpaca" ? "Live · Alpaca" : "Sample data"}
-          </span>
-        </div>
-        <DataSourceNotice notice={paper.notice} />
-        <PositionsSection positions={paperPositions} emptyLabel="No open paper positions." />
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <Badge tone={live.connected ? "gain" : "muted"} dot>
-            LIVE
-          </Badge>
-          <h2
-            className={`text-sm font-semibold ${
-              live.connected ? "text-fg" : "text-fg-muted"
-            }`}
-          >
-            Live account
-          </h2>
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-xs text-fg-muted">
-              Robinhood Agentic · read-only
-            </span>
-            {live.connected ? (
-              <LiveRefreshButton asOf={live.snapshot?.asOf} />
-            ) : null}
+      {isLive ? (
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <ViewingBadge mode="live" />
+            <h2
+              className={`text-sm font-semibold ${
+                live.connected ? "text-fg" : "text-fg-muted"
+              }`}
+            >
+              Live account
+            </h2>
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-xs text-fg-muted">
+                Robinhood Agentic · read-only
+              </span>
+              {live.connected ? (
+                <LiveRefreshButton asOf={live.snapshot?.asOf} />
+              ) : null}
+            </div>
           </div>
-        </div>
-        {/* Privacy: the Robinhood MCP can read every linked account, but the
-            desk surfaces ONLY the Agentic account — it never enumerates or
-            displays the others. */}
-        <p className="mb-3 text-xs text-fg-muted">
-          Agentic account only — other Robinhood accounts are never read.
-        </p>
-        {live.connected ? (
-          <>
-            <DataSourceNotice notice={live.notice} />
-            <PositionsSection
-              positions={livePositions}
-              emptyLabel="No open live positions."
-            />
-          </>
-        ) : (
-          <Card className="border-dashed">
-            <p className="text-pretty text-sm text-fg-muted">
-              {live.notice ??
-                "Robinhood Agentic account not connected — live trading is off."}
-            </p>
-          </Card>
-        )}
-      </section>
+          {/* Privacy: the Robinhood MCP can read every linked account, but the
+              desk surfaces ONLY the Agentic account — it never enumerates or
+              displays the others. */}
+          <p className="mb-3 text-xs text-fg-muted">
+            Agentic account only — other Robinhood accounts are never read.
+          </p>
+          {live.connected ? (
+            <>
+              <DataSourceNotice notice={live.notice} />
+              <PositionsSection
+                positions={live.snapshot?.positions ?? []}
+                emptyLabel="No open live positions."
+              />
+            </>
+          ) : (
+            <Card className="border-dashed">
+              <p className="text-pretty text-sm text-fg-muted">
+                {live.notice ??
+                  "Robinhood Agentic account not connected — live trading is off."}
+              </p>
+            </Card>
+          )}
+        </section>
+      ) : (
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <ViewingBadge mode="paper" />
+            <h2 className="text-sm font-semibold text-fg">Paper account</h2>
+            <span className="ml-auto text-xs text-fg-muted">
+              {paper.source === "alpaca" ? "Live · Alpaca" : "Sample data"}
+            </span>
+          </div>
+          <DataSourceNotice notice={paper.notice} />
+          <PositionsSection
+            positions={paper.snapshot?.positions ?? []}
+            emptyLabel="No open paper positions."
+          />
+        </section>
+      )}
+
+      {/* Subtle reminder that the other book is also tracked — toggle to view. */}
+      <p className="text-xs text-fg-muted">
+        {otherLabel} book also tracked
+        {isLive
+          ? ` · ${otherPositions.length} paper position${
+              otherPositions.length === 1 ? "" : "s"
+            }`
+          : live.connected
+            ? ` · ${otherPositions.length} live position${
+                otherPositions.length === 1 ? "" : "s"
+              }`
+            : " · live not connected"}
+        . Use the header toggle to switch.
+      </p>
     </div>
   );
 }
