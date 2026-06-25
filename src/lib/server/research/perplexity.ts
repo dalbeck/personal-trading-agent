@@ -138,6 +138,8 @@ function normalize(symbol: string, json: unknown, usedAt: string): ResearchResul
     profile: structured.profile,
     fundamentals: structured.fundamentals,
     consensus: structured.consensus,
+    earnings: structured.earnings,
+    catalysts: structured.catalysts,
   };
   const cost = extractCost(obj.usage);
   if (cost != null) result.cost = cost;
@@ -191,8 +193,11 @@ export function createPerplexityProvider(
           "Then append a fenced ```json code block with these exact keys, using null for anything you cannot verify (do not guess):",
           '{"profile":{"name":string|null,"domain":string|null,"ceo":string|null,"employees":number|null,"sector":string|null,"industry":string|null,"country":string|null,"exchange":string|null,"ipoDate":string|null,"description":string|null},' +
             '"fundamentals":{"marketCap":string|null,"peRatio":number|null,"eps":number|null,"dividendYield":string|null},' +
-            '"consensus":{"rating":string|null,"targetMean":number|null,"targetHigh":number|null,"targetLow":number|null,"analystCount":number|null}}',
+            '"consensus":{"rating":string|null,"targetMean":number|null,"targetHigh":number|null,"targetLow":number|null,"analystCount":number|null},' +
+            '"earnings":[{"period":string,"epsActual":number|null,"epsEstimate":number|null,"surprisePct":string|null,"priceMovePct":string|null}],' +
+            '"catalysts":[string]}',
           "name is the official company name (e.g. \"Apple, Inc.\"); domain is the primary website host only (e.g. \"apple.com\"); marketCap may use a suffix (e.g. \"3.1T\"); dividendYield as a percent string (e.g. \"0.72%\"); ipoDate as YYYY-MM-DD; exchange like \"NASDAQ\"/\"NYSE\"; country like \"United States\"; description one sentence.",
+          "earnings is the last up-to-4 reported quarters oldest-first (period like \"Q1 FY26\"; surprisePct and priceMovePct as percent strings like \"+4.3%\"/\"-2.1%\"). catalysts is up to 6 short upcoming-catalyst phrases (e.g. \"Q2 earnings Jul 24\"). Omit either array if you have nothing verifiable.",
         ].join("\n");
 
       try {

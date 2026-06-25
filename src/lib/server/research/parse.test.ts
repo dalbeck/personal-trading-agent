@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  coerceCatalysts,
   coerceDomain,
+  coerceEarnings,
   coerceIntLike,
   coerceMoneyLike,
   coerceNumberLike,
@@ -103,6 +105,67 @@ describe("coerceIntLike", () => {
   });
 });
 
+describe("coerceCatalysts", () => {
+  it("trims, drops empties/sentinels, dedupes, and caps", () => {
+    expect(
+      coerceCatalysts(["Q2 earnings Jul 24", "  ", "n/a", "AI capex", "AI capex"]),
+    ).toEqual(["Q2 earnings Jul 24", "AI capex"]);
+  });
+  it("accepts a single string and returns [] for junk", () => {
+    expect(coerceCatalysts("Buyback raise")).toEqual(["Buyback raise"]);
+    expect(coerceCatalysts(null)).toEqual([]);
+    expect(coerceCatalysts(42)).toEqual([]);
+  });
+  it("caps the count", () => {
+    expect(coerceCatalysts(["a", "b", "c", "d"], 2)).toEqual(["a", "b"]);
+  });
+});
+
+describe("coerceEarnings", () => {
+  it("coerces quarters, storing surprise/move as fractions and computing beat", () => {
+    const rows = coerceEarnings([
+      {
+        period: "Q1 FY26",
+        epsActual: "1.20",
+        epsEstimate: "1.10",
+        surprisePct: "+9.1%",
+        priceMovePct: "+3.4%",
+      },
+      {
+        period: "Q4 FY25",
+        epsActual: 0.9,
+        epsEstimate: 1.0,
+        priceMovePct: "-2.1%",
+      },
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].epsActual).toBeCloseTo(1.2);
+    expect(rows[0].surprisePct).toBeCloseTo(0.091);
+    expect(rows[0].priceMovePct).toBeCloseTo(0.034);
+    expect(rows[0].beat).toBe(true);
+    // surprise computed from actual vs estimate when not given; miss → beat false.
+    expect(rows[1].surprisePct).toBeCloseTo(-0.1);
+    expect(rows[1].priceMovePct).toBeCloseTo(-0.021);
+    expect(rows[1].beat).toBe(false);
+  });
+  it("keeps only the most recent N and skips junk rows", () => {
+    const rows = coerceEarnings(
+      [
+        { period: "Q1", epsActual: 1 },
+        {},
+        { period: "Q2", epsActual: 2 },
+        { period: "Q3", epsActual: 3 },
+      ],
+      2,
+    );
+    expect(rows.map((r) => r.period)).toEqual(["Q2", "Q3"]);
+  });
+  it("returns [] for a non-array", () => {
+    expect(coerceEarnings(null)).toEqual([]);
+    expect(coerceEarnings("nope")).toEqual([]);
+  });
+});
+
 describe("extractJsonBlock", () => {
   it("pulls a fenced json block out and returns the cleaned prose", () => {
     const text =
@@ -190,12 +253,41 @@ describe("parseStructuredResearch", () => {
     });
   });
 
-  it("returns nulls (never throws) when there is no JSON block", () => {
-    const { profile, fundamentals, consensus, summary } =
+  it("lifts the earnings strip and catalyst chips out of the block", () => {
+    const text = [
+      "Beat-and-raise quarter.",
+      "```json",
+      JSON.stringify({
+        earnings: [
+          { period: "Q4 FY25", epsActual: 0.95, epsEstimate: 1.0 },
+          {
+            period: "Q1 FY26",
+            epsActual: 1.2,
+            epsEstimate: 1.1,
+            priceMovePct: "+3.4%",
+          },
+        ],
+        catalysts: ["Q2 earnings Jul 24", "Data-center capex cycle"],
+      }),
+      "```",
+    ].join("\n");
+
+    const { earnings, catalysts, summary } = parseStructuredResearch(text);
+    expect(summary).toBe("Beat-and-raise quarter.");
+    expect(earnings).toHaveLength(2);
+    expect(earnings[1].beat).toBe(true);
+    expect(earnings[1].priceMovePct).toBeCloseTo(0.034);
+    expect(catalysts).toEqual(["Q2 earnings Jul 24", "Data-center capex cycle"]);
+  });
+
+  it("returns nulls/empties (never throws) when there is no JSON block", () => {
+    const { profile, fundamentals, consensus, earnings, catalysts, summary } =
       parseStructuredResearch("Only prose here.");
     expect(profile).toBeNull();
     expect(fundamentals).toBeNull();
     expect(consensus).toBeNull();
+    expect(earnings).toEqual([]);
+    expect(catalysts).toEqual([]);
     expect(summary).toBe("Only prose here.");
   });
 

@@ -6,6 +6,7 @@ import {
   formatCurrency,
   formatPercent,
 } from "@/lib/format";
+import { RESEARCH_PROVIDER_LABEL, RESEARCH_PROVIDER_SHORT } from "@/lib/research-display";
 import type { SymbolQuote } from "@/lib/symbol";
 import type { ResearchOrigin } from "@/lib/server/research/types";
 import { useSymbolResearch } from "@/components/symbol/research-context";
@@ -24,13 +25,13 @@ type Source = "alpaca" | "robinhood" | "perplexity";
 const SOURCE_LABEL: Record<Source, string> = {
   alpaca: "Alpaca",
   robinhood: "Robinhood",
-  perplexity: "Perplexity",
+  perplexity: RESEARCH_PROVIDER_SHORT,
 };
 
 const SOURCE_TITLE: Record<Source, string> = {
   alpaca: "Alpaca IEX market data",
   robinhood: "Robinhood get_equity_fundamentals (read-only, no metered cost)",
-  perplexity: "Perplexity finance_search (metered, context only)",
+  perplexity: `${RESEARCH_PROVIDER_LABEL} (metered, context only)`,
 };
 
 function SourceTag({ source }: { source: Source }) {

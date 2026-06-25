@@ -10,6 +10,7 @@
  */
 
 import type {
+  EarningsQuarter,
   ResearchConsensus,
   ResearchFundamentals,
   ResearchProfile,
@@ -183,6 +184,88 @@ function coerceFundamentals(raw: unknown): ResearchFundamentals | null {
   };
 }
 
+/**
+ * Coerce the catalyst list — short phrases the card renders as chips. Accepts an
+ * array of strings (or a single string), trims, drops empties/sentinels, dedupes
+ * case-insensitively, and caps the count so the chip row stays scannable.
+ */
+export function coerceCatalysts(raw: unknown, max = 6): string[] {
+  const items = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? [raw]
+      : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const s = coerceStr(item);
+    if (!s) continue;
+    const key = s.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/**
+ * Coerce one reported quarter for the earnings strip. `surprise`/`priceMove` are
+ * read as percent values and stored as **fractions**; `beat` is taken when given,
+ * else computed from actual-vs-estimate. Returns null when there is no usable
+ * period or EPS data, so a junk row never reaches the strip.
+ */
+function coerceEarningsQuarter(raw: unknown): EarningsQuarter | null {
+  const q = asRecord(raw);
+  if (!q) return null;
+  const period = coerceStr(q.period ?? q.quarter ?? q.date ?? q.fiscalPeriod);
+  const epsActual = coerceNumberLike(q.epsActual ?? q.actual ?? q.reported);
+  const epsEstimate = coerceNumberLike(
+    q.epsEstimate ?? q.estimate ?? q.consensus ?? q.expected,
+  );
+  if (!period && epsActual === null && epsEstimate === null) return null;
+
+  let surprisePct = coercePercentLike(q.surprisePct ?? q.surprise);
+  if (
+    surprisePct === null &&
+    epsActual !== null &&
+    epsEstimate !== null &&
+    epsEstimate !== 0
+  ) {
+    surprisePct = (epsActual - epsEstimate) / Math.abs(epsEstimate);
+  }
+
+  const priceMovePct = coercePercentLike(
+    q.priceMovePct ?? q.priceMove ?? q.postEarningsMove ?? q.move,
+  );
+
+  const beatRaw = q.beat;
+  let beat: boolean | null = typeof beatRaw === "boolean" ? beatRaw : null;
+  if (beat === null && epsActual !== null && epsEstimate !== null) {
+    beat = epsActual >= epsEstimate;
+  }
+
+  return {
+    period: period ?? "—",
+    epsActual,
+    epsEstimate,
+    surprisePct,
+    priceMovePct,
+    beat,
+  };
+}
+
+/** Coerce the recent-quarters array for the earnings strip (most recent last). */
+export function coerceEarnings(raw: unknown, max = 4): EarningsQuarter[] {
+  if (!Array.isArray(raw)) return [];
+  const out: EarningsQuarter[] = [];
+  for (const item of raw) {
+    const q = coerceEarningsQuarter(item);
+    if (q) out.push(q);
+  }
+  return out.slice(-max);
+}
+
 function coerceConsensus(raw: unknown): ResearchConsensus | null {
   const c = asRecord(raw);
   if (!c) return null;
@@ -205,6 +288,8 @@ export function parseStructuredResearch(text: string): {
   profile: ResearchProfile | null;
   fundamentals: ResearchFundamentals | null;
   consensus: ResearchConsensus | null;
+  earnings: EarningsQuarter[];
+  catalysts: string[];
   summary: string;
 } {
   const { json, cleaned } = extractJsonBlock(text);
@@ -213,6 +298,8 @@ export function parseStructuredResearch(text: string): {
     profile: obj ? coerceProfile(obj.profile) : null,
     fundamentals: obj ? coerceFundamentals(obj.fundamentals) : null,
     consensus: obj ? coerceConsensus(obj.consensus) : null,
+    earnings: obj ? coerceEarnings(obj.earnings) : [],
+    catalysts: obj ? coerceCatalysts(obj.catalysts) : [],
     summary: cleaned,
   };
 }
