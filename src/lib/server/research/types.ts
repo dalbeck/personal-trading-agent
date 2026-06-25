@@ -35,6 +35,9 @@ export interface ResearchProfile {
   /** Company display name, e.g. "Apple, Inc." (Perplexity, or derived from the
    *  Robinhood description). Null falls back to the ticker in the UI. */
   name: string | null;
+  /** Primary website domain, e.g. "apple.com" (Perplexity) — drives the brand
+   *  logo lookup. Null falls back to a monogram tile. */
+  domain: string | null;
   ceo: string | null;
   employees: number | null;
   sector: string | null;

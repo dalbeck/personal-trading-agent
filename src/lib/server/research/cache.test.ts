@@ -15,6 +15,7 @@ function payload(): SymbolResearch {
     fundamentalsSource: "robinhood",
     profile: {
       name: "Microsoft Corporation",
+      domain: null,
       ceo: "Satya Nadella",
       employees: 228000,
       sector: "Technology",

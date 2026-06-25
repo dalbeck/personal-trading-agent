@@ -71,6 +71,7 @@ export function mergeSymbolResearch(args: {
     rp || pp
       ? {
           name: rp?.name ?? pp?.name ?? null,
+          domain: rp?.domain ?? pp?.domain ?? null,
           ceo: rp?.ceo ?? pp?.ceo ?? null,
           employees: rp?.employees ?? pp?.employees ?? null,
           sector: rp?.sector ?? pp?.sector ?? null,

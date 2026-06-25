@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { OwnershipBadge } from "@/components/mode-scope";
 import { countryFlag } from "@/lib/format";
 import type { Ownership } from "@/lib/universe";
@@ -28,7 +29,7 @@ export function SymbolCompanyHeader({
 
   return (
     <div className="flex items-center gap-3">
-      <Monogram symbol={symbol} />
+      <CompanyLogo symbol={symbol} />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h1 className="text-balance text-2xl font-semibold tracking-tight text-fg">
@@ -50,7 +51,32 @@ export function SymbolCompanyHeader({
   );
 }
 
-/** A clean monogram tile used in place of a brand logo (no external fetch). */
+/**
+ * Brand logo by ticker (Financial Modeling Prep's stock-logo CDN) with a
+ * graceful monogram fallback — an unknown ticker 404s and the image's onError
+ * shows the monogram instead. Ticker-based so it works without Perplexity (no
+ * domain needed). The only external request is the logo image itself.
+ */
+function CompanyLogo({ symbol }: { symbol: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={`https://financialmodelingprep.com/image-stock/${encodeURIComponent(symbol)}.png`}
+        alt=""
+        width={44}
+        height={44}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="size-11 shrink-0 rounded-card border border-line bg-surface-overlay object-contain p-1"
+      />
+    );
+  }
+  return <Monogram symbol={symbol} />;
+}
+
+/** A clean monogram tile used when no brand logo is available. */
 function Monogram({ symbol }: { symbol: string }) {
   const initials = symbol.length <= 4 ? symbol : symbol.slice(0, 4);
   return (
