@@ -64,14 +64,8 @@ describe("refreshLiveAccount", () => {
           },
         ],
       }),
-      // Injected Alpaca snapshot — last trade $150.
-      getSnapshot: async () =>
-        ({
-          latestTrade: { p: 150, t: "2026-06-25T20:00:00Z" },
-          dailyBar: null,
-          prevDailyBar: null,
-          minuteBar: null,
-        }) as never,
+      // Injected Alpaca mark — $150.
+      getMark: async () => 150,
     });
 
     expect(res.connected).toBe(true);

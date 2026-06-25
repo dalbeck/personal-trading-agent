@@ -10,7 +10,7 @@ import {
   hasRobinhoodConnection,
   type PortfolioFetcher,
 } from "@/lib/server/robinhood";
-import { enrichLivePositions, type SnapshotGetter } from "@/lib/server/live-price";
+import { enrichLivePositions, type MarkGetter } from "@/lib/server/live-price";
 import { enforceLiveDrawdownKill } from "@/lib/server/live-guards";
 import { recordSnapshot } from "@/lib/server/writers";
 import type { PortfolioSnapshot } from "@/lib/types";
@@ -117,7 +117,7 @@ export async function getLiveAccount(): Promise<LiveAccount> {
  */
 export async function refreshLiveAccount(opts?: {
   fetcher?: PortfolioFetcher;
-  getSnapshot?: SnapshotGetter;
+  getMark?: MarkGetter;
   dataDir?: string;
 }): Promise<LiveAccount> {
   if (!opts?.fetcher && !hasRobinhoodConnection()) return DISCONNECTED;
@@ -125,7 +125,7 @@ export async function refreshLiveAccount(opts?: {
   try {
     const raw = await getRobinhoodLiveSnapshot({ fetcher: opts?.fetcher });
     const snapshot = await enrichLivePositions(raw, {
-      getSnapshot: opts?.getSnapshot,
+      getMark: opts?.getMark,
     }).catch(() => raw); // enrichment is best-effort; never sink the read on it
     // Persist so the LIVE panel and the agent read one shared source of truth.
     await recordSnapshot(snapshot, { dataDir: opts?.dataDir }).catch(() => {
