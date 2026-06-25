@@ -1,5 +1,5 @@
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
-import { readWatchlist } from "@/lib/server/data";
+import { readWatchlistEntries } from "@/lib/server/data";
 import { addToWatchlist, removeFromWatchlist } from "@/lib/server/writers";
 
 /**
@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  return Response.json({ symbols: await readWatchlist() });
+  return Response.json({ entries: await readWatchlistEntries() });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -38,10 +38,10 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "invalid symbol" }, { status: 400 });
   }
 
-  const symbols =
+  const entries =
     action === "add"
       ? await addToWatchlist(symbol)
       : await removeFromWatchlist(symbol);
 
-  return Response.json({ symbols });
+  return Response.json({ entries });
 }

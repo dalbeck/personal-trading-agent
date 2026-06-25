@@ -261,15 +261,29 @@ export const CoachingEntrySchema = z
   .strict();
 
 /* --------------------------------------------------------------------------
- * Watchlist — the manual half of the tracked universe (data/control/
+ * Watchlist — the editable half of the tracked universe (data/control/
  * watchlist.json). The other half is the active book's holdings. Together they
  * feed the news scout and the research routine, and drive symbol auto-surfacing
  * (see `src/lib/server/universe.ts`). A single small JSON state file, like the
  * funding tracker / live-halt latch.
+ *
+ * Each entry carries its **provenance**: `manual` (the human typed it) or
+ * `discovery` (the autonomous discovery run auto-tracked it). Discovery adds are
+ * bounded by `DISCOVERY_LIMITS.maxWatchlistSymbols`; the human can prune either.
  * ------------------------------------------------------------------------ */
+export const WatchlistSource = z.enum(["manual", "discovery"]);
+
+export const WatchlistEntrySchema = z
+  .object({
+    symbol,
+    source: WatchlistSource.default("manual"),
+    addedAt: isoDateTime.nullable().default(null),
+  })
+  .strict();
+
 export const WatchlistSchema = z
   .object({
-    symbols: z.array(symbol).default([]),
+    entries: z.array(WatchlistEntrySchema).default([]),
     updatedAt: isoDateTime.nullable().default(null),
   })
   .strict();

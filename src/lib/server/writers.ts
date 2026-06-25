@@ -19,9 +19,10 @@ import {
   TradeProposalSchema,
   WatchlistSchema,
 } from "@/lib/schemas";
-import { dedupeSymbols } from "@/lib/universe";
-import { normalizeSymbol } from "@/lib/symbol";
-import { readWatchlist } from "./data";
+import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
+import { DISCOVERY_LIMITS } from "@strategy/charter.config";
+import type { WatchlistEntry } from "@/lib/types";
+import { readWatchlistEntries } from "./data";
 import type {
   MaterialNewsItem,
   PortfolioSnapshot,
@@ -451,41 +452,104 @@ export async function recordAdvisoryProposal(
 
 /* -------------------------------- Watchlist --------------------------------- */
 
-/** Overwrite the manual watchlist (data/control/watchlist.json), normalizing +
- *  deduping the symbols and stamping `updatedAt`. Returns the persisted list. */
-export async function writeWatchlist(
-  symbols: string[],
+/** Normalize + dedupe entries by symbol (first occurrence wins), dropping
+ *  invalid tickers. Provenance of the kept entry is preserved. */
+function dedupeEntries(entries: WatchlistEntry[]): WatchlistEntry[] {
+  const seen = new Set<string>();
+  const out: WatchlistEntry[] = [];
+  for (const e of entries) {
+    const s = normalizeSymbol(e.symbol);
+    if (!isValidSymbol(s) || seen.has(s)) continue;
+    seen.add(s);
+    out.push({ ...e, symbol: s });
+  }
+  return out;
+}
+
+/** Validate + persist the watchlist entries (data/control/watchlist.json),
+ *  stamping `updatedAt`. Returns the persisted entries. */
+async function persistWatchlist(
+  entries: WatchlistEntry[],
   opts?: { dataDir?: string; at?: string },
-): Promise<string[]> {
-  const cleaned = dedupeSymbols(symbols);
+): Promise<WatchlistEntry[]> {
+  const cleaned = dedupeEntries(entries);
   const file = path.join(dataRoot(opts), "control", "watchlist.json");
   await writeStructured(file, WatchlistSchema, {
-    symbols: cleaned,
+    entries: cleaned,
     updatedAt: opts?.at ?? new Date().toISOString(),
   });
   return cleaned;
 }
 
-/** Add one symbol to the watchlist (idempotent). Returns the updated list. */
+/** Add one symbol to the watchlist as a **manual** entry (idempotent). A human
+ *  re-adding a `discovery` symbol promotes it to `manual` (explicit interest).
+ *  Returns the updated entries. */
 export async function addToWatchlist(
   symbol: string,
   opts?: { dataDir?: string; at?: string },
-): Promise<string[]> {
-  const current = await readWatchlist(opts);
-  return writeWatchlist([...current, symbol], opts);
+): Promise<WatchlistEntry[]> {
+  const s = normalizeSymbol(symbol);
+  const current = await readWatchlistEntries(opts);
+  const existing = current.find((e) => e.symbol === s);
+  if (existing) {
+    if (existing.source === "manual") return persistWatchlist(current, opts);
+    return persistWatchlist(
+      current.map((e) => (e.symbol === s ? { ...e, source: "manual" } : e)),
+      opts,
+    );
+  }
+  return persistWatchlist(
+    [
+      ...current,
+      { symbol: s, source: "manual", addedAt: opts?.at ?? new Date().toISOString() },
+    ],
+    opts,
+  );
 }
 
-/** Remove one symbol from the watchlist (idempotent). Returns the updated list. */
+/** Remove one symbol from the watchlist (idempotent). Returns the updated entries. */
 export async function removeFromWatchlist(
   symbol: string,
   opts?: { dataDir?: string; at?: string },
-): Promise<string[]> {
+): Promise<WatchlistEntry[]> {
   const target = normalizeSymbol(symbol);
-  const current = await readWatchlist(opts);
-  return writeWatchlist(
-    current.filter((s) => s !== target),
+  const current = await readWatchlistEntries(opts);
+  return persistWatchlist(
+    current.filter((e) => e.symbol !== target),
     opts,
   );
+}
+
+/**
+ * Auto-add discovered candidates to the watchlist as `discovery` entries — the
+ * autonomous-discovery path (M3). **Bounded**: never grows the watchlist past
+ * `DISCOVERY_LIMITS.maxWatchlistSymbols`, never duplicates an existing symbol,
+ * and never evicts a manual entry. Returns the updated entries and the symbols
+ * actually added (tracking-only — no order, no execution path).
+ */
+export async function addDiscoveredToWatchlist(
+  symbols: string[],
+  opts?: { dataDir?: string; at?: string },
+): Promise<{ entries: WatchlistEntry[]; added: string[] }> {
+  const current = await readWatchlistEntries(opts);
+  const have = new Set(current.map((e) => e.symbol));
+  const cap = DISCOVERY_LIMITS.maxWatchlistSymbols;
+  const next = [...current];
+  const added: string[] = [];
+  for (const raw of symbols) {
+    const s = normalizeSymbol(raw);
+    if (!isValidSymbol(s) || have.has(s)) continue;
+    if (next.length >= cap) break; // bounded — stop at the ceiling
+    have.add(s);
+    next.push({
+      symbol: s,
+      source: "discovery",
+      addedAt: opts?.at ?? new Date().toISOString(),
+    });
+    added.push(s);
+  }
+  const entries = await persistWatchlist(next, opts);
+  return { entries, added };
 }
 
 /** Promote a durable lesson into the playbook's Banked lessons, with the date

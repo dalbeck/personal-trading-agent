@@ -60,6 +60,12 @@
 - **Auto-surfacing:** an owned/watched symbol gets a Held/Watchlist badge (`OwnershipBadge` in `mode-scope.tsx`) on News items, the Overview activity feed, and the symbol detail header; News is filtered to the active book's universe. Symbol price/news data stays mode-independent (market data); only the ownership tag is mode-scoped.
 - **Manual live trades → coaching:** the Coaching page is mode-aware (paper desk vs. the human's manual live trades). "Sync live trades" (`/api/live/sync-trades` → `syncLiveTrades`) ingests filled Robinhood orders **read-only** into the journal as `account: "live"`, `manual: true`; the Journal/Coaching pages scope by `account` and badge manual live trades. See `.agents/infra.md` for the read-only order-history surface.
 
+## Autonomous discovery — M3
+- The pre-market routine (`routines/pre-market-research.md`) is the discovery engine: it scans sources (the scout's `data/news/`, Alpaca per-symbol news, the routine's own web search if available, and the capped default-off Perplexity provider) **plus** the tracked universe to surface **new** buy/sell proposals (not only on holdings). It runs only when routines run (launchd / Operations) — nothing auto-runs.
+- **Bounded in code, not just by prompt:** `DISCOVERY_LIMITS` (charter, tripwired) caps new proposals per run (`maxNewProposalsPerRun`, = the daily order cap; pure helper `discoveryProposalBudget`) and the watchlist size (`maxWatchlistSymbols`, enforced in `addDiscoveredToWatchlist`). Proposals still clear the risk rails + the red-team gate; the research per-day cap still applies.
+- **Auto-populate the watchlist** (95/5 automation): discovery POSTs candidates to `/api/watchlist/discover` (token-gated, tracking-only — no broker/order path), which adds them as `source: "discovery"` entries up to the cap. The watchlist editor badges them `auto`; the human prunes.
+- **Live discovery is advisory-only with no execution path** — a discovered live idea is written `account: "live"`, `advisory: true`; `isAdvisoryProposal` is true so the single execution entry (`/api/live/approve`) refuses it (422). Unit-tested in `discovery-advisory.test.ts`. Auto-generated proposals are **review candidates, never auto-acted** — the human approves every trade.
+
 ## Safety in the UI
 - The dashboard surfaces trade approvals; it must **never bypass** the two-gate permission flow for real-money orders (see `.agents/infra.md`).
 - Paper and live account views must be clearly labeled and visually distinct.

@@ -13,6 +13,7 @@ import type {
   RunLogSchema,
   TradeJournalEntrySchema,
   TradeProposalSchema,
+  WatchlistEntrySchema,
   WatchlistSchema,
 } from "./schemas";
 
@@ -41,3 +42,4 @@ export type RunLog = z.infer<typeof RunLogSchema>;
 export type MaterialNewsItem = z.infer<typeof MaterialNewsItemSchema>;
 
 export type Watchlist = z.infer<typeof WatchlistSchema>;
+export type WatchlistEntry = z.infer<typeof WatchlistEntrySchema>;

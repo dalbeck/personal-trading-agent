@@ -3,6 +3,7 @@ import { TickerLink } from "@/components/ticker-link";
 import { WatchlistEditor } from "@/components/watchlist-editor";
 import { MODE_LABEL, type ViewMode } from "@/lib/mode";
 import type { TrackedUniverse } from "@/lib/universe";
+import type { WatchlistEntry } from "@/lib/types";
 
 /**
  * The tracked universe at a glance: the active book's holdings (auto-tracked,
@@ -12,9 +13,11 @@ import type { TrackedUniverse } from "@/lib/universe";
  */
 export function TrackedUniverseCard({
   universe,
+  watchlistEntries,
   mode,
 }: {
   universe: TrackedUniverse;
+  watchlistEntries: WatchlistEntry[];
   mode: ViewMode;
 }) {
   return (
@@ -51,9 +54,9 @@ export function TrackedUniverseCard({
 
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">
-            Watchlist (manual)
+            Watchlist (manual + auto-discovered)
           </p>
-          <WatchlistEditor symbols={universe.watchlist} />
+          <WatchlistEditor entries={watchlistEntries} />
         </div>
       </div>
     </Card>

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { LIVE_LIMITS, RISK_LIMITS } from "@strategy/charter.config";
+import {
+  DISCOVERY_LIMITS,
+  LIVE_LIMITS,
+  RISK_LIMITS,
+} from "@strategy/charter.config";
 
 /**
  * Guards that the machine-readable config stays in lockstep with the numbers
@@ -29,6 +33,15 @@ describe("LIVE_LIMITS mirrors strategy/charter.md (Phase 3 live pilot caps)", ()
       weeklyFundingCapUsd: 100, // ≤ $100 human deposits / rolling 7 days
       maxAccountExposureUsd: 500, // hard total live exposure ceiling
       drawdownKillPct: 0.1, // −10% from the live high-water mark
+    });
+  });
+});
+
+describe("DISCOVERY_LIMITS mirrors strategy/charter.md (Phase 3 discovery caps)", () => {
+  it("matches the charter's discovery bounds", () => {
+    expect(DISCOVERY_LIMITS).toEqual({
+      maxNewProposalsPerRun: 6, // tracks the daily order cap
+      maxWatchlistSymbols: 20, // bounds auto-added discovery candidates
     });
   });
 });
