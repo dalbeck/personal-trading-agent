@@ -22,8 +22,26 @@ import type { PortfolioSnapshot, Position } from "@/lib/types";
  */
 
 /** The complete set of Robinhood MCP tools this build is allowed to call.
- *  Read-only by construction — order tools are intentionally absent. */
+ *  Read-only by construction — order tools are intentionally absent.
+ *
+ *  **Privacy (Agentic-account only):** the Robinhood MCP grants read access to
+ *  every account the user has linked, but the desk reads only `get_portfolio`,
+ *  which returns the single Agentic account. We deliberately do NOT call
+ *  account-enumeration tools (`get_accounts`, `get_equity_positions`, …), so the
+ *  user's other Robinhood accounts are never fetched, aggregated, or displayed.
+ *  Tools that would expose other accounts (or place an order) are listed in
+ *  {@link FORBIDDEN_TOOLS}; a regression that adds one fails the unit test. */
 export const READ_ONLY_TOOLS = ["get_portfolio"] as const;
+
+/** Tools that would expose accounts beyond the Agentic one, or place an order.
+ *  None of these may ever appear in {@link READ_ONLY_TOOLS}. */
+export const FORBIDDEN_TOOLS = [
+  "get_accounts",
+  "get_equity_positions",
+  "get_option_positions",
+  "place_equity_order",
+  "place_option_order",
+] as const;
 
 const MCP_URL =
   process.env.ROBINHOOD_MCP_URL ?? "https://agent.robinhood.com/mcp/trading";
