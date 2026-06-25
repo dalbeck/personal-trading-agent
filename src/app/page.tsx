@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   formatCurrency,
   formatPercent,
+  formatQty,
   toneForValue,
 } from "@/lib/format";
 import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
@@ -275,6 +276,24 @@ export default async function OverviewPage() {
                   {live.snapshot.positions.length}
                 </dd>
               </dl>
+              {live.snapshot.positions.length > 0 ? (
+                <ul className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
+                  {live.snapshot.positions.map((p) => (
+                    <li
+                      key={p.symbol}
+                      className="flex items-baseline justify-between gap-2"
+                    >
+                      <span className="font-medium text-fg">{p.symbol}</span>
+                      <span className="tabular-nums text-fg-muted">
+                        {formatQty(p.qty)} sh
+                      </span>
+                      <span className="ml-auto tabular-nums text-fg">
+                        {formatCurrency(p.marketValue)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </>
           ) : (
             <p className="text-pretty text-sm text-fg-muted">
