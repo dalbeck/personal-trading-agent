@@ -17,6 +17,11 @@ import {
   liveCapContextFromSnapshot,
 } from "./live-guards";
 import {
+  runRedTeam,
+  type RedTeamExec,
+  type RedTeamProposal,
+} from "./red-team";
+import {
   recordRejection,
   recordRiskRejection,
   recordTradeDecision,
@@ -262,6 +267,8 @@ export interface ApprovalOpts extends RouteOpts {
   snapshot?: PortfolioSnapshot | null;
   /** Live-cap context source; defaults to the latest live snapshot. */
   liveSnapshot?: PortfolioSnapshot | null;
+  /** Red-team prosecutor seam (tests inject; default spawns `codex exec`). */
+  redTeamExec?: RedTeamExec;
 }
 
 function toProposedOrder(o: ApprovalOrder): ProposedOrder {
@@ -274,6 +281,21 @@ function toProposedOrder(o: ApprovalOrder): ProposedOrder {
     orderType: "marketable_limit",
     stopPrice: o.stopPrice,
     assetClass: "equity",
+  };
+}
+
+function toRedTeamProposal(o: ApprovalOrder): RedTeamProposal {
+  return {
+    symbol: o.symbol,
+    action: o.action,
+    side: o.side,
+    qty: o.qty,
+    limitPrice: o.limitPrice,
+    stopPrice: o.stopPrice,
+    takeProfit: o.takeProfit,
+    thesis: o.thesis,
+    reasoning: o.reasoning,
+    research: o.research,
   };
 }
 
@@ -314,15 +336,22 @@ export async function submitTradeApproval(
     return { outcome: "denied", journalId: id, dryRun: true };
   }
 
-  // Defense in depth: a red-team "reject" can never be approved into an order.
-  if (order.redTeam && order.redTeam.verdict === "reject") {
+  // Every live-intent order must clear the cross-model red-team before it can be
+  // placed (charter). If the proposal already carries a verdict, use it; if not
+  // (e.g. a discovery proposal that wasn't red-teamed), run it now. The red-team
+  // fails closed to a "reject", so a missing/unavailable prosecutor blocks — it
+  // never silently allows. A "reject" can never be approved into an order.
+  const redTeam =
+    order.redTeam ??
+    (await runRedTeam(toRedTeamProposal(order), { exec: opts.redTeamExec }));
+  if (redTeam.verdict === "reject") {
     const { id } = await recordRejection(
       {
         ...journalMeta,
         proposedAction: order.action,
         rejectedBy: "codex-redteam",
-        redTeam: order.redTeam.notes,
-        reason: order.redTeam.notes,
+        redTeam: redTeam.notes,
+        reason: redTeam.notes,
       },
       { dataDir: opts.dataDir },
     );
