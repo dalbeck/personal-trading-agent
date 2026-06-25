@@ -23,7 +23,7 @@ export async function Header() {
 
   // Name the *other* book so the toggle makes clear both run concurrently.
   const otherBookHint =
-    mode === "live" ? "Paper desk running" : "Live book read-only";
+    mode === "live" ? "Paper sink active" : "Live account active";
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 md:px-8">

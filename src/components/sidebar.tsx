@@ -68,9 +68,9 @@ export function Sidebar() {
 
       <div className="hidden border-t border-line p-3 text-xs text-fg-muted md:block">
         <p className="text-pretty leading-relaxed">
-          Paper-only · read-only.
+          Live · human-approved.
           <br />
-          No real-money orders.
+          No order placed without your approval.
         </p>
       </div>
     </aside>

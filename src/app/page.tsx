@@ -85,7 +85,7 @@ export default async function OverviewPage() {
           title="Overview"
           subtitle={
             isLive
-              ? "The live book — read-only and advisory. The paper desk keeps running underneath."
+              ? "Your live account — the desk's focus. You approve each trade; the paper desk runs underneath as the dry-run sink."
               : "What needs you, how the desk is tracking, and the guardrails it runs inside."
           }
         />

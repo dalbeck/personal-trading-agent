@@ -38,10 +38,10 @@ export default async function ProposalsPage() {
         }
       />
       <div className="mb-4 flex items-center gap-2">
-        <ViewingBadge mode={mode} />
+        <ViewingBadge mode={mode} readOnly={false} />
         <span className="text-xs text-fg-muted">
           {isLive
-            ? "Proposals for the live account"
+            ? "Proposals for the live account — approve to place"
             : "Proposals for the paper desk"}
         </span>
       </div>
