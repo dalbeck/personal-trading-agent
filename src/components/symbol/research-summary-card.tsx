@@ -38,12 +38,12 @@ export function ResearchSummaryCard({
   const note = research ? perplexityNote(research.perplexity) : null;
   const hasContent =
     !!research &&
-    (research.summary.length > 0 ||
-      research.earnings.length > 0 ||
-      research.catalysts.length > 0 ||
+    ((research.summary?.length ?? 0) > 0 ||
+      (research.earnings?.length ?? 0) > 0 ||
+      (research.catalysts?.length ?? 0) > 0 ||
       research.fundamentals != null ||
       research.consensus != null ||
-      research.sections.length > 0);
+      (research.sections?.length ?? 0) > 0);
 
   return (
     <section
@@ -103,17 +103,17 @@ function CardBody({
 
       <KeyMetricChips research={research} quote={quote} />
 
-      {research.earnings.length > 0 ? (
+      {(research.earnings?.length ?? 0) > 0 ? (
         <EarningsStrip earnings={research.earnings} />
       ) : null}
 
-      {research.catalysts.length > 0 ? (
+      {(research.catalysts?.length ?? 0) > 0 ? (
         <Catalysts catalysts={research.catalysts} />
       ) : null}
 
       <IdentityLine research={research} />
 
-      {research.sections.length > 0 ? (
+      {(research.sections?.length ?? 0) > 0 ? (
         <FullDetail sections={research.sections} />
       ) : null}
 

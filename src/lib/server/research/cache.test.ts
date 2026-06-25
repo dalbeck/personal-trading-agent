@@ -85,4 +85,18 @@ describe("research cache", () => {
     );
     expect(await readResearchCache("MSFT", "2026-06-25", { dataDir: dir })).toBeNull();
   });
+
+  it("treats a prior-version entry missing new fields as a miss (no half-empty serve)", async () => {
+    const dir = await tmp();
+    const file = path.join(dir, "research", "cache", "2026-06-25-MSFT.json");
+    await mkdir(path.dirname(file), { recursive: true });
+    // A v3 entry written before earnings/catalysts/sections existed — must NOT
+    // be served (it would crash the card on `research.earnings.length`).
+    const legacy: Record<string, unknown> = { ...payload(), version: 3 };
+    delete legacy.earnings;
+    delete legacy.catalysts;
+    delete legacy.sections;
+    await writeFile(file, JSON.stringify(legacy), "utf8");
+    expect(await readResearchCache("MSFT", "2026-06-25", { dataDir: dir })).toBeNull();
+  });
 });
