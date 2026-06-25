@@ -443,7 +443,9 @@ describe("M1 — real risk context at approval (daily cap + emergency stop)", ()
 
   it("blocks the 7th placement of an ET day on the approval path (daily-order cap)", async () => {
     const gate = await closedGate();
-    // Six clean placements — each one increments the persisted ET-day counter.
+    // Six clean placements — each a DISTINCT proposal (distinct idempotency key,
+    // as the route supplies the proposal id) so each one places + increments the
+    // persisted ET-day counter rather than de-duping.
     for (let i = 0; i < 6; i++) {
       const res = await submitTradeApproval(
         {
@@ -451,6 +453,7 @@ describe("M1 — real risk context at approval (daily cap + emergency stop)", ()
           decision: "approve",
           approver: "human",
           timestamp: `2026-06-24T10:0${i}:00-04:00`,
+          idempotencyKey: `cap-day-${i}`,
         },
         {
           ...gate,
@@ -469,6 +472,7 @@ describe("M1 — real risk context at approval (daily cap + emergency stop)", ()
         decision: "approve",
         approver: "human",
         timestamp: "2026-06-24T10:30:00-04:00",
+        idempotencyKey: "cap-day-7",
       },
       { ...gate, snapshot: BIG_SNAPSHOT, market: CALM, mockOrderId: "mock-7" },
     );
@@ -485,6 +489,7 @@ describe("M1 — real risk context at approval (daily cap + emergency stop)", ()
           decision: "approve",
           approver: "human",
           timestamp: `2026-06-24T10:0${i}:00-04:00`,
+          idempotencyKey: `reset-${i}`,
         },
         { ...gate, snapshot: BIG_SNAPSHOT, market: CALM, mockOrderId: `m-${i}` },
       );
@@ -496,6 +501,7 @@ describe("M1 — real risk context at approval (daily cap + emergency stop)", ()
         decision: "approve",
         approver: "human",
         timestamp: "2026-06-25T10:00:00-04:00",
+        idempotencyKey: "reset-next",
       },
       { ...gate, snapshot: BIG_SNAPSHOT, market: CALM, mockOrderId: "m-next" },
     );
@@ -551,6 +557,161 @@ describe("M1 — real risk context at approval (daily cap + emergency stop)", ()
       { ...gate, snapshot: BIG_SNAPSHOT, market: CALM, mockOrderId: "ok" },
     );
     expect(res.outcome).toBe("approved");
+  });
+});
+
+describe("M2 — order idempotency (double-tap / retry places at most once)", () => {
+  const APPROVE = (over: Partial<typeof ORDER> = {}) => ({
+    order: { ...ORDER, ...over },
+    decision: "approve" as const,
+    approver: "human",
+    timestamp: "2026-06-24T10:00:00-04:00",
+  });
+
+  it("the same approval submitted twice goes to the dry-run sink exactly once", async () => {
+    const gate = await closedGate();
+    let calls = 0;
+    const placeDryRun = async () => {
+      calls += 1;
+      return { destination: "mock" as const, brokerOrderId: `mock-${calls}` };
+    };
+
+    const first = await submitTradeApproval(
+      { ...APPROVE(), idempotencyKey: "dup-1" },
+      { ...gate, snapshot: null, placeDryRun },
+    );
+    // A retry with a FRESH request timestamp but the SAME approval (key).
+    const second = await submitTradeApproval(
+      {
+        ...APPROVE(),
+        timestamp: "2026-06-24T10:00:09-04:00",
+        idempotencyKey: "dup-1",
+      },
+      { ...gate, snapshot: null, placeDryRun },
+    );
+
+    expect(first.outcome).toBe("approved");
+    expect(second.outcome).toBe("approved");
+    expect(second.idempotent).toBe(true);
+    expect(calls).toBe(1); // placed exactly once
+    expect(second.brokerOrderId).toBe(first.brokerOrderId);
+    expect(second.journalId).toBe(first.journalId);
+  });
+
+  it("the same approval submitted twice reaches Robinhood exactly once (live)", async () => {
+    const gate = await openGate();
+    let calls = 0;
+    const placeLive = async () => {
+      calls += 1;
+      return { destination: "robinhood" as const, brokerOrderId: `rh-${calls}` };
+    };
+    const fundedLive = {
+      account: "live",
+      asOf: "2026-06-24T10:00:00-04:00",
+      currency: "USD",
+      equity: 500,
+      cash: 500,
+      buyingPower: 500,
+      totalPl: 0,
+      totalPlPct: 0,
+      dayPl: 0,
+      dayPlPct: 0,
+      positions: [],
+      equityCurve: [],
+    } as PortfolioSnapshot;
+    const routeOpts = {
+      ...gate,
+      snapshot: null,
+      liveSnapshot: fundedLive,
+      placeLive,
+    };
+
+    const first = await submitTradeApproval(
+      { ...APPROVE(), idempotencyKey: "dup-live" },
+      routeOpts,
+    );
+    const second = await submitTradeApproval(
+      {
+        ...APPROVE(),
+        timestamp: "2026-06-24T10:00:09-04:00",
+        idempotencyKey: "dup-live",
+      },
+      routeOpts,
+    );
+
+    expect(first.outcome).toBe("approved");
+    expect(first.destination).toBe("robinhood");
+    expect(second.idempotent).toBe(true);
+    expect(calls).toBe(1); // reached the live broker exactly once
+    expect(second.brokerOrderId).toBe(first.brokerOrderId);
+  });
+
+  it("a concurrent double-submit is safe — places exactly once", async () => {
+    const gate = await closedGate();
+    let calls = 0;
+    const placeDryRun = async () => {
+      calls += 1;
+      await new Promise((r) => setTimeout(r, 10)); // hold both in flight
+      return { destination: "mock" as const, brokerOrderId: `mock-${calls}` };
+    };
+    const input = { ...APPROVE(), idempotencyKey: "dup-concurrent" };
+
+    const [a, b] = await Promise.all([
+      submitTradeApproval(input, { ...gate, snapshot: null, placeDryRun }),
+      submitTradeApproval(input, { ...gate, snapshot: null, placeDryRun }),
+    ]);
+
+    expect(calls).toBe(1);
+    expect(a.outcome).toBe("approved");
+    expect(b.outcome).toBe("approved");
+    expect(a.brokerOrderId).toBe(b.brokerOrderId);
+  });
+
+  it("a blocked order is NOT recorded — re-submitting re-evaluates (no false dedup)", async () => {
+    const gate = await closedGate();
+    const rejected = {
+      ...ORDER,
+      redTeam: {
+        verdict: "reject" as const,
+        notes: "Thesis fails.",
+        factors: [],
+        basis: null,
+      },
+    };
+    let calls = 0;
+    const placeDryRun = async () => {
+      calls += 1;
+      return { destination: "mock" as const, brokerOrderId: `m-${calls}` };
+    };
+
+    // First submit blocks (no placement, nothing recorded).
+    const blocked = await submitTradeApproval(
+      {
+        order: rejected,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+        idempotencyKey: "blk-1",
+      },
+      { ...gate, snapshot: null, placeDryRun },
+    );
+    expect(blocked.outcome).toBe("blocked-redteam");
+
+    // Re-submitting the SAME key with a valid override now places — the prior
+    // block did not pin an idempotent result.
+    const overridden = await submitTradeApproval(
+      {
+        order: rejected,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:05:00-04:00",
+        idempotencyKey: "blk-1",
+        override: { comment: "I accept the risk." },
+      },
+      { ...gate, snapshot: null, placeDryRun },
+    );
+    expect(overridden.outcome).toBe("approved");
+    expect(calls).toBe(1);
   });
 });
 

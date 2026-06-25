@@ -458,7 +458,7 @@ export interface PlacedOrder {
  */
 export async function placePaperOrder(
   order: ProposedOrder,
-  opts?: { fetchImpl?: typeof fetch },
+  opts?: { fetchImpl?: typeof fetch; clientOrderId?: string },
 ): Promise<PlacedOrder> {
   const doFetch = opts?.fetchImpl ?? fetch;
 
@@ -470,6 +470,12 @@ export async function placePaperOrder(
     time_in_force: "day",
     limit_price: order.limitPrice,
   };
+  // Pass the stable client order id so the broker itself de-dups a retry
+  // (Alpaca rejects a duplicate client_order_id). Belt to our own record's
+  // suspenders. Alpaca caps this at 128 chars.
+  if (opts?.clientOrderId) {
+    body.client_order_id = opts.clientOrderId.slice(0, 128);
+  }
   // Attach the protective stop as a bracket on entries that carry one.
   if (order.action === "buy" && order.stopPrice !== null) {
     body.order_class = "bracket";

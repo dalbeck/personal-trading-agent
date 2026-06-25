@@ -73,6 +73,13 @@ a soft max-age (`RESEARCH_MAX_AGE_DAYS`, default 7) or a manual refresh forces a
 refetch, so crossing midnight no longer re-spends a metered call. The
 Perplexity daily cap still gates every refetch; a capped refresh keeps the
 existing cache.
+`data/control/placed-orders/<hash>.json` (one file per **client order id**,
+`PlacedRecord`) is the **order idempotency** ledger: each placed order's
+`{ destination, brokerOrderId, journalId }` is recorded under its stable client
+order id so a double-tap or retry returns the prior placement instead of placing
+again (`src/lib/server/order-idempotency.ts`). Per-id files (hashed filename)
+avoid a shared-file write race; like the others, internal state — written
+directly, not a `data/` artifact contract, malformed = treated as "not placed".
 
 **Proposal `account` / `advisory` (live vs paper).** A `TradeProposal` carries
 `account` (`paper` | `live`, default `paper`) and `advisory` (default `false`).
