@@ -7,6 +7,7 @@ import { placePaperOrder, hasAlpacaCredentials } from "@/lib/server/alpaca";
 import { executePendingProposals } from "@/lib/server/execute";
 import { isTradingHalted } from "@/lib/server/gate";
 import { withLock } from "@/lib/server/lockfile";
+import { sweepPendingRedTeam } from "@/lib/server/red-team-sweep";
 import { buildRoutineCliArgs } from "@/lib/server/routine-cli";
 import { pingDeadMan, sendHeartbeat } from "@/lib/server/notify";
 import { recordRunLog } from "@/lib/server/writers";
@@ -131,6 +132,16 @@ export async function POST(
         const prompt = await readFile(promptPath, "utf8");
         const out = await runClaude(prompt);
         summary = out.trim().split("\n").slice(-1)[0]?.slice(0, 280) || "Run complete.";
+        // After discovery, red-team every new pending proposal **in code** so a
+        // verdict is attached + visible at review (we don't rely on the routine
+        // LLM to call it). Each codex judgement is ~10s; fail-soft.
+        if (id === "pre-market-research") {
+          const sweep = await sweepPendingRedTeam().catch(() => ({
+            considered: 0,
+            swept: 0,
+          }));
+          if (sweep.swept > 0) summary += ` · red-teamed ${sweep.swept}`;
+        }
       }
     } catch (err) {
       status = "error";

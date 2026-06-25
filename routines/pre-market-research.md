@@ -78,26 +78,10 @@ approve → place. (Ignore the paper book entirely.)
    are **review candidates only** — the human approves every trade; you never
    place an order, and an approved live order routes to the dry-run sink until
    the human opens the gates.
-5. **Red-team every proposal (required).** Before you finalize each candidate,
-   run it past the cross-model red-team and **embed the returned verdict** in the
-   proposal's `redTeam` field, so the human sees the prosecutor's feedback at
-   review. If the verdict is **`reject`, do not write the proposal** — note why
-   instead.
-
-   ```bash
-   curl -fsS -X POST -H "Authorization: Bearer $ROUTINE_TRIGGER_TOKEN" \
-     -H 'content-type: application/json' \
-     -d '{"symbol":"GE","action":"buy","side":"long","qty":0.05,"limitPrice":373.5,"stopPrice":355,"takeProfit":420,"thesis":"…","reasoning":"…"}' \
-     http://127.0.0.1:${PORT:-3000}/api/red-team
-   ```
-
-   On success it returns `{"verdict":"approve"|"concern"|"reject","notes":"…"}` —
-   set the proposal's `redTeam` to **exactly that object**. A `concern` is fine
-   to surface (the human decides); only an explicit **`reject`** means skip the
-   idea. **If the endpoint errors or is unavailable** (non-200, network error,
-   empty body), do **not** skip — set `redTeam` to `null` and **write the
-   proposal anyway**; the human's per-trade approval re-runs the red-team as the
-   hard gate. Never block the whole run on the red-team being down.
+5. **Leave `redTeam` as `null`** — do NOT run any red-team yourself. After you
+   finish, the desk automatically runs the cross-model red-team on each new
+   proposal **in code** and attaches the verdict (visible to the human at
+   review). Your job is just to write good, well-priced proposals.
 6. **Auto-track what you researched.** Add the genuine candidates you surfaced
    (held or not) to the watchlist so the scout/research keep following them —
    POST the tickers to the discover endpoint (bounded in code at

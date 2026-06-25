@@ -26,6 +26,7 @@ import { readWatchlistEntries } from "./data";
 import type {
   MaterialNewsItem,
   PortfolioSnapshot,
+  RedTeamVerdict,
   RunLog,
   TradeProposal,
 } from "@/lib/types";
@@ -397,6 +398,37 @@ export async function setProposalStatus(
       await writeStructured(file, TradeProposalSchema, {
         ...parsed.data,
         status,
+      });
+      return { id, file };
+    }
+  }
+  return null;
+}
+
+/** Attach a red-team verdict to a proposal in place (data/proposals/),
+ *  preserving every other field. Used by the post-discovery red-team sweep so
+ *  the verdict is visible at review. Returns the file, or `null` if no match. */
+export async function setProposalRedTeam(
+  id: string,
+  redTeam: RedTeamVerdict,
+  opts?: { dataDir?: string },
+): Promise<WriteResult | null> {
+  const dir = path.join(dataRoot(opts), "proposals");
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return null;
+  }
+  for (const name of names.filter((n) => n.endsWith(".json"))) {
+    const file = path.join(dir, name);
+    const parsed = TradeProposalSchema.safeParse(
+      JSON.parse(await readFile(file, "utf8")),
+    );
+    if (parsed.success && parsed.data.id === id) {
+      await writeStructured(file, TradeProposalSchema, {
+        ...parsed.data,
+        redTeam,
       });
       return { id, file };
     }
