@@ -20,6 +20,7 @@ function rhData(): { fundamentals: ResearchFundamentals; profile: ResearchProfil
   return {
     fundamentals: { marketCap: 4e12, peRatio: 35, eps: null, dividendYield: 0.0036 },
     profile: {
+      name: "Apple, Inc.",
       ceo: "Tim Cook",
       employees: 166000,
       sector: "Electronic Technology",
@@ -51,6 +52,7 @@ function pplxResult(): ResearchResult {
     },
     fundamentals: { marketCap: 3.1e12, peRatio: 36, eps: 11.9, dividendYield: 0.0072 },
     profile: {
+      name: "PPLX Name",
       ceo: "PPLX CEO",
       employees: 1,
       sector: "PPLX Sector",

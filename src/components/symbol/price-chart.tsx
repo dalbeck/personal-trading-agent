@@ -12,6 +12,7 @@ import {
   nearestIndex,
   SYMBOL_RANGES,
   type SymbolPricePoint,
+  type SymbolQuote,
   type SymbolRange,
 } from "@/lib/symbol";
 
@@ -56,10 +57,14 @@ export function PriceChart({
   symbol,
   initialPoints,
   initialRange = DEFAULT_RANGE,
+  quote = null,
 }: {
   symbol: string;
   initialPoints: SymbolPricePoint[];
   initialRange?: SymbolRange;
+  /** The daily quote — its price + open/prev-close render as a contained block
+   *  above the chart (Perplexity-style). */
+  quote?: SymbolQuote | null;
 }) {
   const [range, setRange] = useState<SymbolRange>(initialRange);
   const [cache, setCache] = useState<Record<string, SymbolPricePoint[]>>({
@@ -145,8 +150,65 @@ export function PriceChart({
       `Range ${formatCurrency(min)} to ${formatCurrency(max)}.`
     : `${symbol} ${RANGE_LABEL[range]} price chart — no data available.`;
 
+  const dailyUp = quote?.change != null && quote.change >= 0;
+  const dailyTone =
+    quote?.change == null
+      ? "text-fg-muted"
+      : quote.change >= 0
+        ? "text-gain"
+        : "text-loss";
+
   return (
     <div className="rounded-card border border-line bg-surface-raised p-5">
+      {quote && quote.price != null ? (
+        <div className="mb-4 grid gap-3 border-b border-line pb-4 sm:grid-cols-2">
+          <div>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-3xl font-semibold tabular-nums text-fg">
+                {formatCurrency(quote.price)}
+              </span>
+              {quote.change != null ? (
+                <span
+                  className={`text-sm font-medium tabular-nums ${dailyTone}`}
+                >
+                  {dailyUp ? "▲" : "▼"}{" "}
+                  {formatCurrency(quote.change, { signed: true })}
+                  {quote.changePct != null
+                    ? ` (${formatPercent(quote.changePct)})`
+                    : ""}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-fg-muted">
+              {quote.asOf ? `At close · ${formatDateTime(quote.asOf)}` : "Latest"}
+            </p>
+          </div>
+          <div className="sm:text-right">
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm tabular-nums sm:justify-end">
+              {quote.open != null ? (
+                <span className="text-fg-muted">
+                  Open{" "}
+                  <span className="font-semibold text-fg">
+                    {formatCurrency(quote.open)}
+                  </span>
+                </span>
+              ) : null}
+              {quote.prevClose != null ? (
+                <span className="text-fg-muted">
+                  Prev close{" "}
+                  <span className="font-semibold text-fg">
+                    {formatCurrency(quote.prevClose)}
+                  </span>
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-fg-muted sm:text-right">
+              Alpaca · IEX feed
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm font-semibold text-fg">Price</h2>

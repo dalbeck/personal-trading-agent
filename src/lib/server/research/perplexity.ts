@@ -189,10 +189,10 @@ export function createPerplexityProvider(
           `Summarize the latest fundamentals, earnings, analyst views, and catalysts for ${query.symbol}. Be concise and cite sources.`,
           "",
           "Then append a fenced ```json code block with these exact keys, using null for anything you cannot verify (do not guess):",
-          '{"profile":{"ceo":string|null,"employees":number|null,"sector":string|null,"industry":string|null,"country":string|null,"exchange":string|null,"ipoDate":string|null,"description":string|null},' +
+          '{"profile":{"name":string|null,"ceo":string|null,"employees":number|null,"sector":string|null,"industry":string|null,"country":string|null,"exchange":string|null,"ipoDate":string|null,"description":string|null},' +
             '"fundamentals":{"marketCap":string|null,"peRatio":number|null,"eps":number|null,"dividendYield":string|null},' +
             '"consensus":{"rating":string|null,"targetMean":number|null,"targetHigh":number|null,"targetLow":number|null,"analystCount":number|null}}',
-          "marketCap may use a suffix (e.g. \"3.1T\"); dividendYield as a percent string (e.g. \"0.72%\"); ipoDate as YYYY-MM-DD; description one sentence.",
+          "name is the official company name (e.g. \"Apple, Inc.\"); marketCap may use a suffix (e.g. \"3.1T\"); dividendYield as a percent string (e.g. \"0.72%\"); ipoDate as YYYY-MM-DD; exchange like \"NASDAQ\"/\"NYSE\"; country like \"United States\"; description one sentence.",
         ].join("\n");
 
       try {

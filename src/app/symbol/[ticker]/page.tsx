@@ -3,15 +3,15 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { AnalystConsensus } from "@/components/symbol/analyst-consensus";
 import { CompanyProfileRail } from "@/components/symbol/company-profile";
+import { SymbolCompanyHeader } from "@/components/symbol/company-header";
 import { LinkOuts } from "@/components/symbol/link-outs";
-import { OwnershipBadge } from "@/components/mode-scope";
 import { PriceChart } from "@/components/symbol/price-chart";
 import { SymbolResearchProvider } from "@/components/symbol/research-context";
 import { SymbolResearchSummary } from "@/components/symbol/research-summary";
 import { SymbolStatsGrid } from "@/components/symbol/stats-grid";
 import { DataSourceNotice } from "@/components/data-source-notice";
 import { Card } from "@/components/page-shell";
-import { formatCurrency, formatDateTime, formatPercent } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { MODE_LABEL } from "@/lib/mode";
 import { isValidSymbol, normalizeSymbol, DEFAULT_RANGE } from "@/lib/symbol";
 import { classifyOwnership } from "@/lib/universe";
@@ -50,19 +50,10 @@ export default async function SymbolPage({
   // data itself is market data, the same in either view.
   const ownership = classifyOwnership(symbol, await getTrackedUniverse(mode));
 
-  const changeTone =
-    quote?.change == null
-      ? "text-fg-muted"
-      : quote.change > 0
-        ? "text-gain"
-        : quote.change < 0
-          ? "text-loss"
-          : "text-fg-muted";
-
   return (
     <SymbolResearchProvider symbol={symbol}>
       <div className="flex flex-col gap-6">
-        <header>
+        <header className="flex flex-col gap-3">
           <nav
             aria-label="Breadcrumb"
             className="flex items-center gap-1.5 text-xs text-fg-muted"
@@ -74,48 +65,9 @@ export default async function SymbolPage({
             <span className="font-medium text-fg">{symbol}</span>
           </nav>
 
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight text-fg">
-              {symbol}
-            </h1>
-            <OwnershipBadge ownership={ownership} />
-            {quote?.price != null ? (
-              <span className="text-2xl font-semibold tabular-nums text-fg">
-                {formatCurrency(quote.price)}
-              </span>
-            ) : null}
-            {quote?.change != null ? (
-              <span className={`text-sm font-medium tabular-nums ${changeTone}`}>
-                {formatCurrency(quote.change, { signed: true })}
-                {quote.changePct != null
-                  ? ` (${formatPercent(quote.changePct)})`
-                  : ""}
-                <span className="ml-1 text-fg-muted">today</span>
-              </span>
-            ) : null}
-
-            {/* Open & prev close to the right of the price (Perplexity-style). */}
-            {quote && (quote.open != null || quote.prevClose != null) ? (
-              <span className="flex items-baseline gap-4 text-sm tabular-nums text-fg-muted sm:ml-auto">
-                {quote.open != null ? (
-                  <span>
-                    Open{" "}
-                    <span className="font-semibold text-fg">
-                      {formatCurrency(quote.open)}
-                    </span>
-                  </span>
-                ) : null}
-                {quote.prevClose != null ? (
-                  <span>
-                    Prev close{" "}
-                    <span className="font-semibold text-fg">
-                      {formatCurrency(quote.prevClose)}
-                    </span>
-                  </span>
-                ) : null}
-              </span>
-            ) : null}
-          </div>
+          {/* Logo monogram + company name + SYMBOL · EXCHANGE · flag. The price
+              and open/prev-close now live inside the chart card below. */}
+          <SymbolCompanyHeader symbol={symbol} ownership={ownership} />
         </header>
 
         {/* Market & research data is sourced from Alpaca + Perplexity — the same
@@ -136,6 +88,7 @@ export default async function SymbolPage({
                 symbol={symbol}
                 initialPoints={detail.bars}
                 initialRange={detail.range}
+                quote={quote}
               />
             ) : null}
 
