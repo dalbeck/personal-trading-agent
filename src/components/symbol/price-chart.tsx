@@ -1,13 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { type PointerEvent, useRef, useState } from "react";
+import {
+  formatCurrency,
+  formatDate,
+  formatDateTime,
+  formatPercent,
+} from "@/lib/format";
 import {
   DEFAULT_RANGE,
+  nearestIndex,
   SYMBOL_RANGES,
   type SymbolPricePoint,
   type SymbolRange,
 } from "@/lib/symbol";
+
+const compactNumber = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
 
 const W = 720;
 const H = 240;
@@ -55,11 +66,13 @@ export function PriceChart({
     [initialRange]: initialPoints,
   });
   const [loading, setLoading] = useState(false);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   async function selectRange(next: SymbolRange) {
     if (next === range) return;
     setRange(next);
+    setHoverIndex(null); // stale index across a different series
     if (cache[next]) return; // already loaded
 
     abortRef.current?.abort();
@@ -96,6 +109,32 @@ export function PriceChart({
   const max = hasChart ? Math.max(...closes) : 0;
   const path = linePath(closes, min, max);
   const area = `${path} L${W - PAD} ${H - PAD} L${PAD} ${H - PAD} Z`;
+
+  // Hover crosshair geometry. The SVG stretches (preserveAspectRatio="none"),
+  // so viewBox coords map linearly to the rendered box — percentages place the
+  // overlay precisely on top of the line in both axes.
+  const n = closes.length;
+  const span = max - min || 1;
+  function pointPosition(i: number) {
+    const xVb = PAD + (n > 1 ? (i / (n - 1)) * (W - 2 * PAD) : 0);
+    const yVb = H - PAD - ((closes[i] - min) / span) * (H - 2 * PAD);
+    return { xPct: (xVb / W) * 100, yPct: (yVb / H) * 100 };
+  }
+  function handlePointer(e: PointerEvent<HTMLDivElement>) {
+    if (!hasChart) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const fracX = (e.clientX - rect.left) / rect.width;
+    const plotFrac = (fracX * W - PAD) / (W - 2 * PAD);
+    setHoverIndex(nearestIndex(plotFrac, n));
+  }
+  const hovered =
+    hoverIndex != null && hoverIndex < points.length
+      ? points[hoverIndex]
+      : null;
+  const hoverPos = hovered ? pointPosition(hoverIndex as number) : null;
+  // Intraday ranges get a time; daily ranges just a date.
+  const intraday = range === "1D" || range === "1W";
 
   const summary = hasChart
     ? `${symbol} ${RANGE_LABEL[range]} price chart. ${formatCurrency(
@@ -148,7 +187,14 @@ export function PriceChart({
         </div>
       </div>
 
-      <div className="relative">
+      <div
+        className="relative"
+        style={{ touchAction: "pan-y" }}
+        onPointerMove={handlePointer}
+        onPointerDown={handlePointer}
+        onPointerLeave={() => setHoverIndex(null)}
+        onPointerCancel={() => setHoverIndex(null)}
+      >
         {loading ? (
           <div
             aria-hidden
@@ -188,6 +234,67 @@ export function PriceChart({
             {loading ? "Loading…" : "No price history for this range."}
           </div>
         )}
+
+        {hovered && hoverPos ? (
+          <>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 z-10 w-px bg-line"
+              style={{ left: `${hoverPos.xPct}%` }}
+            />
+            <div
+              aria-hidden
+              className={`pointer-events-none absolute z-10 size-2 -translate-x-1/2 -translate-y-1/2 rounded-pill ring-2 ring-surface-raised ${
+                up ? "bg-gain" : "bg-loss"
+              }`}
+              style={{ left: `${hoverPos.xPct}%`, top: `${hoverPos.yPct}%` }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute top-1.5 z-20"
+              style={{ left: `${hoverPos.xPct}%` }}
+            >
+              <div
+                className="w-max rounded-card border border-line bg-surface-overlay px-3 py-2 text-xs shadow-overlay"
+                style={{
+                  transform:
+                    hoverPos.xPct > 60
+                      ? "translateX(calc(-100% - 8px))"
+                      : "translateX(8px)",
+                }}
+              >
+                <div className="mb-1.5 font-medium text-fg">
+                  {intraday
+                    ? formatDateTime(hovered.t)
+                    : formatDate(hovered.t.slice(0, 10))}
+                </div>
+                <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5 tabular-nums">
+                  <dt className="text-fg-muted">Open</dt>
+                  <dd className="text-right text-fg">
+                    {formatCurrency(hovered.o)}
+                  </dd>
+                  <dt className="text-fg-muted">High</dt>
+                  <dd className="text-right text-fg">
+                    {formatCurrency(hovered.h)}
+                  </dd>
+                  <dt className="text-fg-muted">Low</dt>
+                  <dd className="text-right text-fg">
+                    {formatCurrency(hovered.l)}
+                  </dd>
+                  <dt className="text-fg-muted">Close</dt>
+                  <dd className="text-right font-semibold text-fg">
+                    {formatCurrency(hovered.c)}
+                  </dd>
+                  <dt className="text-fg-muted">Volume</dt>
+                  <dd className="text-right text-fg">
+                    {compactNumber.format(hovered.v)}
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </>
+        ) : null}
+
         <p className="sr-only">{summary}</p>
       </div>
     </div>

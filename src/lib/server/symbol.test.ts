@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AlpacaOhlcBar, AlpacaSnapshot } from "./alpaca";
 import {
+  barToPoint,
   latestSessionOnly,
   mapNews,
   mapSnapshotToQuote,
@@ -35,6 +36,20 @@ describe("rangeWindow", () => {
     expect(rangeWindow("1Y", NOW).start).toBe(
       new Date("2025-06-19T17:00:00.000Z").toISOString(),
     );
+  });
+});
+
+describe("barToPoint", () => {
+  it("maps a raw Alpaca bar to a full OHLCV chart point", () => {
+    const p = barToPoint(bar("2026-06-24T13:30:00Z", 100, 107, 99, 104, 5_000_000));
+    expect(p).toEqual({
+      t: "2026-06-24T13:30:00Z",
+      o: 100,
+      h: 107,
+      l: 99,
+      c: 104,
+      v: 5_000_000,
+    });
   });
 });
 
