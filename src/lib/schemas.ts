@@ -309,3 +309,39 @@ export const WatchlistSchema = z
     updatedAt: isoDateTime.nullable().default(null),
   })
   .strict();
+
+/* --------------------------------------------------------------------------
+ * RiskSettings — the human's per-rail overrides of the charter RISK_LIMITS,
+ * persisted in `data/control/risk-settings.json` (an internal state file, like
+ * the halt latch / funding tracker — NOT a `data/` artifact contract). The
+ * charter constants stay the **safe defaults**; this file only ever overrides
+ * them, layered in at per-trade approval time (`src/lib/server/risk-settings.ts`).
+ * Each rail can be disabled (`enabled: false`) or have its number adjusted
+ * (`value`); `value` is ignored for the on/off rails (stopRequired, universe).
+ * Defaults (all enabled, null value) == the charter rails unchanged. See
+ * `.agents/infra.md`.
+ * ------------------------------------------------------------------------ */
+export const RiskRailSettingSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    value: z.number().positive().nullable().default(null),
+  })
+  .strict();
+
+const defaultRail = { enabled: true, value: null };
+
+export const RiskSettingsSchema = z
+  .object({
+    /** Per-position size cap (`perPositionSizePct`, fraction). */
+    positionSize: RiskRailSettingSchema.default(defaultRail),
+    /** Daily order cap (`maxOrdersPerDay`, integer). */
+    dailyOrderCap: RiskRailSettingSchema.default(defaultRail),
+    /** Drawdown halt from high-water (`drawdownHaltPct`, fraction). */
+    drawdownHalt: RiskRailSettingSchema.default(defaultRail),
+    /** Require a protective stop on entries (on/off; `value` ignored). */
+    stopRequired: RiskRailSettingSchema.default(defaultRail),
+    /** Universe rule — listed US equities, no benchmark (on/off; `value` ignored). */
+    universe: RiskRailSettingSchema.default(defaultRail),
+    updatedAt: isoDateTime.nullable().default(null),
+  })
+  .strict();

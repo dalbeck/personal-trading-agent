@@ -120,4 +120,40 @@ describe("POST /api/live/approve — advisory proposals are non-executable", () 
     expect(res.status).toBe(200);
     expect(submitTradeApproval).toHaveBeenCalledTimes(1);
   });
+
+  it("forwards a non-empty override comment to submitTradeApproval", async () => {
+    readProposals.mockResolvedValue([proposal()]);
+    submitTradeApproval.mockResolvedValue({
+      outcome: "approved",
+      destination: "mock",
+      dryRun: true,
+    });
+
+    await POST(
+      post({
+        proposalId: "p-1",
+        decision: "approve",
+        override: { comment: "I accept the event risk." },
+      }),
+    );
+    const arg = submitTradeApproval.mock.calls[0][0] as {
+      override: { comment: string } | null;
+    };
+    expect(arg.override).toEqual({ comment: "I accept the event risk." });
+  });
+
+  it("passes a null override when none is provided", async () => {
+    readProposals.mockResolvedValue([proposal()]);
+    submitTradeApproval.mockResolvedValue({
+      outcome: "approved",
+      destination: "mock",
+      dryRun: true,
+    });
+
+    await POST(post({ proposalId: "p-1", decision: "approve" }));
+    const arg = submitTradeApproval.mock.calls[0][0] as {
+      override: unknown;
+    };
+    expect(arg.override).toBeNull();
+  });
 });

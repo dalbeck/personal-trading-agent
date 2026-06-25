@@ -23,7 +23,12 @@ function nowET(): string {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  let body: { proposalId?: string; decision?: string; reason?: string };
+  let body: {
+    proposalId?: string;
+    decision?: string;
+    reason?: string;
+    override?: { comment?: string } | null;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -74,6 +79,13 @@ export async function POST(req: Request): Promise<Response> {
       approver: "human",
       timestamp,
       reason: body.reason,
+      // A non-empty override comment lets the human override a red-team reject
+      // and/or a rail violation; the server re-checks the comment is non-empty
+      // (`hasValidOverride`), so a blank comment never bypasses a block.
+      override:
+        body.override && typeof body.override.comment === "string"
+          ? { comment: body.override.comment }
+          : null,
       order: {
         symbol: proposal.symbol,
         action: proposal.action,

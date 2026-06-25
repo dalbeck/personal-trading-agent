@@ -158,6 +158,16 @@ export function GoLiveIcon(props: IconProps) {
   );
 }
 
+export function RiskIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" />
+      <path d="M12 8v4" />
+      <path d="M12 15.5v.5" />
+    </svg>
+  );
+}
+
 export function SunIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

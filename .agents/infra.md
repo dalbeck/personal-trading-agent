@@ -33,25 +33,45 @@
   user's own controls on the user's own funded account — they are **configurable
   and per-trade overridable**, not immovable. Defaults stay safe; loosening one
   is always explicit, acknowledged, and logged.
-  - **Risk settings page (`/risk`).** The user can adjust or disable each rail —
-    per-position cap, daily order cap, drawdown halt, stop-required, universe.
-    Overrides persist in a single JSON state file (`data/control/risk-settings.json`,
-    an internal state file like the halt latch / funding tracker — *not* a `data/`
-    artifact contract), layered over the charter `RISK_LIMITS` at evaluation time.
-    The charter constants remain the **safe defaults**; the settings file only ever
-    *overrides* them, and "reset to charter defaults" is one click. Disabling a rail
-    is a confirm-gated, acknowledged action.
-  - **Per-trade override (red-team reject OR rail violation).** A red-team
-    `reject` and a rail violation no longer hard-block at approval time — each is
-    **human-overridable via a 2-step flow**: (1) the order + the blocking reason
-    (red-team reasoning / which rail, by how much) are shown prominently; (2) a
+  - **Risk settings page (`/risk`).** The user can adjust or disable each of the
+    five configurable rails — per-position size cap, daily order cap, drawdown
+    halt, stop-required, universe. Overrides persist in a single JSON state file
+    (`data/control/risk-settings.json`, an internal state file like the halt latch
+    / funding tracker — *not* a `data/` artifact contract; `RiskSettingsSchema`).
+    `src/lib/server/risk-settings.ts` (`readRiskSettings` / `writeRiskSettings`,
+    edited via the local data-state `POST /api/risk-settings`) and the pure
+    `effectiveRiskConfig` overlay turn the settings into the **effective**
+    `{ limits, skipRules }` the gate evaluates: an adjusted number overrides the
+    charter value; a disabled rail is added to `skipRules` and dropped by
+    `evaluateOrder(order, ctx, limits, { skipRules })`. The charter constants
+    remain the **safe defaults** (the file only ever *overrides* them; default =
+    charter, so the gate stays hard by default), and "reset to charter defaults"
+    is one click. Disabling a rail is explicit (a visible OFF state + warning) and
+    recorded (persisted with `updatedAt`). The overlay is applied at the
+    **approval gate only** (`evaluateApprovalBlocks`); the autonomous pipeline
+    still evaluates against the charter defaults, and the human reviews/overrides
+    at approval.
+  - **Per-trade override (red-team reject OR rail/cap violation).** A red-team
+    `reject` and a rail/live-cap violation no longer hard-block at approval time —
+    each is **human-overridable via a 2-step flow** driven by the read-only
+    `POST /api/live/approve/precheck` (which runs `evaluateApprovalBlocks` with no
+    side effects): (1) the order + the blocking reason (red-team reasoning / which
+    rail + message) are shown prominently in the (widened) approve dialog; (2) a
     typed **non-empty justification comment** is required and "Override & approve"
-    stays disabled until one is entered. The override is unit-tested to require a
-    non-empty comment.
+    stays disabled until one is entered. `submitTradeApproval` re-enforces it in
+    code via `hasValidOverride` (a blank comment never bypasses a block) — the one
+    safeguard the software keeps. Unit-tested both ways (blank comment still
+    blocks; a real comment overrides + logs).
   - **Everything logged.** Going live, every real order, and **every override**
-    (red-team or rail, with its typed comment and what was overridden) is written
-    to the decision journal — the user's own audit trail and model-training
-    signal. No override is silent.
+    (red-team or rail/cap) is written to the decision journal — the placed-trade
+    entry carries `human-override` + `override:<rule>` tags and a
+    `HUMAN OVERRIDE — comment: "…". Overrode: …` line in the body, the user's own
+    audit trail and model-training signal. No override is silent.
+  - **Unmistakable LIVE state.** When both gates are open, an app-wide
+    `LiveBanner` (`src/components/live-banner.tsx`, in the root layout, gated on
+    `getLiveTradingStatus().liveEnabled`) shows a danger-toned "LIVE TRADING IS
+    ON" strip on every page; the approve dialog also reframes to "place a REAL
+    order". Rendering the banner changes no gate.
   - **The scorecard is advisory, never blocking.** `planning/phase-2-evaluation-scorecard.md`
     informs the user; it is **not** a precondition for opening the gate or placing
     any trade. The two human gates are the only real-money boundary.

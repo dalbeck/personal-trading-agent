@@ -11,6 +11,8 @@ import type {
   RedTeamFactorSchema,
   RedTeamVerdictSchema,
   RejectionJournalEntrySchema,
+  RiskRailSettingSchema,
+  RiskSettingsSchema,
   RunLogSchema,
   TradeJournalEntrySchema,
   TradeProposalSchema,
@@ -45,3 +47,6 @@ export type MaterialNewsItem = z.infer<typeof MaterialNewsItemSchema>;
 
 export type Watchlist = z.infer<typeof WatchlistSchema>;
 export type WatchlistEntry = z.infer<typeof WatchlistEntrySchema>;
+
+export type RiskRailSetting = z.infer<typeof RiskRailSettingSchema>;
+export type RiskSettings = z.infer<typeof RiskSettingsSchema>;

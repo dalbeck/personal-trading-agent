@@ -74,6 +74,10 @@
 ## Safety in the UI
 - The dashboard surfaces trade approvals; it must **never bypass** the two-gate permission flow for real-money orders (see `.agents/infra.md`).
 - Paper and live account views must be clearly labeled and visually distinct.
+- **Approve dialog + 2-step override (M7).** The approve flow runs a read-only precheck (`POST /api/live/approve/precheck` → `evaluateApprovalBlocks`, no side effects) when the dialog opens, so it can show exactly what blocks the order (red-team reject / which rail). A blocked order requires a typed **non-empty** justification before **"Override & approve"** enables; `submitTradeApproval` re-enforces the non-empty comment server-side (`hasValidOverride`) and logs the override. The dialog is the **wide** `AlertDialog` (`size="lg"`) — the old cramped `max-w-md` red-team/override layout is fixed. The override never opens a gate: a gate-closed approval still routes to the dry-run sink.
+- **Risk settings (`/risk`).** `RiskSettingsEditor` (client) writes through `POST /api/risk-settings` (a local data-state mutation only — no broker/order/gate path, like `/api/watchlist`) and `router.refresh()`es. It adjusts/disables the five configurable rails; the charter constants stay the safe defaults (see `.agents/infra.md`). The nav link lives in `src/lib/nav.ts`.
+- **LIVE banner.** The app-wide `LiveBanner` (root layout, `getLiveTradingStatus().liveEnabled`) makes the armed state unmistakable on every page. It only reflects gate state — it can never open a gate.
+- **Verdict colour.** The red-team verdict + the evaluation verdict use the semantic status tokens (`success`/`warning`/`danger`), never the lime accent — see `.agents/design-system.md`.
 
 ## Server-side command execution
 The backend may spawn local processes (the `claude`/`codex` CLIs, repo scripts) — that's intended (native macOS, no container). But any **HTTP-triggered** execution MUST be:
