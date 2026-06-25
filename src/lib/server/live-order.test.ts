@@ -62,7 +62,7 @@ const ORDER: ApprovalOrder = {
   thesis: "Megacap leadership intact.",
   reasoning: "Pullback held the rising 50-day.",
   tags: ["test"],
-  redTeam: { verdict: "approve", notes: "Survived the attack." },
+  redTeam: { verdict: "approve", notes: "Survived the attack.", factors: [], basis: null },
 };
 
 async function journalFiles(dataDir: string): Promise<string[]> {
@@ -235,7 +235,7 @@ describe("per-trade approval", () => {
     const gate = await closedGate();
     const res = await submitTradeApproval(
       {
-        order: { ...ORDER, redTeam: { verdict: "reject", notes: "Thesis fails." } },
+        order: { ...ORDER, redTeam: { verdict: "reject", notes: "Thesis fails.", factors: [], basis: null } },
         decision: "approve",
         approver: "human",
         timestamp: "2026-06-24T10:00:00-04:00",

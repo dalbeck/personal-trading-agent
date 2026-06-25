@@ -49,7 +49,14 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
   if (p.research) lines.push(`- Research: ${p.research}`);
   lines.push(
     "",
-    'Respond with ONLY a JSON object, no prose: {"verdict": "approve" | "reject" | "concern", "notes": "<your strongest objection or, if approving, why it survived>"}.',
+    "Respond with ONLY a JSON object, no prose, with this exact shape:",
+    '{"verdict":"approve"|"reject"|"concern",' +
+      '"notes":"<your single strongest objection or, if approving, why it survived>",' +
+      '"factors":[{"label":"Entry"|"Target"|"Stop"|"Edge"|"Reward/Risk","assessment":"<one short sentence>","stance":"supports"|"refutes"|"neutral"}],' +
+      '"basis":"<one line: how you decided / your conviction>"}',
+    "Include a factor for each of Entry, Target, Stop, Edge, and Reward/Risk. " +
+      'stance is from YOUR adversarial view: "refutes" = a weakness/objection, ' +
+      '"supports" = it holds up, "neutral" = mixed.',
     '"reject" = do not trade. "concern" = trade only at reduced size. "approve" = the thesis survived your attack.',
   );
   return lines.join("\n");
@@ -80,8 +87,33 @@ function extractJsonObject(raw: string): unknown {
   return JSON.parse(fenced.slice(start, end + 1));
 }
 
+const STANCE_VALUES = new Set(["supports", "refutes", "neutral"]);
+
+function normalizeStance(raw: unknown): "supports" | "refutes" | "neutral" {
+  const s = String(raw ?? "").trim().toLowerCase();
+  return STANCE_VALUES.has(s) ? (s as "supports" | "refutes" | "neutral") : "neutral";
+}
+
+/** Pull the structured factors out, defensively — skip any factor missing a
+ *  label or assessment so a malformed entry never fails the whole verdict. */
+function normalizeFactors(raw: unknown): RedTeamVerdict["factors"] {
+  if (!Array.isArray(raw)) return [];
+  const out: RedTeamVerdict["factors"] = [];
+  for (const f of raw) {
+    if (!f || typeof f !== "object") continue;
+    const rec = f as Record<string, unknown>;
+    const label = String(rec.label ?? "").trim();
+    const assessment = String(rec.assessment ?? "").trim();
+    if (!label || !assessment) continue;
+    out.push({ label, assessment, stance: normalizeStance(rec.stance) });
+  }
+  return out;
+}
+
 /** Parse + normalize the prosecutor's output into a validated verdict. Throws
- *  if no usable verdict can be found. */
+ *  if no usable verdict can be found. Structured factors + basis are parsed
+ *  best-effort and default to `[]` / `null` (back-compatible with bare
+ *  verdict+notes output). */
 export function parseVerdict(raw: string): RedTeamVerdict {
   const obj = extractJsonObject(raw);
   if (obj === null || typeof obj !== "object") {
@@ -93,9 +125,12 @@ export function parseVerdict(raw: string): RedTeamVerdict {
   if (!normalized) {
     throw new Error(`unrecognized verdict "${record.verdict}"`);
   }
+  const basis = String(record.basis ?? "").trim();
   return RedTeamVerdictSchema.parse({
     verdict: normalized,
     notes: String(record.notes ?? "").trim() || "(no notes provided)",
+    factors: normalizeFactors(record.factors),
+    basis: basis || null,
   });
 }
 
@@ -125,6 +160,8 @@ export async function runRedTeam(
       notes: `Red-team unavailable or unparseable — defaulting to NO. (${
         (err as Error).message
       })`,
+      factors: [],
+      basis: null,
     };
   }
 }

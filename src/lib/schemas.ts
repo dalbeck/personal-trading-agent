@@ -130,10 +130,32 @@ export const JournalEntrySchema = z.discriminatedUnion("kind", [
 /* --------------------------------------------------------------------------
  * TradeProposal — a pending agent idea surfaced in the Proposals view.
  * ------------------------------------------------------------------------ */
+/**
+ * One keyed factor in the red-team's structured rationale — the prosecutor's
+ * short take on a single dimension (entry, target, stop, edge, reward/risk, …).
+ * `stance` colours the row: `refutes` is an objection, `supports` held up,
+ * `neutral` is mixed. See `.agents/data-format.md`.
+ */
+export const RedTeamFactorSchema = z
+  .object({
+    label: z.string().min(1),
+    assessment: z.string().min(1),
+    stance: z.enum(["supports", "refutes", "neutral"]).default("neutral"),
+  })
+  .strict();
+
 export const RedTeamVerdictSchema = z
   .object({
     verdict: z.enum(["approve", "reject", "concern"]),
+    // The prosecutor's primary objection (or, when approving, why the thesis
+    // survived). Required + kept for back-compatibility with pre-structured
+    // verdicts that carried only `verdict` + `notes`.
     notes: z.string().min(1),
+    // Keyed factor assessments (entry/target/stop/edge/…). Defaults to `[]` so
+    // older records still validate and the UI falls back to `notes`.
+    factors: z.array(RedTeamFactorSchema).default([]),
+    // One-line "how it decided" / conviction summary. Null for older records.
+    basis: z.string().nullable().default(null),
   })
   .strict();
 
