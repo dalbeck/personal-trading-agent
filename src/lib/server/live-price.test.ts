@@ -33,18 +33,10 @@ const nvda = {
   openedAt: "2026-06-25",
 };
 
-const okSnap = async () =>
-  ({
-    latestTrade: { p: 150, t: "2026-06-25T20:00:00Z" },
-    dailyBar: null,
-    prevDailyBar: null,
-    minuteBar: null,
-  }) as never;
-
 describe("enrichLivePositions", () => {
-  it("fills last price + market value + P&L from the Alpaca mark", async () => {
+  it("fills last price + market value + P&L from the resolved mark", async () => {
     const out = await enrichLivePositions(snapshot([nvda]), {
-      getSnapshot: okSnap,
+      getMark: async () => 150,
     });
     const p = out.positions[0];
     expect(p.lastPrice).toBe(150);
@@ -53,33 +45,27 @@ describe("enrichLivePositions", () => {
     expect(out.totalPl).toBeCloseTo(0.1523 * 150 - 30, 4);
   });
 
-  it("falls back to the daily close when there is no latest trade", async () => {
+  it("leaves a position untouched when no mark is available — never fabricates", async () => {
     const out = await enrichLivePositions(snapshot([nvda]), {
-      getSnapshot: async () =>
-        ({
-          latestTrade: null,
-          dailyBar: { c: 140 },
-          prevDailyBar: null,
-          minuteBar: null,
-        }) as never,
-    });
-    expect(out.positions[0].lastPrice).toBe(140);
-  });
-
-  it("leaves a position untouched when the quote fails — never fabricates a mark", async () => {
-    const out = await enrichLivePositions(snapshot([nvda]), {
-      getSnapshot: async () => {
-        throw new Error("quote unavailable");
-      },
+      getMark: async () => null,
     });
     expect(out.positions[0].lastPrice).toBe(0);
     expect(out.positions[0].marketValue).toBe(0);
   });
 
+  it("leaves a position untouched when the mark lookup throws", async () => {
+    const out = await enrichLivePositions(snapshot([nvda]), {
+      getMark: async () => {
+        throw new Error("quote unavailable");
+      },
+    });
+    expect(out.positions[0].lastPrice).toBe(0);
+  });
+
   it("does not re-price a position that already has a live mark", async () => {
     const priced = { ...nvda, lastPrice: 151, marketValue: 23 };
     const out = await enrichLivePositions(snapshot([priced]), {
-      getSnapshot: okSnap,
+      getMark: async () => 150,
     });
     expect(out.positions[0].lastPrice).toBe(151);
   });
