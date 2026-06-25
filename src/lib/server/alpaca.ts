@@ -272,6 +272,172 @@ export async function getAlpacaPaperSnapshot(): Promise<PortfolioSnapshot> {
   return buildSnapshot({ account, positions, history });
 }
 
+/* ---------------- market data: snapshot / bars / news (symbol view) -------- */
+// Powers the /symbol/[ticker] view. Free Alpaca accounts get the **IEX** feed
+// (not the consolidated SIP tape), so we request `feed=iex` explicitly and label
+// it honestly in the UI. Display / research only — never order pricing.
+
+const DATA_FEED = process.env.ALPACA_DATA_FEED ?? "iex";
+
+async function alpacaDataGet<S extends z.ZodType>(
+  path: string,
+  schema: S,
+  opts?: { fetchImpl?: typeof fetch },
+): Promise<z.infer<S>> {
+  const doFetch = opts?.fetchImpl ?? fetch;
+  const res = await doFetch(`${DATA_BASE_URL}${path}`, {
+    headers: {
+      "APCA-API-KEY-ID": KEY_ID,
+      "APCA-API-SECRET-KEY": SECRET,
+      accept: "application/json",
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    throw new Error(`Alpaca data ${path} → ${res.status} ${res.statusText}`);
+  }
+  return schema.parse(await res.json());
+}
+
+// One OHLCV bar. Unknown keys (n, vw) are stripped.
+const OhlcBarSchema = z.object({
+  t: z.string(),
+  o: z.number(),
+  h: z.number(),
+  l: z.number(),
+  c: z.number(),
+  v: z.number(),
+});
+export type AlpacaOhlcBar = z.infer<typeof OhlcBarSchema>;
+
+const OhlcBarsResponseSchema = z.object({
+  bars: z.array(OhlcBarSchema).nullable().catch(null),
+  next_page_token: z.string().nullable().catch(null),
+});
+
+// A single bar inside the snapshot payload (timestamp optional there).
+const SnapshotBarSchema = z.object({
+  o: z.number(),
+  h: z.number(),
+  l: z.number(),
+  c: z.number(),
+  v: z.number(),
+  t: z.string().optional(),
+});
+const SnapshotResponseSchema = z.object({
+  latestTrade: z
+    .object({ p: z.number(), t: z.string() })
+    .nullable()
+    .catch(null),
+  dailyBar: SnapshotBarSchema.nullable().catch(null),
+  prevDailyBar: SnapshotBarSchema.nullable().catch(null),
+  minuteBar: SnapshotBarSchema.nullable().catch(null),
+});
+export type AlpacaSnapshot = z.infer<typeof SnapshotResponseSchema>;
+
+const NewsItemSchema = z.object({
+  id: z.union([z.number(), z.string()]).transform(String),
+  headline: z.string(),
+  source: z.string().default(""),
+  url: z.string().default(""),
+  created_at: z.string(),
+});
+export type AlpacaNewsItem = z.infer<typeof NewsItemSchema>;
+const NewsResponseSchema = z.object({
+  news: z.array(NewsItemSchema).nullable().catch(null),
+});
+
+export interface BarsWindow {
+  timeframe: string; // Alpaca timeframe, e.g. "5Min", "30Min", "1Day"
+  start: string; // RFC3339 / ISO
+  end?: string;
+}
+
+/**
+ * OHLCV bars for `symbol` over a window, oldest → newest. Paginates the IEX
+ * data feed (capped). Throws on network/auth/validation error — symbol-view
+ * callers fall back to an empty series and a degraded notice.
+ */
+export async function getStockBars(
+  symbol: string,
+  window: BarsWindow,
+  opts?: { fetchImpl?: typeof fetch },
+): Promise<AlpacaOhlcBar[]> {
+  const doFetch = opts?.fetchImpl ?? fetch;
+  const bars: AlpacaOhlcBar[] = [];
+  let pageToken: string | null = null;
+
+  for (let page = 0; page < 5; page++) {
+    const params = new URLSearchParams({
+      timeframe: window.timeframe,
+      start: window.start,
+      feed: DATA_FEED,
+      adjustment: "all",
+      limit: "10000",
+      sort: "asc",
+    });
+    if (window.end) params.set("end", window.end);
+    if (pageToken) params.set("page_token", pageToken);
+
+    const res = await doFetch(
+      `${DATA_BASE_URL}/v2/stocks/${encodeURIComponent(symbol)}/bars?${params}`,
+      {
+        headers: {
+          "APCA-API-KEY-ID": KEY_ID,
+          "APCA-API-SECRET-KEY": SECRET,
+          accept: "application/json",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Alpaca data /v2/stocks/${symbol}/bars → ${res.status} ${res.statusText}`,
+      );
+    }
+    const parsed = OhlcBarsResponseSchema.parse(await res.json());
+    bars.push(...(parsed.bars ?? []));
+    pageToken = parsed.next_page_token;
+    if (!pageToken) break;
+  }
+
+  return bars;
+}
+
+/** IEX snapshot (latest trade + daily/prev-daily/minute bars) for `symbol`. */
+export function getStockSnapshot(
+  symbol: string,
+  opts?: { fetchImpl?: typeof fetch },
+): Promise<AlpacaSnapshot> {
+  const params = new URLSearchParams({ feed: DATA_FEED });
+  return alpacaDataGet(
+    `/v2/stocks/${encodeURIComponent(symbol)}/snapshot?${params}`,
+    SnapshotResponseSchema,
+    opts,
+  );
+}
+
+/** Recent news headlines for `symbol` from Alpaca's news feed (newest first). */
+export async function getStockNews(
+  symbol: string,
+  limit = 10,
+  opts?: { fetchImpl?: typeof fetch },
+): Promise<AlpacaNewsItem[]> {
+  const params = new URLSearchParams({
+    symbols: symbol,
+    limit: String(limit),
+    sort: "desc",
+  });
+  const data = await alpacaDataGet(
+    `/v1beta1/news?${params}`,
+    NewsResponseSchema,
+    opts,
+  );
+  return data.news ?? [];
+}
+
 /* ----------------------------- Order placement ----------------------------- */
 
 const OrderResponseSchema = z.object({

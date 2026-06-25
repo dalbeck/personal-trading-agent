@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/page-shell";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
+import { TickerLink } from "@/components/ticker-link";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { TradeProposal } from "@/lib/types";
 
@@ -95,7 +96,7 @@ export function ProposalsList({
                   <Badge tone={p.action === "buy" ? "gain" : "loss"}>
                     {p.action.toUpperCase()}
                   </Badge>
-                  <span className="font-semibold text-fg">{p.symbol}</span>
+                  <TickerLink symbol={p.symbol} className="font-semibold text-fg" />
                   <span className="text-sm tabular-nums text-fg-muted">
                     {p.qty} @ {formatCurrency(p.limitPrice)} limit
                   </span>

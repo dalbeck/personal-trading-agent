@@ -1,5 +1,6 @@
 import { Card, PageTitle } from "@/components/page-shell";
 import { SampleDataBadge, SampleDataBanner } from "@/components/sample-data-badge";
+import { TickerLink } from "@/components/ticker-link";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
 import { anySample } from "@/lib/sample-data";
@@ -30,7 +31,9 @@ export default async function NewsPage() {
             <Card key={`${item.seenAt}-${item.link}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Badge tone="accent">{item.symbol}</Badge>
+                  <Badge tone="accent">
+                    <TickerLink symbol={item.symbol} />
+                  </Badge>
                   {item.sample ? <SampleDataBadge /> : null}
                 </div>
                 <time className="text-xs text-fg-muted" dateTime={item.seenAt}>
