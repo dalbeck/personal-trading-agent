@@ -83,6 +83,8 @@ export async function buildOpsSteps(id: string): Promise<OpsStep[]> {
       return [script("install-routines.sh")];
     case "clear-seed-data":
       return [script("clear-seed-data.sh")];
+    case "reset-desk-data":
+      return [script("reset-desk-data.sh")];
     case "kill-switch":
       return [script("kill-switch.sh")];
     case "desk-start":

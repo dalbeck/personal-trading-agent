@@ -111,6 +111,19 @@ export const OPS_ACTIONS: OpsActionMeta[] = [
     },
   },
   {
+    id: "reset-desk-data",
+    label: "Reset desk data",
+    group: "Data",
+    description:
+      "Clear ALL desk artifacts (journal, coaching, snapshots, proposals, news, fills, logs, research) from the app's data directory so every panel shows its honest empty state. Deletes live records too — the kill-switch HALT and funding latches are not touched. Idempotent.",
+    danger: true,
+    confirm: {
+      title: "Reset desk data?",
+      body: "Permanently deletes EVERY desk artifact — including live journal, coaching, snapshots, proposals, news, fills, logs, and research — from the directory the app reads from. The trading HALT latch and funding tracker are preserved. This cannot be undone. Use this to return the desk to a clean slate; use “Clear sample data” to remove only seeded demo files.",
+      confirmLabel: "Reset desk data",
+    },
+  },
+  {
     id: "install-routines",
     label: "Install routine plists",
     group: "Schedule",
