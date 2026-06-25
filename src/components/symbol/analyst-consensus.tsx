@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCurrency } from "@/lib/format";
+import { RESEARCH_PROVIDER_LABEL } from "@/lib/research-display";
 import {
   perplexityNote,
   useSymbolResearch,
@@ -68,7 +69,7 @@ export function AnalystConsensus() {
         {c?.analystCount != null
           ? `Based on ${c.analystCount} analyst${c.analystCount === 1 ? "" : "s"} · `
           : ""}
-        <span className="font-medium">Perplexity</span> finance_search — context
+        <span className="font-medium">{RESEARCH_PROVIDER_LABEL}</span> — context
         only, not a recommendation.
       </p>
 

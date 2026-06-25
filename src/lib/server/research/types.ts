@@ -65,6 +65,46 @@ export interface ResearchConsensus {
   analystCount: number | null;
 }
 
+/**
+ * One reported quarter for the earnings beat/miss strip — the actual-vs-estimate
+ * data made glanceable. `surprisePct` and `priceMovePct` are **fractions**
+ * (0.043 === +4.3%). Every field is nullable; `beat` is computed from
+ * actual-vs-estimate when both are present, else null.
+ */
+export interface EarningsQuarter {
+  /** Period label, e.g. "Q1 FY26" or "2026-03-31". */
+  period: string;
+  epsActual: number | null;
+  epsEstimate: number | null;
+  /** EPS surprise as a fraction of |estimate| (0.043 === +4.3%). */
+  surprisePct: number | null;
+  /** Post-earnings price move as a fraction (−0.021 === −2.1%). */
+  priceMovePct: number | null;
+  /** actual >= estimate; null when either side is missing. */
+  beat: boolean | null;
+}
+
+/**
+ * A typed, scaffolding-stripped slice of the `finance_search` finance_results —
+ * what the "View full financials & transcript" expander renders. `content` is
+ * clean markdown (no field guides, column legends, CSV references) ready for the
+ * safe Markdown renderer.
+ */
+export type FinanceSectionKind =
+  | "quote"
+  | "profile"
+  | "financials"
+  | "earnings"
+  | "transcript"
+  | "other";
+
+export interface FinanceSection {
+  kind: FinanceSectionKind;
+  title: string;
+  content: string;
+  sources: ResearchSource[];
+}
+
 export interface ResearchResult {
   provider: string;
   symbol: string;
@@ -83,6 +123,10 @@ export interface ResearchResult {
   fundamentals?: ResearchFundamentals | null;
   /** Coerced analyst consensus; null when none was returned. */
   consensus?: ResearchConsensus | null;
+  /** Recent reported quarters for the earnings strip; [] when none. */
+  earnings?: EarningsQuarter[];
+  /** Short catalyst phrases for the catalyst chips; [] when none. */
+  catalysts?: string[];
   /** Real per-call cost in USD, when the Agent API reports it. */
   cost?: number;
 }
@@ -114,9 +158,20 @@ export interface SymbolResearch {
   profileSource: ResearchOrigin;
   /** Analyst consensus — Perplexity only (Robinhood does not provide it). */
   consensus: ResearchConsensus | null;
-  /** AI narrative summary — Perplexity only. */
+  /** AI narrative summary — Perplexity only. The card's distilled thesis. */
   summary: string;
+  /** Recent reported quarters for the earnings beat/miss strip; [] when none. */
+  earnings: EarningsQuarter[];
+  /** Short catalyst phrases for the catalyst chips; [] when none. */
+  catalysts: string[];
+  /** Raw finance_results blocks (kept for back-compat / debugging). */
   finance: ResearchFinanceResult[];
+  /**
+   * Typed, scaffolding-stripped finance sections for the expander. Derived from
+   * `finance` server-side so the UI never receives field guides / legends / CSV
+   * references.
+   */
+  sections: FinanceSection[];
   categories: string[];
   sources: ResearchSource[];
   /** Perplexity retrieval timestamp (RFC3339), when it was called. */

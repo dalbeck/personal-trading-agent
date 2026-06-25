@@ -6,6 +6,7 @@ import {
 } from "./robinhood";
 import { getResearchProvider } from "./research";
 import { readResearchCache, writeResearchCache } from "./research/cache";
+import { buildFinanceSections } from "./research/sections";
 import { getResearchCallCount } from "./research/usage";
 import type {
   PerplexityStatus,
@@ -90,7 +91,10 @@ export function mergeSymbolResearch(args: {
     profileSource: rp ? "robinhood" : pp ? "perplexity" : null,
     consensus: perplexity?.consensus ?? null,
     summary: perplexity?.summary ?? "",
+    earnings: perplexity?.earnings ?? [],
+    catalysts: perplexity?.catalysts ?? [],
     finance: perplexity?.finance ?? [],
+    sections: buildFinanceSections(perplexity?.finance ?? []),
     categories: perplexity?.categories ?? [],
     sources: perplexity?.sources ?? [],
     usedAt: perplexity?.usedAt ?? null,

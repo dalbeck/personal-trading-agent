@@ -143,7 +143,7 @@ export default async function SymbolPage({
               </section>
             ) : null}
 
-            <SymbolResearchSummary />
+            <SymbolResearchSummary quote={quote} />
           </div>
 
           {/* Right rail — company profile + research links. */}
