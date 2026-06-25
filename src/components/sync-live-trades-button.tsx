@@ -28,8 +28,8 @@ export function SyncLiveTradesButton() {
         !data.connected
           ? "Not connected — connect the Agentic account first."
           : data.ingested > 0
-            ? `Ingested ${data.ingested} new trade${data.ingested === 1 ? "" : "s"}.`
-            : "No new trades to ingest.",
+            ? `Saved ${data.ingested} trade${data.ingested === 1 ? "" : "s"} to the Journal — run Weekly review to coach ${data.ingested === 1 ? "it" : "them"}.`
+            : "No new trades to ingest (already up to date).",
       );
       router.refresh();
     } catch {

@@ -1,5 +1,6 @@
 import { OwnershipBadge, ViewingBadge } from "@/components/mode-scope";
 import { Card, PageTitle } from "@/components/page-shell";
+import { RunHint } from "@/components/run-hint";
 import { SampleDataBadge, SampleDataBanner } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
 import { TrackedUniverseCard } from "@/components/tracked-universe";
@@ -52,6 +53,9 @@ export default async function NewsPage() {
               ? `Nothing tracked in the ${mode} book yet — hold a position or add a watchlist symbol, then the scout will surface material headlines here.`
               : "No material news yet for the tracked universe. The scout surfaces only headlines relevant to a held or watched name."}
           </p>
+          {universe.symbols.length > 0 ? (
+            <RunHint message="The news scout hasn't run yet — once it does (scripts/news-scout.sh, or its launchd job), material headlines for tracked names land here." />
+          ) : null}
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
