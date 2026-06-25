@@ -504,6 +504,8 @@ export function mapRobinhoodFundamentals(raw: RobinhoodFundamentals): {
   const profile: ResearchProfile = {
     // Robinhood has no clean name field; derive it from the description blurb.
     name: companyNameFromDescription(description),
+    // Robinhood provides no website; the logo lookup falls back to a monogram.
+    domain: null,
     ceo: coerceStr(raw.ceo),
     employees: coerceIntLike(raw.num_employees),
     sector: coerceStr(raw.sector),

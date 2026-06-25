@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  coerceDomain,
   coerceIntLike,
   coerceMoneyLike,
   coerceNumberLike,
@@ -8,6 +9,19 @@ import {
   extractJsonBlock,
   parseStructuredResearch,
 } from "./parse";
+
+describe("coerceDomain", () => {
+  it("normalizes to a bare host", () => {
+    expect(coerceDomain("https://www.apple.com/investor")).toBe("apple.com");
+    expect(coerceDomain("Apple.com")).toBe("apple.com");
+    expect(coerceDomain("ir.gevernova.com")).toBe("ir.gevernova.com");
+  });
+  it("returns null for non-domains", () => {
+    expect(coerceDomain(null)).toBeNull();
+    expect(coerceDomain("n/a")).toBeNull();
+    expect(coerceDomain("not a domain")).toBeNull();
+  });
+});
 
 describe("companyNameFromDescription", () => {
   it("extracts the leading company name before a connector", () => {
@@ -153,6 +167,7 @@ describe("parseStructuredResearch", () => {
     expect(summary).toBe("Strong quarter; Azure re-accelerating.");
     expect(profile).toEqual({
       name: null,
+      domain: null,
       ceo: "Satya Nadella",
       employees: 228000,
       sector: "Technology",

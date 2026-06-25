@@ -140,11 +140,27 @@ export function companyNameFromDescription(desc: string | null): string | null {
   return name.length > 0 && name.length <= 60 ? name : null;
 }
 
+/** Normalize a website/domain to a bare host ("https://www.apple.com/x" →
+ *  "apple.com"). Returns null when it doesn't look like a domain. */
+export function coerceDomain(value: unknown): string | null {
+  const s = coerceStr(value);
+  if (!s) return null;
+  const host = s
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split(/[/?#]/)[0]
+    .trim();
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) ? host : null;
+}
+
 function coerceProfile(raw: unknown): ResearchProfile | null {
   const p = asRecord(raw);
   if (!p) return null;
   return {
     name: coerceStr(p.name),
+    domain: coerceDomain(p.domain),
     ceo: coerceStr(p.ceo),
     employees: coerceIntLike(p.employees),
     sector: coerceStr(p.sector),

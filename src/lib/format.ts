@@ -92,16 +92,14 @@ const COUNTRY_CODE: Record<string, string> = {
   mexico: "MX",
 };
 
-/** A country name or 2-letter ISO code → flag emoji, or null when unknown. */
-export function countryFlag(country: string | null): string | null {
+/** A country name or 2-letter ISO code → uppercase ISO 3166-1 alpha-2 code
+ *  (e.g. "United States" → "US"), or null when unknown. Drives the SVG flag. */
+export function countryCode(country: string | null): string | null {
   if (!country) return null;
   const key = country.trim().toLowerCase();
-  let code = COUNTRY_CODE[key] ?? null;
-  if (!code && /^[a-z]{2}$/.test(key)) code = key.toUpperCase();
-  if (!code) return null;
-  return String.fromCodePoint(
-    ...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),
-  );
+  const code = COUNTRY_CODE[key] ?? null;
+  if (code) return code;
+  return /^[a-z]{2}$/.test(key) ? key.toUpperCase() : null;
 }
 
 export function formatQty(qty: number): string {

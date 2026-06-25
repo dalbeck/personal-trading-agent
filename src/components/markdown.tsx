@@ -64,7 +64,7 @@ const components: Components = {
     <a
       target="_blank"
       rel="noopener noreferrer"
-      className="text-accent underline underline-offset-2 transition-colors hover:text-accent-hover"
+      className="text-link underline underline-offset-2 transition-colors hover:text-link-hover"
       {...props}
     >
       {children}

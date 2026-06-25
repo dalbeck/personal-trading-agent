@@ -92,7 +92,7 @@ function ResearchBody({ research }: { research: SymbolResearch }) {
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-accent underline-offset-2 hover:underline"
+                  className="text-sm text-link underline-offset-2 hover:text-link-hover hover:underline"
                 >
                   {s.title || s.url}
                 </a>

@@ -39,7 +39,7 @@ export function LinkOuts({ symbol }: { symbol: string }) {
               <svg
                 aria-hidden
                 viewBox="0 0 24 24"
-                className="size-3.5 text-fg-muted transition-colors group-hover:text-accent"
+                className="size-3.5 text-fg-muted transition-colors group-hover:text-link"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={2}

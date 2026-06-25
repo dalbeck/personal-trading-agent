@@ -60,7 +60,7 @@ export function ModuleEmpty({
       {cta ? (
         <Link
           href={cta.href}
-          className="text-xs font-medium text-fg transition-colors hover:text-accent"
+          className="text-xs font-medium text-fg transition-colors hover:text-link"
         >
           {cta.label} <span aria-hidden>&rarr;</span>
         </Link>

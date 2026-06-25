@@ -64,6 +64,23 @@ export function CompanyProfileRail({ symbol }: { symbol: string }) {
         <Row label="Employees" value={loading ? "…" : (employees ?? "—")} />
         <Row label="Country" value={v(profile?.country ?? null)} />
         <Row label="IPO date" value={v(profile?.ipoDate ?? null)} />
+        {profile?.domain ? (
+          <div className="flex items-baseline justify-between gap-3 py-1.5">
+            <dt className="shrink-0 text-xs font-medium uppercase tracking-wide text-fg-muted">
+              Website
+            </dt>
+            <dd className="truncate text-right text-sm">
+              <a
+                href={`https://${profile.domain}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-link underline-offset-2 hover:text-link-hover hover:underline"
+              >
+                {profile.domain}
+              </a>
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       {profile?.description ? (

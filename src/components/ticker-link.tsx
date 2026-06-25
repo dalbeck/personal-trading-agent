@@ -16,7 +16,7 @@ export function TickerLink({
   return (
     <Link
       href={`/symbol/${encodeURIComponent(symbol)}`}
-      className={`rounded underline-offset-2 transition-colors hover:text-accent hover:underline ${className}`}
+      className={`rounded underline-offset-2 transition-colors hover:text-link hover:underline ${className}`}
       title={`Open ${symbol} detail`}
     >
       {symbol}

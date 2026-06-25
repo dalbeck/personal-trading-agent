@@ -16,8 +16,9 @@ import type { SymbolResearch } from "./types";
  */
 
 /** Bump when the cached shape changes so stale entries are re-fetched, not
- *  served with missing fields (e.g. the company `name` added for the header). */
-const CACHE_VERSION = 2;
+ *  served with missing fields (e.g. the company `name` / `domain` added for the
+ *  header + logo). */
+const CACHE_VERSION = 3;
 
 function cacheFile(symbol: string, date: string, dataDir?: string): string {
   const root =
