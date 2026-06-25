@@ -9,8 +9,11 @@ async function tmp(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "pta-research-"));
 }
 
-// Agent API (`POST /v1/agent`) response shape: one or more `finance_results`
-// items in `output[]` before the final synthesized `message`, plus usage/cost.
+// Agent API (`POST /v1/agent`) response shape, mirrored from a real live
+// response: one or more `finance_results` items in `output[]` (each `results[]`
+// item carries `category`/`content`/`sources`/`tickers`) before the final
+// synthesized `message`, whose parts are typed **`output_text`** (not `text`),
+// plus usage/cost.
 function financeSearchResponse(): Response {
   return new Response(
     JSON.stringify({
@@ -21,6 +24,8 @@ function financeSearchResponse(): Response {
           tickers: ["MSFT"],
           results: [
             {
+              category: "fundamentals",
+              tickers: ["MSFT"],
               content:
                 "| Metric | Value |\n| --- | --- |\n| Revenue (TTM) | $245B |",
               sources: [
@@ -32,9 +37,12 @@ function financeSearchResponse(): Response {
         },
         {
           type: "message",
+          role: "assistant",
+          status: "completed",
           content: [
             {
-              type: "text",
+              type: "output_text",
+              annotations: [],
               text: "Azure growth is re-accelerating; next-print earnings beat looks likely.",
             },
           ],

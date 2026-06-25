@@ -98,8 +98,20 @@ function normalize(symbol: string, json: unknown, usedAt: string): ResearchResul
         });
       }
     } else if (item?.type === "message") {
-      const text = item.content?.find((c) => c?.type === "text")?.text;
-      if (typeof text === "string") summary = text;
+      // The Agent API emits the synthesized answer as message parts of type
+      // `output_text` (NOT `text`). Accept either spelling — and an untyped part
+      // that still carries `.text` — and join every text-bearing part so the
+      // summary is never silently dropped.
+      const text = (item.content ?? [])
+        .filter(
+          (c) =>
+            typeof c?.text === "string" &&
+            (c.type === "output_text" || c.type === "text" || c.type == null),
+        )
+        .map((c) => c.text)
+        .join("\n")
+        .trim();
+      if (text) summary = text;
     }
   }
 
