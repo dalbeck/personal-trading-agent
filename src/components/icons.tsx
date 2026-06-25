@@ -149,6 +149,15 @@ export function OperationsIcon(props: IconProps) {
   );
 }
 
+export function GoLiveIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z" />
+      <path d="M9 11.5l2 2 4-4" />
+    </svg>
+  );
+}
+
 export function SunIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
