@@ -7,6 +7,7 @@ import type {
   TradeProposal,
 } from "@/lib/types";
 import { readLatestSnapshot, readProposals } from "./data";
+import { incrementOrdersToday, readOrdersToday } from "./order-counter";
 import {
   redTeamOutcome,
   runRedTeam,
@@ -242,7 +243,14 @@ export async function executePendingProposals(opts: {
     symbol: p.symbol,
     marketValue: p.marketValue,
   }));
-  let ordersToday = 0;
+  // Seed from the persisted per-ET-day counter so the ≤6/day cap holds across
+  // every run and every path (this batch + human approvals), not just within one
+  // batch. The counter is incremented at each placement below.
+  const counterNow = new Date(opts.timestamp);
+  let ordersToday = await readOrdersToday({
+    dataDir: opts.dataDir,
+    now: counterNow,
+  });
   const fallbackReview = opts.timestamp.slice(0, 10);
 
   for (const p of proposals) {
@@ -281,6 +289,10 @@ export async function executePendingProposals(opts: {
 
     if (result.outcome === "placed" || result.outcome === "downsized") {
       ordersToday += 1;
+      await incrementOrdersToday({
+        dataDir: opts.dataDir,
+        now: counterNow,
+      }).catch(() => {});
       if (!openPositions.some((o) => o.symbol === p.symbol)) {
         openPositions.push({
           symbol: p.symbol,

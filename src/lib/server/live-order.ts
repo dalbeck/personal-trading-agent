@@ -22,6 +22,11 @@ import {
   evaluateLiveCaps,
   liveCapContextFromSnapshot,
 } from "./live-guards";
+import {
+  getMarketConditions,
+  type MarketConditions,
+} from "./market-conditions";
+import { incrementOrdersToday, readOrdersToday } from "./order-counter";
 import { getEffectiveRiskConfig } from "./risk-settings";
 import {
   runRedTeam,
@@ -299,6 +304,15 @@ export interface ApprovalOpts extends RouteOpts {
   /** Effective risk config seam (tests inject; defaults to the human's settings
    *  overlaid on the charter limits). */
   riskConfig?: { limits: RiskLimits; skipRules: readonly string[] };
+  /** Orders-placed-today seam (tests inject; defaults to the persisted per-ET-day
+   *  counter). Drives the daily-order-cap rail at approval. */
+  ordersToday?: number;
+  /** Live market conditions seam (tests inject; defaults to a live Alpaca read).
+   *  Drives the SPY −2% / VIX>30 emergency-stop rail at approval. */
+  market?: MarketConditions;
+  /** ET-day / timestamp basis for the order counter (tests pin it; defaults to
+   *  the approval timestamp, then the live clock). */
+  now?: Date;
 }
 
 /**
@@ -387,6 +401,13 @@ export async function evaluateApprovalBlocks(
     const { limits, skipRules } =
       opts.riskConfig ??
       (await getEffectiveRiskConfig({ dataDir: opts.dataDir }));
+    // Real risk-context inputs so the daily-order-cap and emergency-stop rails
+    // actually fire at approval: the persisted per-ET-day order counter and a
+    // live SPY/VIX read (both injectable for tests; both fail-soft).
+    const ordersToday =
+      opts.ordersToday ??
+      (await readOrdersToday({ dataDir: opts.dataDir, now: opts.now }));
+    const market = opts.market ?? (await getMarketConditions());
     const context: RiskContext = {
       equity: snapshot.equity,
       highWaterEquity: highWater(snapshot),
@@ -394,9 +415,9 @@ export async function evaluateApprovalBlocks(
         symbol: p.symbol,
         marketValue: p.marketValue,
       })),
-      ordersToday: 0,
-      spyIntradayChangePct: 0,
-      vix: 15,
+      ordersToday,
+      spyIntradayChangePct: market.spyIntradayChangePct,
+      vix: market.vix,
     };
     railViolations = evaluateOrder(proposed, context, limits, {
       skipRules,
@@ -469,7 +490,10 @@ export async function submitTradeApproval(
     return { outcome: "denied", journalId: id, dryRun: true };
   }
 
-  const blocks = await evaluateApprovalBlocks(order, opts);
+  // One ET-day basis for both the cap read (in evaluateApprovalBlocks) and the
+  // post-placement increment, so the daily-order counter stays consistent.
+  const now = opts.now ?? new Date(timestamp);
+  const blocks = await evaluateApprovalBlocks(order, { ...opts, now });
   const override = hasValidOverride(input.override);
   const proposed = toProposedOrder(order);
 
@@ -521,6 +545,11 @@ export async function submitTradeApproval(
       error: (err as Error).message,
     };
   }
+
+  // The order actually placed (dry-run sink or live) → count it toward today's
+  // ET-day order cap, so a later approval (or paper batch) sees it. Best-effort:
+  // a counter write must never undo a placed order.
+  await incrementOrdersToday({ dataDir: opts.dataDir, now }).catch(() => {});
 
   // Build the override audit trail — tags + a comment line on the trade entry —
   // ONLY when a real block was overridden.
