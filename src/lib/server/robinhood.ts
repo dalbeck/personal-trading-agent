@@ -11,6 +11,7 @@ import {
   coerceNumberLike,
   coercePercentLike,
   coerceStr,
+  companyNameFromDescription,
 } from "./research/parse";
 import type {
   ResearchFundamentals,
@@ -499,7 +500,10 @@ export function mapRobinhoodFundamentals(raw: RobinhoodFundamentals): {
     eps: null,
     dividendYield: coercePercentLike(raw.dividend_yield),
   };
+  const description = coerceStr(raw.description);
   const profile: ResearchProfile = {
+    // Robinhood has no clean name field; derive it from the description blurb.
+    name: companyNameFromDescription(description),
     ceo: coerceStr(raw.ceo),
     employees: coerceIntLike(raw.num_employees),
     sector: coerceStr(raw.sector),
@@ -507,7 +511,7 @@ export function mapRobinhoodFundamentals(raw: RobinhoodFundamentals): {
     country: null,
     exchange: null,
     ipoDate: null,
-    description: tidyDescription(coerceStr(raw.description)),
+    description: tidyDescription(description),
   };
   const anyValue =
     Object.values(fundamentals).some((v) => v !== null) ||

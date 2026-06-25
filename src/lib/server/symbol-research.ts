@@ -70,6 +70,7 @@ export function mergeSymbolResearch(args: {
   const profile: ResearchProfile | null =
     rp || pp
       ? {
+          name: rp?.name ?? pp?.name ?? null,
           ceo: rp?.ceo ?? pp?.ceo ?? null,
           employees: rp?.employees ?? pp?.employees ?? null,
           sector: rp?.sector ?? pp?.sector ?? null,

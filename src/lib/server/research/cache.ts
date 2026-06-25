@@ -15,6 +15,10 @@ import type { SymbolResearch } from "./types";
  * cache entry is treated as a miss, never an error.
  */
 
+/** Bump when the cached shape changes so stale entries are re-fetched, not
+ *  served with missing fields (e.g. the company `name` added for the header). */
+const CACHE_VERSION = 2;
+
 function cacheFile(symbol: string, date: string, dataDir?: string): string {
   const root =
     dataDir ?? process.env.TRADING_DATA_DIR ?? path.join(process.cwd(), "data");
@@ -29,9 +33,15 @@ export async function readResearchCache(
 ): Promise<SymbolResearch | null> {
   try {
     const raw = await readFile(cacheFile(symbol, date, opts?.dataDir), "utf8");
-    const parsed = JSON.parse(raw) as SymbolResearch;
-    // Minimal shape check — our own writes, so trust but verify the marker.
-    if (parsed && typeof parsed === "object" && "perplexity" in parsed) {
+    const parsed = JSON.parse(raw) as SymbolResearch & { version?: number };
+    // Minimal shape check + version gate — a stale-shape entry is a miss, so it
+    // gets re-fetched with the current fields rather than served half-empty.
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      "perplexity" in parsed &&
+      parsed.version === CACHE_VERSION
+    ) {
       return { ...parsed, cached: true };
     }
     return null;
@@ -52,7 +62,7 @@ export async function writeResearchCache(
     await mkdir(path.dirname(file), { recursive: true });
     await writeFile(
       file,
-      `${JSON.stringify({ ...value, cached: false }, null, 2)}\n`,
+      `${JSON.stringify({ ...value, cached: false, version: CACHE_VERSION }, null, 2)}\n`,
       "utf8",
     );
   } catch {

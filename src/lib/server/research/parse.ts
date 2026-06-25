@@ -108,10 +108,43 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
+/**
+ * Best-effort company name from a profile blurb — the leading proper-noun run
+ * before a common connector verb ("Apple, Inc. engages in…" → "Apple, Inc.";
+ * "GE Aerospace is an American…" → "GE Aerospace"). Conservative: returns null
+ * when no connector is found or the candidate is implausibly long.
+ */
+export function companyNameFromDescription(desc: string | null): string | null {
+  if (!desc) return null;
+  const connectors = [
+    " engages ",
+    " is ",
+    " operates ",
+    " develops ",
+    " designs ",
+    " provides ",
+    " manufactures ",
+    " produces ",
+    " offers ",
+    " together with ",
+    " through ",
+    " owns ",
+  ];
+  let cut = -1;
+  for (const c of connectors) {
+    const i = desc.indexOf(c);
+    if (i !== -1 && (cut === -1 || i < cut)) cut = i;
+  }
+  if (cut <= 0) return null;
+  const name = desc.slice(0, cut).trim();
+  return name.length > 0 && name.length <= 60 ? name : null;
+}
+
 function coerceProfile(raw: unknown): ResearchProfile | null {
   const p = asRecord(raw);
   if (!p) return null;
   return {
+    name: coerceStr(p.name),
     ceo: coerceStr(p.ceo),
     employees: coerceIntLike(p.employees),
     sector: coerceStr(p.sector),

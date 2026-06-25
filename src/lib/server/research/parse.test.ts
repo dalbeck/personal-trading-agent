@@ -4,9 +4,29 @@ import {
   coerceMoneyLike,
   coerceNumberLike,
   coercePercentLike,
+  companyNameFromDescription,
   extractJsonBlock,
   parseStructuredResearch,
 } from "./parse";
+
+describe("companyNameFromDescription", () => {
+  it("extracts the leading company name before a connector", () => {
+    expect(
+      companyNameFromDescription("Apple, Inc. engages in the design of phones."),
+    ).toBe("Apple, Inc.");
+    expect(
+      companyNameFromDescription("GE Aerospace is an American aircraft maker."),
+    ).toBe("GE Aerospace");
+    expect(
+      companyNameFromDescription("Microsoft Corporation develops software."),
+    ).toBe("Microsoft Corporation");
+  });
+  it("returns null when no connector or an implausible candidate", () => {
+    expect(companyNameFromDescription(null)).toBeNull();
+    expect(companyNameFromDescription("No connector here at all")).toBeNull();
+    expect(companyNameFromDescription(" is leading")).toBeNull();
+  });
+});
 
 describe("coerceNumberLike", () => {
   it("accepts plain numbers and numeric strings", () => {
@@ -132,6 +152,7 @@ describe("parseStructuredResearch", () => {
 
     expect(summary).toBe("Strong quarter; Azure re-accelerating.");
     expect(profile).toEqual({
+      name: null,
       ceo: "Satya Nadella",
       employees: 228000,
       sector: "Technology",

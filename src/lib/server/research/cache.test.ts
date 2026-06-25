@@ -14,6 +14,7 @@ function payload(): SymbolResearch {
     fundamentals: { marketCap: 3e12, peRatio: 30, eps: 11.9, dividendYield: 0.007 },
     fundamentalsSource: "robinhood",
     profile: {
+      name: "Microsoft Corporation",
       ceo: "Satya Nadella",
       employees: 228000,
       sector: "Technology",
@@ -65,6 +66,19 @@ describe("research cache", () => {
     const file = path.join(dir, "research", "cache", "2026-06-25-MSFT.json");
     await mkdir(path.dirname(file), { recursive: true });
     await writeFile(file, "{ not json", "utf8");
+    expect(await readResearchCache("MSFT", "2026-06-25", { dataDir: dir })).toBeNull();
+  });
+
+  it("treats a stale-version (pre-name) entry as a miss so it is re-fetched", async () => {
+    const dir = await tmp();
+    const file = path.join(dir, "research", "cache", "2026-06-25-MSFT.json");
+    await mkdir(path.dirname(file), { recursive: true });
+    // An old cache entry with the marker but no current version.
+    await writeFile(
+      file,
+      JSON.stringify({ ...payload(), version: 1 }),
+      "utf8",
+    );
     expect(await readResearchCache("MSFT", "2026-06-25", { dataDir: dir })).toBeNull();
   });
 });

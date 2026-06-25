@@ -60,6 +60,50 @@ export function formatCompactNumber(value: number): string {
   return compactNum.format(value);
 }
 
+const COUNTRY_CODE: Record<string, string> = {
+  "united states": "US",
+  "united states of america": "US",
+  usa: "US",
+  us: "US",
+  "u.s.": "US",
+  "u.s.a.": "US",
+  america: "US",
+  china: "CN",
+  japan: "JP",
+  "united kingdom": "GB",
+  uk: "GB",
+  britain: "GB",
+  germany: "DE",
+  france: "FR",
+  canada: "CA",
+  switzerland: "CH",
+  netherlands: "NL",
+  ireland: "IE",
+  taiwan: "TW",
+  "south korea": "KR",
+  korea: "KR",
+  india: "IN",
+  israel: "IL",
+  brazil: "BR",
+  australia: "AU",
+  spain: "ES",
+  italy: "IT",
+  sweden: "SE",
+  mexico: "MX",
+};
+
+/** A country name or 2-letter ISO code → flag emoji, or null when unknown. */
+export function countryFlag(country: string | null): string | null {
+  if (!country) return null;
+  const key = country.trim().toLowerCase();
+  let code = COUNTRY_CODE[key] ?? null;
+  if (!code && /^[a-z]{2}$/.test(key)) code = key.toUpperCase();
+  if (!code) return null;
+  return String.fromCodePoint(
+    ...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),
+  );
+}
+
 export function formatQty(qty: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(
     qty,

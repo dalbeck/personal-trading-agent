@@ -32,6 +32,9 @@ export interface ResearchFinanceResult {
  * shows "—" rather than fabricating one. Research/context only.
  */
 export interface ResearchProfile {
+  /** Company display name, e.g. "Apple, Inc." (Perplexity, or derived from the
+   *  Robinhood description). Null falls back to the ticker in the UI. */
+  name: string | null;
   ceo: string | null;
   employees: number | null;
   sector: string | null;
