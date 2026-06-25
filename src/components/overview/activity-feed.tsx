@@ -1,4 +1,5 @@
 import { ModuleCard, ModuleEmpty } from "@/components/overview/module-card";
+import { TickerLink } from "@/components/ticker-link";
 import { formatDateTime } from "@/lib/format";
 import type { ActivityItem } from "@/lib/server/overview";
 
@@ -35,7 +36,11 @@ export function ActivityFeed({ activity }: { activity: ActivityItem[] }) {
               >
                 <span aria-hidden className={`size-2 shrink-0 rounded-pill ${dot}`} />
                 <span className="w-14 shrink-0 font-semibold text-fg">
-                  {item.symbol}
+                  {item.symbol ? (
+                    <TickerLink symbol={item.symbol} />
+                  ) : (
+                    item.symbol
+                  )}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm tabular-nums text-fg-muted">
                   {item.detail}

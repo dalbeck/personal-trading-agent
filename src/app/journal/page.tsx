@@ -1,5 +1,6 @@
 import { Markdown } from "@/components/markdown";
 import { Card, PageTitle } from "@/components/page-shell";
+import { TickerLink } from "@/components/ticker-link";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { readJournal } from "@/lib/server/data";
@@ -26,7 +27,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
           ) : (
             <Badge tone="muted">REJECTED</Badge>
           )}
-          <span className="font-semibold text-fg">{entry.symbol}</span>
+          <TickerLink symbol={entry.symbol} className="font-semibold text-fg" />
           {isTrade ? (
             <span className="text-sm tabular-nums text-fg-muted">
               {entry.qty} @ {formatCurrency(entry.price)}

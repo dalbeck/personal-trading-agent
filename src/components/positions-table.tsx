@@ -7,6 +7,7 @@ import {
   formatQty,
   toneForValue,
 } from "@/lib/format";
+import { TickerLink } from "@/components/ticker-link";
 import type { Position } from "@/lib/types";
 
 type SortKey =
@@ -114,7 +115,9 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
                 key={p.symbol}
                 className="border-b border-line last:border-0 hover:bg-surface-overlay"
               >
-                <td className="px-4 py-3 font-medium text-fg">{p.symbol}</td>
+                <td className="px-4 py-3 font-medium text-fg">
+                  <TickerLink symbol={p.symbol} />
+                </td>
                 <td className="px-4 py-3 text-right tabular-nums text-fg">
                   {formatQty(p.qty)}
                 </td>
