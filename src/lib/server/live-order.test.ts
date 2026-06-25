@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HARNESS_ORDER_PERMISSIONS } from "./gate";
 import {
+  buildPlaceOrderCliCommand,
   placeLiveOrder,
   routeApprovedOrder,
   submitTradeApproval,
@@ -106,6 +107,50 @@ describe("order routing — the dry-run sink vs live", () => {
     expect(placed.dryRun).toBe(false);
     expect(placed.destination).toBe("robinhood");
     expect(sentToLive).not.toBeNull();
+  });
+});
+
+describe("buildPlaceOrderCliCommand — places one order, safe by construction (M5b)", () => {
+  const { cmd, args } = buildPlaceOrderCliCommand("1AB23456", PROPOSED);
+  const joined = args.join(" ");
+  const allowIdx = args.indexOf("--allowedTools");
+  const disallowIdx = args.indexOf("--disallowedTools");
+  const allowed = args.slice(allowIdx + 1, disallowIdx);
+
+  it("spawns the host claude CLI in print mode", () => {
+    expect(cmd).toBe("claude");
+    expect(args[0]).toBe("-p");
+  });
+
+  it("allow-lists ONLY place_equity_order, namespaced to the real MCP server", () => {
+    expect(allowed).toEqual(["mcp__robinhood-trading__place_equity_order"]);
+  });
+
+  it("disallows enumeration, cancel, and option-order tools", () => {
+    for (const t of [
+      "get_accounts",
+      "cancel_equity_order",
+      "place_option_order",
+      "cancel_option_order",
+    ]) {
+      const id = `mcp__robinhood-trading__${t}`;
+      expect(allowed).not.toContain(id);
+      expect(joined).toContain(id); // explicitly disallowed
+    }
+  });
+
+  it("references only the one account and the order params, and asks for one order", () => {
+    expect(joined).toContain("1AB23456");
+    expect(joined).toContain("MSFT");
+    expect(joined).toMatch(/EXACTLY ONE/);
+    expect(joined).toMatch(/Do NOT|do NOT/);
+  });
+});
+
+describe("placeLiveOrder is unreachable while the gate is closed (M5b)", () => {
+  it("throws (never spawns / places) with the gate closed", async () => {
+    const gate = await closedGate();
+    await expect(placeLiveOrder(PROPOSED, gate)).rejects.toThrow();
   });
 });
 

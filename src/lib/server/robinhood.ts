@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { PortfolioSnapshotSchema } from "@/lib/schemas";
 import type { PortfolioSnapshot, Position } from "@/lib/types";
+import { ROBINHOOD_MCP_SERVER } from "./gate";
 
 const run = promisify(execFile);
 
@@ -65,8 +66,9 @@ export const FORBIDDEN_TOOLS = [
 ] as const;
 
 /** The MCP server name as registered with the host `claude` CLI. Tool ids are
- *  namespaced `mcp__<server>__<tool>`. */
-const MCP_SERVER = "robinhood-trading";
+ *  namespaced `mcp__<server>__<tool>`. Single-sourced in `gate.ts` so the
+ *  read-only client, the gate, and the order path can never drift apart. */
+const MCP_SERVER = ROBINHOOD_MCP_SERVER;
 
 /** The single Agentic account the dashboard is allowed to read. Empty ⇒ not
  *  connected (the shipped default). The human sets this in `.env` once they have

@@ -30,6 +30,12 @@ import path from "node:path";
  * settings edit, live trading is OFF.
  */
 
+/** The Robinhood Trading MCP server name, as registered with the host `claude`
+ *  CLI (tool ids are `mcp__<server>__<tool>`). Single-sourced here so the gate,
+ *  the read-only client, and the order-placement path all reference the SAME
+ *  server — a mismatch would silently break both the deny-list and the gate. */
+export const ROBINHOOD_MCP_SERVER = "robinhood-trading";
+
 /** The Robinhood order tools. This build must never call these while the gate
  *  is closed; the read-only client (M1) has no path to them at all. */
 export const LIVE_ORDER_TOOLS = [
@@ -37,9 +43,11 @@ export const LIVE_ORDER_TOOLS = [
   "cancel_equity_order",
 ] as const;
 
-/** The harness allow-list permission ids that open the harness gate. */
+/** The harness allow-list permission ids that open the harness gate. These are
+ *  the real, namespaced tool ids — they MUST match what `.claude/settings.json`
+ *  denies/allows and what the order path calls. */
 export const HARNESS_ORDER_PERMISSIONS = LIVE_ORDER_TOOLS.map(
-  (t) => `mcp__robinhood__${t}`,
+  (t) => `mcp__${ROBINHOOD_MCP_SERVER}__${t}`,
 );
 
 export interface LiveTradingStatus {

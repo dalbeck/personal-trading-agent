@@ -16,8 +16,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ORDER_TOOLS = [
-  "mcp__robinhood__place_equity_order",
-  "mcp__robinhood__cancel_equity_order",
+  "mcp__robinhood-trading__place_equity_order",
+  "mcp__robinhood-trading__cancel_equity_order",
 ];
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
