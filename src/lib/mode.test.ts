@@ -9,8 +9,8 @@ import {
 } from "./mode";
 
 describe("view mode", () => {
-  it("defaults to paper — the proving ground is the safe default", () => {
-    expect(DEFAULT_VIEW_MODE).toBe("paper");
+  it("defaults to live — the live Robinhood account is the desk's focus", () => {
+    expect(DEFAULT_VIEW_MODE).toBe("live");
   });
 
   it("exposes exactly the two book modes", () => {
@@ -27,9 +27,9 @@ describe("view mode", () => {
     });
 
     it.each([undefined, null, "", "garbage", "LIVE", "Paper", "1"])(
-      "falls back to the default for unrecognized value %p",
+      "falls back to the default (live) for unrecognized value %p",
       (value) => {
-        expect(parseViewMode(value as string | null | undefined)).toBe("paper");
+        expect(parseViewMode(value as string | null | undefined)).toBe("live");
       },
     );
   });

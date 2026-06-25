@@ -111,18 +111,18 @@ export default async function EvaluationPage() {
       <div className="flex flex-col gap-8">
         <PageTitle
           title="Evaluation"
-          subtitle="Live view — read-only and advisory."
+          subtitle="The paper proving-ground scorecard — secondary to the live desk."
         />
         <Card className="border-dashed">
-          <h2 className="text-sm font-semibold text-fg">Paper-only gate</h2>
+          <h2 className="text-sm font-semibold text-fg">Paper proving-ground</h2>
           <p className="mt-2 text-pretty text-sm text-fg-muted">
-            The Phase 2 go/no-go scorecard grades the{" "}
-            <span className="font-medium text-fg">paper desk</span> — the
-            autonomous engine being proven before any live pilot. The live book
-            is <span className="font-medium text-fg">read-only and advisory</span>{" "}
-            (you place every real trade yourself), so it is not scored here, and
-            automated real-money execution stays gated on a passing paper
-            scorecard.
+            The go/no-go scorecard grades the{" "}
+            <span className="font-medium text-fg">paper desk</span> — a secondary
+            proving-ground for the engine. Your <span className="font-medium text-fg">live</span>{" "}
+            trades are human-approved per trade (not auto-scored here). This gate
+            only governs whether <span className="font-medium text-fg">hands-off
+            automation</span> (no human in the loop) may ever be enabled — it does
+            not gate your own approvals.
           </p>
           <p className="mt-3 text-sm text-fg-muted">
             Switch to the <span className="font-medium text-fg">Paper</span> view

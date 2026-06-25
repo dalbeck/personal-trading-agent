@@ -5,13 +5,14 @@ comply; the hard-coded risk engine (`lib/risk/`) and the red-team prosecutor
 enforce it. **The agent may never edit this file or override a rule** — changing
 the charter is a deliberate human act, recorded in the change log below.
 
-> **Scope.** The **autonomous desk trades paper only** (Alpaca) — it is the
-> proving ground and never places a real-money order on its own. **Live
-> (Robinhood) execution is human-approved only:** the desk proposes, the human
-> approves each order, and only then does the app place it — and only once the
-> **two gates** are open (a deliberate human action the agent cannot perform).
-> The app **never auto-trades**. Hands-off automation (no human in the loop)
-> remains gated on a passing Phase 2 evaluation scorecard.
+> **Scope & focus.** The desk's **primary mandate is the live Robinhood
+> account**: research, vet (risk rails + red-team), and **propose trades the
+> human approves per trade**, placed in Robinhood once the **two gates** are open
+> (a deliberate human action the agent cannot perform). The Alpaca **paper** desk
+> is **secondary** — the proving ground and the gate-closed **dry-run sink** that
+> an approved order routes to until the gates open. It is plumbing, not the
+> focus. The app **never auto-trades**; hands-off automation (no human in the
+> loop) remains gated on a passing Phase 2 evaluation scorecard.
 
 ## Universe
 
@@ -100,6 +101,14 @@ order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-06-25** — **Live-first reorientation.** Made the **live Robinhood
+  account the desk's primary mandate** and demoted the Alpaca paper desk to the
+  secondary proving ground + gate-closed dry-run sink (plumbing, not the focus).
+  No risk-rail or cap numbers changed (`charter.config.ts` untouched); the
+  safety model is unchanged — the app never auto-trades, every live order is
+  human-approved per trade, and the two gates stay human-only. Rationale: the
+  owner wants the desk working against the real account, not proving itself on
+  paper. See `planning/live-first-reorientation-spec.md`.
 - **2026-06-25** — Reframed **scope** for **human-approved live execution**: the
   autonomous desk still trades paper only, but live (Robinhood) orders are now
   permitted **when a human approves each one** and **both gates are open** — the

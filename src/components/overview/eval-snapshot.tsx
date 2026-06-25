@@ -25,17 +25,17 @@ export function EvalSnapshotModule({
     return (
       <ModuleCard
         title="Evaluation gate"
-        subtitle="Paper-only gate"
+        subtitle="Paper proving-ground"
         href="/evaluation"
         hrefLabel="Full scorecard"
       >
         <p className="text-pretty text-sm text-fg-muted">
           The go/no-go scorecard grades the{" "}
-          <span className="font-medium text-fg">paper desk</span> — the
-          autonomous engine being proven for a future live pilot. The live book
-          is <span className="font-medium text-fg">read-only and advisory</span>
-          , so it isn&apos;t scored here. Switch to the Paper view to see the
-          gate.
+          <span className="font-medium text-fg">paper desk</span> — a secondary
+          proving-ground. Your <span className="font-medium text-fg">live</span>{" "}
+          trades are human-approved per trade, not auto-scored here; this gate
+          only governs whether hands-off automation may ever be enabled. Switch
+          to the Paper view for the full rubric.
         </p>
       </ModuleCard>
     );

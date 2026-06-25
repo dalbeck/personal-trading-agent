@@ -45,20 +45,19 @@ export function ViewingBadge({
 }
 
 /**
- * A scope clarifier shown in **Live** view above desk-behavior modules. The
- * evaluation gate, guardrails, routine health, and activity all reflect the
- * PAPER desk — the autonomous engine being proven — regardless of view mode.
- * The live book is read-only and advisory and never auto-executes.
+ * A scope clarifier shown in **Live** view above the desk-behavior modules.
+ * Live is the desk's focus and is human-approved per trade; the evaluation gate
+ * + guardrails below are the secondary **paper proving-ground**.
  */
 export function DeskScopeNote({ mode }: { mode: ViewMode }) {
   if (mode !== "live") return null;
   return (
     <p className="text-pretty rounded-card border border-line bg-surface-raised px-3 py-2 text-xs text-fg-muted">
-      Viewing the <span className="font-semibold text-fg">live book</span> —
-      read-only and advisory. Desk activity, guardrails, and the evaluation gate
-      below reflect the{" "}
-      <span className="font-semibold text-fg">paper desk</span> (the autonomous
-      engine being proven). The live side never auto-executes.
+      Viewing the <span className="font-semibold text-fg">live book</span> — the
+      desk&apos;s focus. You approve each trade; nothing is placed without your
+      approval (while the order gate is closed, an approval routes to the paper
+      dry-run sink). The evaluation gate + guardrails below are the secondary{" "}
+      <span className="font-semibold text-fg">paper proving-ground</span>.
     </p>
   );
 }

@@ -15,8 +15,10 @@ export const VIEW_MODES = ["paper", "live"] as const;
 
 export type ViewMode = (typeof VIEW_MODES)[number];
 
-/** Paper is the proving ground — the safe default before any live connection. */
-export const DEFAULT_VIEW_MODE: ViewMode = "paper";
+/** Live is the focus of the desk (the human-approved Robinhood account), so the
+ *  dashboard opens on it. Paper is one toggle away — the dry-run sink / fallback,
+ *  no longer the default. */
+export const DEFAULT_VIEW_MODE: ViewMode = "live";
 
 /** Cookie name holding the selected view mode. Readable client- and server-side. */
 export const VIEW_MODE_COOKIE = "view-mode";
@@ -26,10 +28,13 @@ export const MODE_LABEL: Record<ViewMode, string> = {
   live: "Live",
 };
 
-/** Narrow an untrusted cookie/string value to a {@link ViewMode}. Anything that
- *  is not exactly `"live"` resolves to the safe default (`paper`). */
+/** Narrow an untrusted cookie/string value to a {@link ViewMode}. An explicit
+ *  `"paper"` / `"live"` is honored; anything else resolves to
+ *  {@link DEFAULT_VIEW_MODE}. */
 export function parseViewMode(value: string | null | undefined): ViewMode {
-  return value === "live" ? "live" : DEFAULT_VIEW_MODE;
+  if (value === "paper") return "paper";
+  if (value === "live") return "live";
+  return DEFAULT_VIEW_MODE;
 }
 
 /** The other book — used to label the subtle "also running" indicator. */
