@@ -1,57 +1,80 @@
 import "server-only";
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { z } from "zod";
 import { PortfolioSnapshotSchema } from "@/lib/schemas";
 import type { PortfolioSnapshot, Position } from "@/lib/types";
 
+const run = promisify(execFile);
+
 /**
  * Server-only **read-only** client for the Robinhood Trading MCP
- * (`https://agent.robinhood.com/mcp/trading`). Phase 3 M1 wires the dashboard
- * LIVE panel to the real Robinhood Agentic account via the `get_portfolio`
- * tool — and **nothing else**. There is deliberately no order-placement path in
- * this module; the only tool it will ever call is in {@link READ_ONLY_TOOLS}.
+ * (`https://agent.robinhood.com/mcp/trading`). It wires the dashboard LIVE panel
+ * to the real Robinhood Agentic account by reading `get_portfolio` /
+ * `get_equity_positions` for **one specific account** — and **nothing else**.
+ * There is deliberately no order-placement path in this module; the only tools
+ * it will ever call are in {@link READ_ONLY_TOOLS}.
  *
- * Connection is **default-off**: with no `ROBINHOOD_MCP_TOKEN` set, the client
- * reports "not connected" and the resolver renders the LIVE panel as OFF. The
- * account is unfunded and the harness order gate is closed until a deliberate
- * human action in a later, gated milestone (M5) — never the agent.
+ * **Transport — through the host `claude` CLI's MCP session, not a token.** The
+ * Robinhood Agentic MCP authenticates via OAuth (the `claude mcp add` browser
+ * authorize flow), which yields no static bearer token to configure. So instead
+ * of its own HTTP+token round-trip, the dashboard reaches the account through
+ * the already-authenticated `claude` CLI (the same host-CLI pattern the chat and
+ * red-team use): it spawns `claude -p` with the read-only tool(s) allow-listed
+ * and asks it to return the portfolio as JSON. Order tools are NEVER allow-listed.
  *
- * The actual MCP round-trip is isolated behind an injectable
- * {@link PortfolioFetcher} so the mapping and resolver logic are unit-tested
- * without a network or a live account.
+ * **Privacy (Agentic-account only):** the MCP grants read access to every linked
+ * account, but the desk reads only the ONE account named by
+ * `ROBINHOOD_AGENTIC_ACCOUNT_NUMBER`. It never calls `get_accounts` (the
+ * enumeration tool) — both because the allow-list omits it and because the
+ * account number is supplied directly — so the user's other accounts are never
+ * fetched, aggregated, or displayed.
+ *
+ * Connection is **default-off**: with no `ROBINHOOD_AGENTIC_ACCOUNT_NUMBER` set,
+ * the client reports "not connected" and the resolver renders the LIVE panel as
+ * OFF. Reading the account changes **no** trade gate — the harness order gate
+ * stays closed until a deliberate, separately-gated human action (M5).
+ *
+ * The actual fetch is isolated behind an injectable {@link PortfolioFetcher} so
+ * the mapping and resolver logic are unit-tested without spawning a CLI or
+ * touching a live account.
  */
 
-/** The complete set of Robinhood MCP tools this build is allowed to call.
- *  Read-only by construction — order tools are intentionally absent.
- *
- *  **Privacy (Agentic-account only):** the Robinhood MCP grants read access to
- *  every account the user has linked, but the desk reads only `get_portfolio`,
- *  which returns the single Agentic account. We deliberately do NOT call
- *  account-enumeration tools (`get_accounts`, `get_equity_positions`, …), so the
- *  user's other Robinhood accounts are never fetched, aggregated, or displayed.
- *  Tools that would expose other accounts (or place an order) are listed in
- *  {@link FORBIDDEN_TOOLS}; a regression that adds one fails the unit test. */
-export const READ_ONLY_TOOLS = ["get_portfolio"] as const;
+/** The complete set of Robinhood MCP tools this build is allowed to call —
+ *  read-only and **account-scoped** (each is invoked with the configured Agentic
+ *  account number). Order tools are intentionally absent; a regression that adds
+ *  one — or an enumeration tool — fails the unit test against {@link FORBIDDEN_TOOLS}. */
+export const READ_ONLY_TOOLS = ["get_portfolio", "get_equity_positions"] as const;
 
-/** Tools that would expose accounts beyond the Agentic one, or place an order.
- *  None of these may ever appear in {@link READ_ONLY_TOOLS}. */
+/** Tools that must NEVER be allow-listed: `get_accounts` enumerates every linked
+ *  account (breaks Agentic-only privacy), and the order tools place real trades.
+ *  None of these may appear in {@link READ_ONLY_TOOLS} or in the spawned argv. */
 export const FORBIDDEN_TOOLS = [
   "get_accounts",
-  "get_equity_positions",
-  "get_option_positions",
   "place_equity_order",
   "place_option_order",
+  "cancel_equity_order",
+  "cancel_option_order",
 ] as const;
 
-const MCP_URL =
-  process.env.ROBINHOOD_MCP_URL ?? "https://agent.robinhood.com/mcp/trading";
-const MCP_TOKEN = process.env.ROBINHOOD_MCP_TOKEN ?? "";
-const TIMEOUT_MS = 8000;
+/** The MCP server name as registered with the host `claude` CLI. Tool ids are
+ *  namespaced `mcp__<server>__<tool>`. */
+const MCP_SERVER = "robinhood-trading";
 
-/** True only when a Robinhood Agentic connection token is configured. The
- *  shipped default (no token) is "not connected" — live trading stays off. */
+/** The single Agentic account the dashboard is allowed to read. Empty ⇒ not
+ *  connected (the shipped default). The human sets this in `.env` once they have
+ *  the account number; the agent cannot discover it (no enumeration). */
+const AGENTIC_ACCOUNT = process.env.ROBINHOOD_AGENTIC_ACCOUNT_NUMBER ?? "";
+
+/** How long to wait for the `claude` CLI portfolio read before giving up and
+ *  falling back to the last persisted live snapshot. */
+const CLI_TIMEOUT_MS = 90_000;
+
+/** True only when an Agentic account number is configured. The shipped default
+ *  (unset) is "not connected" — the LIVE panel renders OFF. */
 export function hasRobinhoodConnection(): boolean {
-  return MCP_TOKEN.length > 0;
+  return AGENTIC_ACCOUNT.length > 0;
 }
 
 /* --------------------------- get_portfolio shape --------------------------- */
@@ -87,83 +110,87 @@ export const RobinhoodPortfolioSchema = z
 
 export type RobinhoodPortfolio = z.infer<typeof RobinhoodPortfolioSchema>;
 
-/** Injectable fetch of the raw `get_portfolio` result. The default talks to the
- *  MCP over HTTP; tests inject a fake so mapping stays network-free. */
+/** Injectable fetch of the raw portfolio object (already mapped to our
+ *  {@link RobinhoodPortfolioSchema} shape). The default spawns the host `claude`
+ *  CLI; tests inject a fake so mapping/resolver stay CLI-free. */
 export type PortfolioFetcher = () => Promise<unknown>;
 
-/* ------------------------------- MCP transport ----------------------------- */
+/* --------------------------- CLI-bridge transport -------------------------- */
 
-const McpToolResultSchema = z.object({
-  result: z.object({
-    // MCP tool results arrive as a content array; the portfolio JSON is the
-    // text of the first text block (or already-structured `structuredContent`).
-    structuredContent: z.unknown().optional(),
-    content: z
-      .array(z.object({ type: z.string(), text: z.string().optional() }))
-      .optional(),
-  }),
-});
-
-/**
- * Default MCP round-trip for `get_portfolio`. Single JSON-RPC `tools/call` with
- * a bearer token; the response is parsed as JSON or a single SSE `data:` frame.
- * Isolated and only reached when {@link hasRobinhoodConnection} is true, so the
- * shipped (token-less) build never executes it. The live wire shape is verified
- * during the gated M5 connection.
- */
-async function defaultFetchPortfolio(): Promise<unknown> {
-  const res = await fetch(MCP_URL, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${MCP_TOKEN}`,
-      "content-type": "application/json",
-      accept: "application/json, text/event-stream",
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "tools/call",
-      params: { name: "get_portfolio", arguments: {} },
-    }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    throw new Error(
-      `Robinhood MCP get_portfolio → ${res.status} ${res.statusText}`,
-    );
-  }
-
-  const text = await res.text();
-  // Streamable-HTTP MCP may answer as `text/event-stream`; take the last
-  // `data:` frame. Plain JSON responses pass through unchanged.
-  const payload = res.headers.get("content-type")?.includes("event-stream")
-    ? lastSseData(text)
-    : text;
-  const envelope = McpToolResultSchema.parse(JSON.parse(payload));
-  const { structuredContent, content } = envelope.result;
-  if (structuredContent !== undefined) return structuredContent;
-  const firstText = content?.find((c) => c.text)?.text;
-  if (!firstText) {
-    throw new Error("Robinhood MCP get_portfolio returned no content");
-  }
-  return JSON.parse(firstText);
+/** Fully-namespaced MCP tool id (`mcp__<server>__<tool>`). */
+function toolId(tool: string): string {
+  return `mcp__${MCP_SERVER}__${tool}`;
 }
 
-function lastSseData(stream: string): string {
-  const frames = stream
-    .split(/\n\n/)
-    .map((block) =>
-      block
-        .split(/\n/)
-        .filter((l) => l.startsWith("data:"))
-        .map((l) => l.slice(5).trim())
-        .join(""),
-    )
-    .filter(Boolean);
-  const last = frames.at(-1);
-  if (!last) throw new Error("Robinhood MCP returned an empty SSE stream");
-  return last;
+/**
+ * Build the `claude -p` argv that reads ONE account's portfolio through the
+ * host CLI's authenticated Robinhood MCP session. Pure + exported so the safety
+ * invariants are unit-tested without spawning: only the read-only tools are
+ * allow-listed, every order/enumeration tool is explicitly disallowed, and the
+ * account number is the only account ever referenced.
+ */
+export function buildPortfolioCliCommand(account: string): {
+  cmd: string;
+  args: string[];
+} {
+  const prompt = [
+    `Use the ${MCP_SERVER} MCP. Read ONLY brokerage account ${account}.`,
+    `Do NOT call get_accounts, do NOT place or cancel any order.`,
+    `Steps: (1) call get_portfolio with account_number "${account}";`,
+    `(2) call get_equity_positions with account_number "${account}".`,
+    `Then output ONLY a single minified JSON object — no prose, no markdown` +
+      ` fences — with EXACTLY these keys, copying values verbatim from the tool` +
+      ` results (never compute, estimate, or invent a number; use null for an` +
+      ` unavailable last_equity/last_price and 0 for any other missing number):`,
+    `{"currency":"USD","equity":NUMBER,"cash":NUMBER,"buying_power":NUMBER,` +
+      `"last_equity":NUMBER_OR_NULL,"positions":[{"symbol":STRING,` +
+      `"quantity":NUMBER,"side":"long"|"short","average_buy_price":NUMBER,` +
+      `"last_price":NUMBER_OR_NULL,"market_value":NUMBER,"cost_basis":NUMBER,` +
+      `"unrealized_pl":NUMBER,"unrealized_pl_pct":NUMBER}]}`,
+  ].join(" ");
+
+  return {
+    cmd: "claude",
+    args: [
+      "-p",
+      prompt,
+      "--allowedTools",
+      ...READ_ONLY_TOOLS.map(toolId),
+      "--disallowedTools",
+      ...FORBIDDEN_TOOLS.map(toolId),
+    ],
+  };
+}
+
+/** Pull the first balanced JSON object out of CLI stdout (the model is asked for
+ *  bare JSON, but tolerate stray prose / code fences defensively). */
+function extractJsonObject(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("Robinhood CLI read returned no JSON object");
+  }
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+/**
+ * Default portfolio fetch: spawn the host `claude` CLI (argv, never a shell) to
+ * read the configured Agentic account through its authenticated MCP session.
+ * Only reached when {@link hasRobinhoodConnection} is true. Throws on timeout /
+ * non-zero exit / unparseable output, so the resolver falls back to the last
+ * persisted live snapshot rather than rendering nothing.
+ */
+async function defaultFetchPortfolio(): Promise<unknown> {
+  if (!AGENTIC_ACCOUNT) {
+    throw new Error("ROBINHOOD_AGENTIC_ACCOUNT_NUMBER is not set");
+  }
+  const { cmd, args } = buildPortfolioCliCommand(AGENTIC_ACCOUNT);
+  const { stdout } = await run(cmd, args, {
+    cwd: process.cwd(),
+    timeout: CLI_TIMEOUT_MS,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  return extractJsonObject(stdout);
 }
 
 /* --------------------------------- mapping --------------------------------- */
