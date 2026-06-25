@@ -22,16 +22,22 @@ afterEach(() => {
   else process.env.RESEARCH_PROVIDER = prevProvider;
 });
 
-describe("symbol highlights route", () => {
+describe("symbol research route", () => {
   it("rejects an invalid symbol with 400 (no provider call)", async () => {
     const res = await POST(req(), ctx("@bad!"));
     expect(res.status).toBe(400);
   });
 
-  it("uppercases the symbol and reports the off state by default", async () => {
+  it("uppercases the symbol and reports the degraded state by default", async () => {
+    // No Perplexity key + no Robinhood connection in the test env: everything is
+    // null, with honest status flags so the UI shows "—" + the link-outs.
     const res = await POST(req(), ctx("nvda"));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ off: true, capped: false, result: null });
+    expect(body.perplexity).toBe("off");
+    expect(body.robinhoodConnected).toBe(false);
+    expect(body.fundamentals).toBeNull();
+    expect(body.profile).toBeNull();
+    expect(body.consensus).toBeNull();
   });
 });

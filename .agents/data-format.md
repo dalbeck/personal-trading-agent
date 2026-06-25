@@ -30,6 +30,7 @@ and routines must follow this. The runtime contracts live in
 | `data/fills/` | `.json` | _(added in Phase 2)_ |
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
 | `data/research/` | `.json` | `ResearchUsageSchema` (per-day metered-API call counter) |
+| `data/research/cache/` | `.json` | symbol-research day cache (`<date>-<SYMBOL>.json`, internal state — not a contract) |
 
 **Tracked universe + account scoping (M2/M3).** The **watchlist** — the editable
 half of the tracked universe — is a small JSON state file

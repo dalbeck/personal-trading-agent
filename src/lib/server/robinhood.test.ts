@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildFundamentalsCliCommand,
   buildLiveSnapshot,
   buildOrdersCliCommand,
   buildPortfolioCliCommand,
   FORBIDDEN_TOOLS,
+  getRobinhoodFundamentals,
   getRobinhoodLiveSnapshot,
   getRobinhoodLiveTrades,
   hasRobinhoodConnection,
   mapLiveTrades,
+  MARKET_DATA_TOOLS,
   READ_ONLY_TOOLS,
   RobinhoodOrdersSchema,
   RobinhoodPortfolioSchema,
@@ -172,6 +175,103 @@ describe("robinhood read-only client", () => {
 
   it("getRobinhoodLiveTrades throws when not connected and no fetcher", async () => {
     await expect(getRobinhoodLiveTrades()).rejects.toThrow(/not connected/i);
+  });
+
+  describe("buildFundamentalsCliCommand — read-only market data, no account", () => {
+    const { cmd, args } = buildFundamentalsCliCommand("AAPL");
+    const joined = args.join(" ");
+
+    it("spawns the host claude CLI and allow-lists ONLY get_equity_fundamentals", () => {
+      expect(cmd).toBe("claude");
+      expect(args[0]).toBe("-p");
+      const allowIdx = args.indexOf("--allowedTools");
+      const disallowIdx = args.indexOf("--disallowedTools");
+      const allowed = args.slice(allowIdx + 1, disallowIdx);
+      expect(allowed).toEqual(["mcp__robinhood-trading__get_equity_fundamentals"]);
+    });
+
+    it("disallows every order + enumeration tool, allow-lists none", () => {
+      const allowIdx = args.indexOf("--allowedTools");
+      const disallowIdx = args.indexOf("--disallowedTools");
+      const allowed = args.slice(allowIdx + 1, disallowIdx);
+      for (const forbidden of FORBIDDEN_TOOLS) {
+        const id = `mcp__robinhood-trading__${forbidden}`;
+        expect(allowed).not.toContain(id);
+        expect(joined).toContain(id);
+      }
+      expect(joined).toMatch(/Do NOT call get_accounts/);
+    });
+
+    it("references no brokerage account (market data is symbol-scoped)", () => {
+      expect(joined).toContain('["AAPL"]');
+      expect(joined).toMatch(/READ-ONLY market data/);
+      expect(joined).toMatch(/do NOT read any brokerage account/i);
+    });
+  });
+
+  it("MARKET_DATA_TOOLS never includes an order or enumeration tool", () => {
+    for (const forbidden of FORBIDDEN_TOOLS) {
+      expect(MARKET_DATA_TOOLS as readonly string[]).not.toContain(forbidden);
+    }
+    expect(MARKET_DATA_TOOLS as readonly string[]).not.toContain("get_accounts");
+  });
+
+  describe("getRobinhoodFundamentals — maps the fundamentals + profile", () => {
+    it("returns null when not connected and no fetcher (default-off)", async () => {
+      expect(await getRobinhoodFundamentals("AAPL")).toBeNull();
+    });
+
+    it("maps a real-shaped result through an injected fetcher (network-free)", async () => {
+      const res = await getRobinhoodFundamentals("AAPL", {
+        fetcher: async () => ({
+          symbol: "AAPL",
+          market_cap: "4047627128999.99",
+          pe_ratio: "35.45",
+          dividend_yield: "0.358264", // percent value → fraction
+          ceo: "Timothy Donald Cook",
+          num_employees: 166000,
+          sector: "Electronic Technology",
+          industry: "Telecommunications Equipment",
+          description: "Apple, Inc. designs and sells smartphones and services.",
+        }),
+      });
+      expect(res).not.toBeNull();
+      expect(res!.fundamentals.marketCap).toBeCloseTo(4.04762712e12, -6);
+      expect(res!.fundamentals.peRatio).toBeCloseTo(35.45);
+      expect(res!.fundamentals.eps).toBeNull(); // Robinhood does not supply EPS
+      expect(res!.fundamentals.dividendYield).toBeCloseTo(0.00358264);
+      expect(res!.profile.ceo).toBe("Timothy Donald Cook");
+      expect(res!.profile.employees).toBe(166000);
+      expect(res!.profile.sector).toBe("Electronic Technology");
+      expect(res!.profile.exchange).toBeNull();
+      expect(res!.profile.ipoDate).toBeNull();
+    });
+
+    it("returns null for a symbol with no usable data", async () => {
+      const res = await getRobinhoodFundamentals("ZZZZ", {
+        fetcher: async () => ({
+          symbol: "ZZZZ",
+          market_cap: null,
+          pe_ratio: null,
+          dividend_yield: null,
+          ceo: null,
+          num_employees: null,
+          sector: null,
+          industry: null,
+          description: null,
+        }),
+      });
+      expect(res).toBeNull();
+    });
+
+    it("survives a malformed result without throwing", async () => {
+      const res = await getRobinhoodFundamentals("AAPL", {
+        fetcher: async () => {
+          throw new Error("CLI blew up");
+        },
+      });
+      expect(res).toBeNull();
+    });
   });
 
   it("getRobinhoodLiveTrades maps through an injected fetcher (network-free)", async () => {
