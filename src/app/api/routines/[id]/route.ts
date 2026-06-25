@@ -7,6 +7,7 @@ import { placePaperOrder, hasAlpacaCredentials } from "@/lib/server/alpaca";
 import { executePendingProposals } from "@/lib/server/execute";
 import { isTradingHalted } from "@/lib/server/gate";
 import { withLock } from "@/lib/server/lockfile";
+import { buildRoutineCliArgs } from "@/lib/server/routine-cli";
 import { pingDeadMan, sendHeartbeat } from "@/lib/server/notify";
 import { recordRunLog } from "@/lib/server/writers";
 
@@ -33,10 +34,18 @@ function nowET(): string {
   return new Date().toISOString();
 }
 
-/** Spawn a headless `claude -p` analysis session and resolve its stdout. */
+/**
+ * Spawn a headless `claude -p` analysis session and resolve its stdout. The
+ * sub-agent is granted a **safe, allow-listed** tool surface (research + write
+ * proposals to `data/**` + curl local endpoints) so it can actually run; the
+ * `.claude/settings.json` deny-list still blocks order tools / `.env` /
+ * `.claude/**`. See `routine-cli.ts`.
+ */
 function runClaude(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("claude", ["-p", prompt], { cwd: process.cwd() });
+    const child = spawn("claude", buildRoutineCliArgs(prompt), {
+      cwd: process.cwd(),
+    });
     child.stdin.end();
     let stdout = "";
     let stderr = "";
