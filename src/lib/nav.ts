@@ -3,6 +3,7 @@ import {
   ChatIcon,
   CoachingIcon,
   EvaluationIcon,
+  GoLiveIcon,
   JournalIcon,
   LogsIcon,
   NewsIcon,
@@ -37,4 +38,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Logs", href: "/logs", icon: LogsIcon },
   { label: "Operations", href: "/operations", icon: OperationsIcon },
   { label: "Evaluation", href: "/evaluation", icon: EvaluationIcon },
+  { label: "Go-live", href: "/go-live", icon: GoLiveIcon },
 ];
