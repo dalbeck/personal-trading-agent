@@ -51,6 +51,21 @@ The agent can never raise them; both gates plus per-trade approval still apply.
   high-water mark, halt all new risk (latch live OFF via disconnect) and fire a
   phone/dead-man alert. Re-arming is a deliberate human act.
 
+## Discovery caps (Phase 3 — autonomous idea generation)
+
+Bounds on what a single research/discovery run may produce, so a scan can never
+flood the review queue or the tracked universe. Enforced in code
+(`charter.config.ts` `DISCOVERY_LIMITS`); the agent can never raise them.
+Discovery output is always **review candidates, never auto-acted** — the human
+places every trade — and auto-added watchlist symbols are **tracking-only** (no
+order, no execution path).
+
+- **Max new proposals per run:** at most **6** new trade ideas per discovery run
+  (tracks the daily order cap so the queue can never exceed what a day could act
+  on). Each still clears the risk rails and the red-team prosecutor.
+- **Watchlist ceiling:** the tracked universe's watchlist holds at most **20**
+  symbols; discovery auto-adds stop at the ceiling. The human can prune freely.
+
 ## Execution quality
 
 - **Marketable-limit orders only.** Never a naked market order, and never a
@@ -75,6 +90,13 @@ The agent can never raise them; both gates plus per-trade approval still apply.
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-06-25** — Added the **Discovery caps (Phase 3)** section: at most **6**
+  new proposals per discovery run (tracks the daily order cap) and a **20**-symbol
+  watchlist ceiling for auto-added discovery candidates. Mirrored in
+  `charter.config.ts` (`DISCOVERY_LIMITS`), tripwired by `charter-config.test.ts`.
+  Rationale: bound autonomous idea generation in code so a scan can't flood the
+  review queue or the tracked universe; discovery output stays review-only and
+  watchlist auto-adds are tracking-only (no execution path).
 - **2026-06-24** — Added the **Live pilot caps (Phase 3)** section: a **$100**
   weekly funding cap, a **$500** account exposure ceiling, and a **−10%** live
   drawdown kill switch. These are live-only guardrails for the funded Robinhood

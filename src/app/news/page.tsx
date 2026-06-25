@@ -6,7 +6,7 @@ import { TrackedUniverseCard } from "@/components/tracked-universe";
 import { formatDateTime } from "@/lib/format";
 import { anySample } from "@/lib/sample-data";
 import { classifyOwnership } from "@/lib/universe";
-import { readMaterialNews } from "@/lib/server/data";
+import { readMaterialNews, readWatchlistEntries } from "@/lib/server/data";
 import { getViewMode } from "@/lib/server/mode";
 import { getTrackedUniverse } from "@/lib/server/universe";
 
@@ -14,7 +14,10 @@ export const dynamic = "force-dynamic";
 
 export default async function NewsPage() {
   const [items, mode] = await Promise.all([readMaterialNews(), getViewMode()]);
-  const universe = await getTrackedUniverse(mode);
+  const [universe, watchlistEntries] = await Promise.all([
+    getTrackedUniverse(mode),
+    readWatchlistEntries(),
+  ]);
 
   // The scout watches the global universe (paper + live holdings + watchlist);
   // this page scopes News to the ACTIVE book's universe so the view matches the
@@ -34,7 +37,11 @@ export default async function NewsPage() {
         </div>
       </div>
 
-      <TrackedUniverseCard universe={universe} mode={mode} />
+      <TrackedUniverseCard
+        universe={universe}
+        watchlistEntries={watchlistEntries}
+        mode={mode}
+      />
 
       <SampleDataBanner show={anySample(visible)} />
 

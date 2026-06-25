@@ -31,12 +31,18 @@ and routines must follow this. The runtime contracts live in
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
 | `data/research/` | `.json` | `ResearchUsageSchema` (per-day metered-API call counter) |
 
-**Tracked universe + account scoping (M2).** The **watchlist** — the manual half
-of the tracked universe — is a small JSON state file `data/control/watchlist.json`
-(`WatchlistSchema`: `{ symbols, updatedAt }`), read by `readWatchlist` and written
-by `writeWatchlist`/`addToWatchlist`/`removeFromWatchlist`. Holdings (the auto
-half) come from the snapshots; the union (`src/lib/server/universe.ts`) feeds the
-news scout and research routine and drives ownership badges. Journal and coaching
+**Tracked universe + account scoping (M2/M3).** The **watchlist** — the editable
+half of the tracked universe — is a small JSON state file
+`data/control/watchlist.json` (`WatchlistSchema`: `{ entries, updatedAt }`, each
+entry `{ symbol, source, addedAt }`). `source` is **`manual`** (the human typed
+it) or **`discovery`** (the autonomous discovery routine auto-tracked it, M3).
+Read via `readWatchlistEntries` (legacy `{ symbols: [...] }` files migrate to
+manual entries) / `readWatchlist` (symbols only); written by `addToWatchlist`
+(manual; promotes a discovery entry on re-add) / `removeFromWatchlist` /
+`addDiscoveredToWatchlist` (capped at `DISCOVERY_LIMITS.maxWatchlistSymbols`,
+never evicts a manual entry, via `POST /api/watchlist/discover`). Holdings (the
+auto half) come from the snapshots; the union (`src/lib/server/universe.ts`)
+feeds the news scout and research routine and drives ownership badges. Journal and coaching
 entries now carry an **`account`** (`paper` | `live`, default `paper`); a trade
 entry also carries **`manual`** (default `false`). A `live` + `manual: true`
 journal entry is a trade the human placed by hand, ingested **read-only** from

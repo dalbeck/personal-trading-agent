@@ -54,3 +54,27 @@ export const LIVE_LIMITS: LiveLimits = {
   // Kill switch at −10% from the live high-water mark.
   drawdownKillPct: 0.1,
 };
+
+/**
+ * Phase 3 **autonomous-discovery** caps — bounds on what one research/discovery
+ * run may produce, so the scan can never flood the queue or the tracked
+ * universe. Mirror of the "Discovery caps" section in `strategy/charter.md`;
+ * keep in lockstep (the `charter-config.test.ts` tripwire enforces it). The
+ * agent can never raise these. Discovery proposals are review candidates, never
+ * auto-acted; auto-added watchlist symbols are tracking-only (no trade).
+ */
+export interface DiscoveryLimits {
+  /** Max NEW trade proposals a single discovery run may emit (tracks the daily
+   *  order cap so it can't queue more than a day could ever act on). */
+  maxNewProposalsPerRun: number;
+  /** Max total symbols the watchlist may hold — bounds auto-added discovery
+   *  candidates so the tracked universe stays curated. */
+  maxWatchlistSymbols: number;
+}
+
+export const DISCOVERY_LIMITS: DiscoveryLimits = {
+  // Never queue more new ideas per run than a day could act on (= daily order cap).
+  maxNewProposalsPerRun: 6,
+  // Keep the tracked universe bounded; discovery auto-adds stop at this ceiling.
+  maxWatchlistSymbols: 20,
+};

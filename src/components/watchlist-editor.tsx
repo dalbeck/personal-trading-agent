@@ -4,17 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
+import type { WatchlistEntry } from "@/lib/types";
 
 /**
- * Editor for the manual watchlist — the editable half of the tracked universe.
- * Add/remove symbols; each change persists via `/api/watchlist` and refreshes
- * the server view so the scout/research universe and the News filter pick it up.
- * Symbols are normalized + validated client-side for snappy feedback and again
- * server-side (the API is the source of truth).
+ * Editor for the watchlist — the editable half of the tracked universe. Add/
+ * remove symbols; each change persists via `/api/watchlist` and refreshes the
+ * server view so the scout/research universe and the News filter pick it up.
+ * Entries carry provenance: `manual` (you typed it) or `discovery` (the
+ * autonomous discovery run auto-tracked it) — the latter shows an "auto" tag.
+ * Symbols are validated client-side for snappy feedback and again server-side.
  */
-export function WatchlistEditor({ symbols }: { symbols: string[] }) {
+export function WatchlistEditor({ entries }: { entries: WatchlistEntry[] }) {
   const router = useRouter();
-  const [items, setItems] = useState<string[]>(symbols);
+  const [items, setItems] = useState<WatchlistEntry[]>(entries);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +30,12 @@ export function WatchlistEditor({ symbols }: { symbols: string[] }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action, symbol }),
       });
-      const data = (await res.json()) as { symbols?: string[]; error?: string };
-      if (res.ok && data.symbols) {
-        setItems(data.symbols);
+      const data = (await res.json()) as {
+        entries?: WatchlistEntry[];
+        error?: string;
+      };
+      if (res.ok && data.entries) {
+        setItems(data.entries);
         router.refresh();
       } else {
         setError(data.error ?? "Could not update the watchlist.");
@@ -58,20 +63,29 @@ export function WatchlistEditor({ symbols }: { symbols: string[] }) {
       <ul className="flex flex-wrap gap-2" aria-label="Watchlist symbols">
         {items.length === 0 ? (
           <li className="text-sm text-fg-muted">
-            No watchlist symbols yet — add one to track it alongside holdings.
+            No watchlist symbols yet — add one, or let the discovery routine
+            auto-track candidates.
           </li>
         ) : (
-          items.map((s) => (
+          items.map((entry) => (
             <li
-              key={s}
+              key={entry.symbol}
               className="inline-flex items-center gap-1.5 rounded-pill border border-line bg-surface-overlay px-2.5 py-1 text-xs font-medium text-fg"
             >
-              {s}
+              {entry.symbol}
+              {entry.source === "discovery" ? (
+                <span
+                  title="Auto-added by the discovery routine"
+                  className="rounded-pill bg-accent/15 px-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-fg-muted"
+                >
+                  auto
+                </span>
+              ) : null}
               <button
                 type="button"
-                onClick={() => void mutate("remove", s)}
+                onClick={() => void mutate("remove", entry.symbol)}
                 disabled={busy}
-                aria-label={`Remove ${s} from watchlist`}
+                aria-label={`Remove ${entry.symbol} from watchlist`}
                 className="grid size-4 place-items-center rounded-pill text-fg-muted transition-colors hover:text-loss disabled:opacity-50"
               >
                 ×

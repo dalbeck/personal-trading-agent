@@ -21,6 +21,7 @@ import type {
   PortfolioSnapshot,
   RunLog,
   TradeProposal,
+  WatchlistEntry,
 } from "@/lib/types";
 
 /**
@@ -212,20 +213,49 @@ export async function readMaterialNews(): Promise<MaterialNewsItem[]> {
 
 /* ------------------------------ Watchlist ------------------------------ */
 
-/** The manual watchlist symbols (the editable half of the tracked universe).
- *  A single small JSON state file under `data/control/`. Missing/unreadable ⇒
- *  an empty watchlist (the shipped default), never an error. */
-export async function readWatchlist(
+/** The watchlist entries (the editable half of the tracked universe), each with
+ *  its provenance (`manual` | `discovery`). A single small JSON state file under
+ *  `data/control/`. Missing/unreadable ⇒ an empty watchlist (the shipped
+ *  default), never an error. Tolerates the legacy `{ symbols: [...] }` shape by
+ *  treating those as manual entries. */
+export async function readWatchlistEntries(
   opts?: { dataDir?: string },
-): Promise<string[]> {
+): Promise<WatchlistEntry[]> {
   const root = opts?.dataDir ?? DATA_DIR;
   const file = path.join(root, "control", "watchlist.json");
+  let raw: string;
   try {
-    const raw = await readFile(file, "utf8");
-    return WatchlistSchema.parse(JSON.parse(raw)).symbols;
+    raw = await readFile(file, "utf8");
   } catch {
     return [];
   }
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  // Current shape: { entries: [...] }.
+  const parsed = WatchlistSchema.safeParse(json);
+  if (parsed.success) return parsed.data.entries;
+  // Legacy shape: { symbols: ["NVDA", ...] } → manual entries. Validate the
+  // migrated shape through the real schema (drops invalid tickers / files).
+  const legacySymbols =
+    json && typeof json === "object" && Array.isArray((json as { symbols?: unknown }).symbols)
+      ? (json as { symbols: unknown[] }).symbols
+      : [];
+  const migrated = WatchlistSchema.safeParse({
+    entries: legacySymbols.map((s) => ({ symbol: s })),
+  });
+  return migrated.success ? migrated.data.entries : [];
+}
+
+/** The watchlist symbols (provenance dropped) — the shape the tracked-universe
+ *  builder consumes. */
+export async function readWatchlist(
+  opts?: { dataDir?: string },
+): Promise<string[]> {
+  return (await readWatchlistEntries(opts)).map((e) => e.symbol);
 }
 
 /** The most recent run log per routine id (for the Routines status view). */
