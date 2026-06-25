@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { SymbolHighlights } from "@/components/symbol/highlights";
 import { LinkOuts } from "@/components/symbol/link-outs";
 import { PriceChart } from "@/components/symbol/price-chart";
 import { QuoteStats } from "@/components/symbol/quote-stats";
@@ -145,6 +146,8 @@ export default async function SymbolPage({
           </section>
         </>
       ) : null}
+
+      <SymbolHighlights symbol={symbol} />
 
       <section aria-labelledby="links-heading">
         <h2 id="links-heading" className="mb-1 text-sm font-semibold text-fg">
