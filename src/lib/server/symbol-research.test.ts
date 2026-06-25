@@ -2,7 +2,11 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { getSymbolResearch, mergeSymbolResearch } from "./symbol-research";
+import {
+  getResearchFreshness,
+  getSymbolResearch,
+  mergeSymbolResearch,
+} from "./symbol-research";
 import type {
   ResearchFundamentals,
   ResearchProfile,
@@ -258,5 +262,31 @@ describe("getSymbolResearch", () => {
       now: NOW,
     });
     expect(unavailable.perplexity).toBe("unavailable");
+  });
+});
+
+describe("getResearchFreshness", () => {
+  it("returns the cached fetchedAt without fetching (no spend)", async () => {
+    const dir = await tmp();
+    const research = vi.fn(async () => pplxResult());
+    await getSymbolResearch("MSFT", {
+      dataDir: dir,
+      robinhoodConnected: true,
+      fetchRobinhood: async () => rhData(),
+      provider: { name: "perplexity", research },
+      now: NOW,
+    });
+    research.mockClear();
+
+    const fresh = await getResearchFreshness("MSFT", { dataDir: dir });
+    expect(fresh.fetchedAt).toBe("2026-06-25T12:00:00.000Z");
+    expect(research).not.toHaveBeenCalled(); // cache-only — never fetches
+  });
+
+  it("returns null fetchedAt when nothing is cached", async () => {
+    const dir = await tmp();
+    expect(await getResearchFreshness("AMD", { dataDir: dir })).toEqual({
+      fetchedAt: null,
+    });
   });
 });

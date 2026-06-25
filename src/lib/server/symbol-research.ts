@@ -115,6 +115,19 @@ export function mergeSymbolResearch(args: {
   };
 }
 
+/**
+ * Read ONLY the cached research freshness for a symbol — **never fetches**, so
+ * it is safe to call for many symbols at once (e.g. the proposals page) without
+ * spending a metered call. Returns `fetchedAt: null` when nothing is cached.
+ */
+export async function getResearchFreshness(
+  symbol: string,
+  opts?: { dataDir?: string },
+): Promise<{ fetchedAt: string | null }> {
+  const cached = await readResearchCache(symbol, { dataDir: opts?.dataDir });
+  return { fetchedAt: cached?.fetchedAt ?? null };
+}
+
 export async function getSymbolResearch(
   symbol: string,
   opts?: GetSymbolResearchOpts,
