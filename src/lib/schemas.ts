@@ -143,7 +143,21 @@ export const TradeProposalSchema = z
     confidence: z.number().min(0).max(1).nullable().default(null),
     thesis: z.string().min(1),
     reasoning: z.string().min(1),
-    status: z.enum(["pending", "approved", "rejected"]).default("pending"),
+    // `reviewed` / `dismissed` are the terminal states for **advisory** (live)
+    // proposals — the human acted on (or set aside) guidance they execute
+    // manually. They are NEVER produced by the order/approval path, which only
+    // ever writes `approved` / `rejected`. See `.agents/data-format.md`.
+    status: z
+      .enum(["pending", "approved", "rejected", "reviewed", "dismissed"])
+      .default("pending"),
+    // Which account the proposal is for. `live` proposals are advisory-only in
+    // this phase (the harness order gate is closed) and must never route to any
+    // execution path. Live records written for the paper desk omit this.
+    account: z.enum(["paper", "live"]).default("paper"),
+    // Advisory-only marker: guidance for the human to execute manually in
+    // Robinhood — there is no approve-to-execute action and no order path can be
+    // reached from it. Tagged `live · advisory · execute manually` in the UI.
+    advisory: z.boolean().default(false),
     redTeam: RedTeamVerdictSchema.nullable().default(null),
     reviewByDate: isoDate.nullable().default(null),
     // Seeded/demo content. Live records written by the routines/scout omit this

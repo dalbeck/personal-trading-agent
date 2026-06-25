@@ -22,6 +22,7 @@ import type {
   MaterialNewsItem,
   PortfolioSnapshot,
   RunLog,
+  TradeProposal,
 } from "@/lib/types";
 import type { z } from "zod";
 import { readStrategyDoc, writeStrategyDoc } from "./strategy";
@@ -364,7 +365,7 @@ export async function recordSnapshot(
  *  id. Used by the per-trade approval flow so the queue reflects decisions. */
 export async function setProposalStatus(
   id: string,
-  status: "pending" | "approved" | "rejected",
+  status: TradeProposal["status"],
   opts?: { dataDir?: string },
 ): Promise<WriteResult | null> {
   const dir = path.join(dataRoot(opts), "proposals");
@@ -388,6 +389,52 @@ export async function setProposalStatus(
     }
   }
   return null;
+}
+
+/** The fields a caller supplies to emit a live-advisory proposal. The
+ *  account/advisory/status stamps are forced by the writer — a caller can never
+ *  produce a paper or executable proposal through this path. */
+export interface AdvisoryProposalInput {
+  id: string;
+  createdAt: string;
+  symbol: string;
+  action: "buy" | "sell";
+  side?: "long" | "short";
+  qty: number;
+  limitPrice: number;
+  stopPrice?: number | null;
+  takeProfit?: number | null;
+  riskPct: number;
+  confidence?: number | null;
+  thesis: string;
+  reasoning: string;
+  redTeam?: TradeProposal["redTeam"];
+  reviewByDate?: string | null;
+}
+
+/**
+ * Emit a **live-advisory** proposal against the Robinhood Agentic account
+ * (Phase 3 — read-only advisory). The proposal is stamped `account: "live"`,
+ * `advisory: true`, `status: "pending"` by construction, validated against the
+ * contract, and written to `data/proposals/`. It reuses the same thesis /
+ * reasoning / red-team fields as a paper proposal — but it carries NO execution
+ * path: the approval endpoint refuses it and the UI offers only review/dismiss.
+ */
+export async function recordAdvisoryProposal(
+  input: AdvisoryProposalInput,
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  const proposal = TradeProposalSchema.parse({
+    ...input,
+    side: input.side ?? "long",
+    account: "live",
+    advisory: true,
+    status: "pending",
+  });
+  const dir = path.join(dataRoot(opts), "proposals");
+  const file = await uniquePath(dir, input.id, ".json");
+  await writeStructured(file, TradeProposalSchema, proposal);
+  return { id: input.id, file };
 }
 
 /** Promote a durable lesson into the playbook's Banked lessons, with the date

@@ -25,11 +25,20 @@ and routines must follow this. The runtime contracts live in
 | `data/coaching-log/` | `.md` + frontmatter | `CoachingEntrySchema` |
 | `data/chats/` | `.md` + frontmatter | _(added when the chat archive lands)_ |
 | `data/snapshots/` | `.json` | `PortfolioSnapshotSchema` |
-| `data/proposals/` | `.json` | `TradeProposalSchema` |
+| `data/proposals/` | `.json` | `TradeProposalSchema` (paper or live-`advisory`) |
 | `data/news/` | `.json` | `NewsFileSchema` (array of material items, one file per day) |
 | `data/fills/` | `.json` | _(added in Phase 2)_ |
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
 | `data/research/` | `.json` | `ResearchUsageSchema` (per-day metered-API call counter) |
+
+**Proposal `account` / `advisory` (live vs paper).** A `TradeProposal` carries
+`account` (`paper` | `live`, default `paper`) and `advisory` (default `false`).
+A **live-advisory** proposal (`account: "live"`, `advisory: true`) is read-only
+guidance against the Robinhood Agentic account — the human executes it manually.
+Its only terminal states are `reviewed` / `dismissed` (set via
+`POST /api/proposals/review`); it is **never** routed to an order path (the
+approval endpoint refuses it — see `.agents/infra.md`). The order/approval path
+only ever writes `approved` / `rejected`.
 
 ## Frontmatter conventions
 
