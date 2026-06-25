@@ -3,6 +3,7 @@ import { Card, PageTitle } from "@/components/page-shell";
 import { RunHint } from "@/components/run-hint";
 import { SampleDataBadge, SampleDataBanner } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
+import { ScoutRunButton } from "@/components/scout-run-button";
 import { TrackedUniverseCard } from "@/components/tracked-universe";
 import { formatDateTime } from "@/lib/format";
 import { anySample } from "@/lib/sample-data";
@@ -33,8 +34,11 @@ export default async function NewsPage() {
           title="News"
           subtitle="Headlines the scout judged material to a tracked name — holdings + your watchlist."
         />
-        <div className="mt-2 flex items-center gap-2">
-          <ViewingBadge mode={mode} />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <ViewingBadge mode={mode} readOnly={false} />
+          <span className="ml-auto">
+            <ScoutRunButton />
+          </span>
         </div>
       </div>
 
