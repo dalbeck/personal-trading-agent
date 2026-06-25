@@ -82,6 +82,16 @@ const HistorySchema = z.object({
   equity: z.array(z.number().nullable()),
 });
 
+// One Alpaca trading session. `open`/`close` are ET wall-clock "HH:MM" and
+// already reflect half-day early closes; holidays are simply absent. Extra
+// keys (e.g. settlement_date) are stripped.
+const CalendarDaySchema = z.object({
+  date: z.string(),
+  open: z.string(),
+  close: z.string(),
+});
+export type AlpacaCalendarDay = z.infer<typeof CalendarDaySchema>;
+
 /* ----------------------------- API calls ------------------------------- */
 
 export function getAlpacaAccount() {
@@ -103,6 +113,19 @@ function getAlpacaHistory() {
   return alpacaGet(
     "/v2/account/portfolio/history?period=3M&timeframe=1D",
     HistorySchema,
+  );
+}
+
+/**
+ * Trading-session calendar over [start, end] (ISO dates). Half-day and holiday
+ * aware by construction — early closes carry an earlier `close`, holidays are
+ * omitted. Throws on network/auth/validation error; callers fall back to a
+ * labeled regular-hours approximation.
+ */
+export function getAlpacaCalendar(start: string, end: string) {
+  return alpacaGet(
+    `/v2/calendar?start=${start}&end=${end}`,
+    z.array(CalendarDaySchema),
   );
 }
 
