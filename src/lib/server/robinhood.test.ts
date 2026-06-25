@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLiveSnapshot,
+  buildPortfolioCliCommand,
   FORBIDDEN_TOOLS,
   getRobinhoodLiveSnapshot,
   hasRobinhoodConnection,
@@ -30,25 +31,62 @@ const SAMPLE = {
 };
 
 describe("robinhood read-only client", () => {
-  it("exposes only read tools — no order placement", () => {
-    // The allow-list is the contract: this build can call get_portfolio and
-    // nothing else. A regression that adds an order tool fails here.
-    expect([...READ_ONLY_TOOLS]).toEqual(["get_portfolio"]);
+  it("exposes only account-scoped read tools — no order placement", () => {
+    // The allow-list is the contract: portfolio + positions reads and nothing
+    // else. A regression that adds an order tool fails here.
+    expect([...READ_ONLY_TOOLS]).toEqual([
+      "get_portfolio",
+      "get_equity_positions",
+    ]);
   });
 
   it("never allows an account-enumeration or order tool (Agentic-only privacy)", () => {
-    // Privacy contract: only get_portfolio (the single Agentic account) is read.
-    // Account-enumeration tools would expose the user's OTHER Robinhood accounts;
-    // order tools would breach the closed gate. None may leak into the allow-list.
+    // Privacy contract: only the ONE configured account is read. Account-
+    // enumeration (get_accounts) would expose the user's OTHER accounts; order
+    // tools would breach the closed gate. None may leak into the allow-list.
     for (const forbidden of FORBIDDEN_TOOLS) {
       expect(READ_ONLY_TOOLS as readonly string[]).not.toContain(forbidden);
     }
     expect(READ_ONLY_TOOLS as readonly string[]).not.toContain("get_accounts");
   });
 
-  it("reports not-connected when no token is set (shipped default)", () => {
-    // No ROBINHOOD_MCP_TOKEN in the test env → live trading is off.
+  it("reports not-connected when no account number is set (shipped default)", () => {
+    // No ROBINHOOD_AGENTIC_ACCOUNT_NUMBER in the test env → live trading is off.
     expect(hasRobinhoodConnection()).toBe(false);
+  });
+
+  describe("buildPortfolioCliCommand — safe by construction", () => {
+    const { cmd, args } = buildPortfolioCliCommand("1AB23456");
+    const joined = args.join(" ");
+
+    it("spawns the host claude CLI in print mode", () => {
+      expect(cmd).toBe("claude");
+      expect(args[0]).toBe("-p");
+    });
+
+    it("allow-lists ONLY the read-only tools, namespaced to the MCP", () => {
+      expect(joined).toContain("--allowedTools");
+      expect(joined).toContain("mcp__robinhood-trading__get_portfolio");
+      expect(joined).toContain("mcp__robinhood-trading__get_equity_positions");
+    });
+
+    it("disallows every order + enumeration tool, and allow-lists none of them", () => {
+      const allowIdx = args.indexOf("--allowedTools");
+      const disallowIdx = args.indexOf("--disallowedTools");
+      const allowed = args.slice(allowIdx + 1, disallowIdx);
+      for (const forbidden of FORBIDDEN_TOOLS) {
+        const id = `mcp__robinhood-trading__${forbidden}`;
+        expect(allowed).not.toContain(id); // never allowed
+        expect(joined).toContain(id); // explicitly disallowed
+      }
+    });
+
+    it("references only the one supplied account number", () => {
+      expect(joined).toContain("1AB23456");
+      // get_accounts only ever appears as a disallowed tool / an instruction not
+      // to call it — never as an allowed tool (asserted above).
+      expect(joined).toMatch(/Do NOT call get_accounts/);
+    });
   });
 
   it("getRobinhoodLiveSnapshot throws when not connected and no fetcher", async () => {

@@ -16,10 +16,10 @@ describe("getPaperAccount", () => {
   });
 });
 
-// No ROBINHOOD_MCP_TOKEN is set in the test environment, so the LIVE panel must
-// resolve to a clear "disconnected / live trading off" state — never a guess.
+// No ROBINHOOD_AGENTIC_ACCOUNT_NUMBER is set in the test environment, so the LIVE
+// panel must resolve to a clear "disconnected / live trading off" state — never a guess.
 describe("getLiveAccount", () => {
-  it("reports disconnected with live trading off when no token is present", async () => {
+  it("reports disconnected with live trading off when no account is configured", async () => {
     const res = await getLiveAccount();
     expect(res.source).toBe("disconnected");
     expect(res.connected).toBe(false);
