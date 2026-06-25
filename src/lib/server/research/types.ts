@@ -26,6 +26,39 @@ export interface ResearchFinanceResult {
   sources: ResearchSource[];
 }
 
+/**
+ * Company profile fields for the right-rail, extracted from the model's
+ * structured JSON block (see `parse.ts`). Every field is nullable — the UI
+ * shows "—" rather than fabricating one. Research/context only.
+ */
+export interface ResearchProfile {
+  ceo: string | null;
+  employees: number | null;
+  sector: string | null;
+  industry: string | null;
+  country: string | null;
+  exchange: string | null;
+  ipoDate: string | null;
+  description: string | null;
+}
+
+/** Fundamentals for the stats grid. `dividendYield` is a fraction (0.0072 === 0.72%). */
+export interface ResearchFundamentals {
+  marketCap: number | null;
+  peRatio: number | null;
+  eps: number | null;
+  dividendYield: number | null;
+}
+
+/** Sell-side analyst consensus block. */
+export interface ResearchConsensus {
+  rating: string | null;
+  targetMean: number | null;
+  targetHigh: number | null;
+  targetLow: number | null;
+  analystCount: number | null;
+}
+
 export interface ResearchResult {
   provider: string;
   symbol: string;
@@ -38,6 +71,12 @@ export interface ResearchResult {
   categories: string[];
   /** Tickers referenced by the finance_results blocks. */
   tickers: string[];
+  /** Coerced company profile for the right rail; null when none was returned. */
+  profile?: ResearchProfile | null;
+  /** Coerced fundamentals for the stats grid; null when none was returned. */
+  fundamentals?: ResearchFundamentals | null;
+  /** Coerced analyst consensus; null when none was returned. */
+  consensus?: ResearchConsensus | null;
   /** Real per-call cost in USD, when the Agent API reports it. */
   cost?: number;
 }

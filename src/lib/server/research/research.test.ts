@@ -116,6 +116,56 @@ describe("createPerplexityProvider", () => {
     expect(result!.cost).toBeCloseTo(0.0123);
   });
 
+  it("lifts the structured profile / fundamentals / consensus JSON block out of the message", async () => {
+    const dir = await tmp();
+    const messageText = [
+      "Azure growth is re-accelerating.",
+      "```json",
+      JSON.stringify({
+        profile: { ceo: "Satya Nadella", employees: "228,000", sector: "Technology" },
+        fundamentals: { marketCap: "3.1T", peRatio: 36.2, eps: "11.93", dividendYield: "0.72%" },
+        consensus: { rating: "Strong Buy", targetMean: 520, analystCount: "41" },
+      }),
+      "```",
+    ].join("\n");
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            output: [
+              { type: "message", content: [{ type: "output_text", text: messageText }] },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const provider = createPerplexityProvider({
+      apiKey: "k",
+      fetchImpl,
+      dataDir: dir,
+      now: () => new Date("2026-06-24T08:00:00Z"),
+    });
+
+    const result = await provider.research({ symbol: "MSFT" });
+    expect(result).not.toBeNull();
+    // The JSON block is stripped from the prose summary.
+    expect(result!.summary).toBe("Azure growth is re-accelerating.");
+    expect(result!.summary).not.toContain("{");
+    expect(result!.profile!.ceo).toBe("Satya Nadella");
+    expect(result!.profile!.employees).toBe(228000);
+    expect(result!.fundamentals!.marketCap).toBeCloseTo(3.1e12);
+    expect(result!.fundamentals!.dividendYield).toBeCloseTo(0.0072);
+    expect(result!.consensus!.rating).toBe("Strong Buy");
+    expect(result!.consensus!.analystCount).toBe(41);
+
+    // The request prompts for the structured block.
+    const body = JSON.parse(
+      String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body),
+    );
+    expect(body.input).toContain("json");
+    expect(body.input).toContain("marketCap");
+  });
+
   it("normalizes a bare model name to the namespaced Agent API form", async () => {
     const dir = await tmp();
     const fetchImpl = vi.fn(async () => financeSearchResponse());

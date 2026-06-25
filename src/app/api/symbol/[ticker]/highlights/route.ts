@@ -3,15 +3,17 @@ import { getResearchProvider } from "@/lib/server/research";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 
 /**
- * On-demand symbol "highlights" via the capped Perplexity `finance_search`
- * provider (M2). **User-initiated only** — nothing runs until the page's button
- * POSTs here. The provider is **default-off** (`RESEARCH_PROVIDER=off`) and the
- * daily cap is enforced **in code** inside the provider, so this route can only
- * spend one capped call per click and refuses gracefully past the cap.
+ * Symbol "highlights" via the capped Perplexity `finance_search` provider. The
+ * Perplexity-style symbol layout **auto-loads** this once per visit (the price
+ * header / stats / profile / consensus fan out from the single result). The
+ * provider is **default-off** (`RESEARCH_PROVIDER=off`) and the daily cap is
+ * enforced **in code** inside the provider, so this route can only spend one
+ * capped call per visit and refuses gracefully past the cap — the cap is the
+ * cost guard for auto-loading.
  *
  * Research/context only — never order pricing or execution. LOCAL, read-only.
- * Returns `{ off | capped, result }` so the UI falls back to the link-outs with
- * a clear note instead of an error.
+ * Returns `{ off | capped, result }` so the UI falls back to "—" and the
+ * link-outs with a clear note instead of an error.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

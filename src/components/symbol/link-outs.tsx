@@ -25,7 +25,7 @@ const LINKS: { label: string; href: (s: string) => string; note: string }[] = [
 
 export function LinkOuts({ symbol }: { symbol: string }) {
   return (
-    <ul className="grid gap-2 sm:grid-cols-3">
+    <ul className="grid gap-2">
       {LINKS.map((link) => (
         <li key={link.label}>
           <a

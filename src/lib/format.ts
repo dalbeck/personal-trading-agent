@@ -38,6 +38,28 @@ export function formatPercent(
   return `${sign}${pct}%`;
 }
 
+const compactUsd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
+
+const compactNum = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+/** Compact USD for large figures: 3_100_000_000_000 → "$3.1T". */
+export function formatCompactCurrency(value: number): string {
+  return compactUsd.format(value);
+}
+
+/** Compact count for large figures: 228_000 → "228K". */
+export function formatCompactNumber(value: number): string {
+  return compactNum.format(value);
+}
+
 export function formatQty(qty: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(
     qty,

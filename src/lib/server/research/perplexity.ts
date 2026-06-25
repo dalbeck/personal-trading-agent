@@ -1,5 +1,6 @@
 import "server-only";
 
+import { parseStructuredResearch } from "./parse";
 import { bumpResearchCallCount, getResearchCallCount } from "./usage";
 import type {
   ResearchFinanceResult,
@@ -121,15 +122,22 @@ function normalize(symbol: string, json: unknown, usedAt: string): ResearchResul
     seen.has(s.url) ? false : (seen.add(s.url), true),
   );
 
+  // Lift the structured profile / fundamentals / consensus out of the message's
+  // JSON block, and use the prose with that block stripped as the summary.
+  const structured = parseStructuredResearch(summary.trim());
+
   const result: ResearchResult = {
     provider: "perplexity",
     symbol,
-    summary: summary.trim(),
+    summary: structured.summary,
     sources: dedupedSources,
     usedAt,
     finance,
     categories: [...categories],
     tickers: [...tickers],
+    profile: structured.profile,
+    fundamentals: structured.fundamentals,
+    consensus: structured.consensus,
   };
   const cost = extractCost(obj.usage);
   if (cost != null) result.cost = cost;
@@ -177,7 +185,15 @@ export function createPerplexityProvider(
 
       const input =
         query.question ??
-        `Summarize the latest fundamentals, earnings, analyst views, and catalysts for ${query.symbol}. Be concise and cite sources.`;
+        [
+          `Summarize the latest fundamentals, earnings, analyst views, and catalysts for ${query.symbol}. Be concise and cite sources.`,
+          "",
+          "Then append a fenced ```json code block with these exact keys, using null for anything you cannot verify (do not guess):",
+          '{"profile":{"ceo":string|null,"employees":number|null,"sector":string|null,"industry":string|null,"country":string|null,"exchange":string|null,"ipoDate":string|null,"description":string|null},' +
+            '"fundamentals":{"marketCap":string|null,"peRatio":number|null,"eps":number|null,"dividendYield":string|null},' +
+            '"consensus":{"rating":string|null,"targetMean":number|null,"targetHigh":number|null,"targetLow":number|null,"analystCount":number|null}}',
+          "marketCap may use a suffix (e.g. \"3.1T\"); dividendYield as a percent string (e.g. \"0.72%\"); ipoDate as YYYY-MM-DD; description one sentence.",
+        ].join("\n");
 
       try {
         const res = await doFetch(apiUrl, {
