@@ -5,6 +5,17 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { PortfolioSnapshotSchema } from "@/lib/schemas";
 import type { PortfolioSnapshot, Position } from "@/lib/types";
+import {
+  coerceIntLike,
+  coerceMoneyLike,
+  coerceNumberLike,
+  coercePercentLike,
+  coerceStr,
+} from "./research/parse";
+import type {
+  ResearchFundamentals,
+  ResearchProfile,
+} from "./research/types";
 import { ROBINHOOD_MCP_SERVER } from "./gate";
 
 const run = promisify(execFile);
@@ -53,6 +64,14 @@ export const READ_ONLY_TOOLS = [
   "get_equity_positions",
   "get_equity_orders",
 ] as const;
+
+/** Read-only **market-data** tools — symbol-scoped, NOT account-scoped (no
+ *  account number is referenced). `get_equity_fundamentals` returns valuation
+ *  ratios, market cap, dividend schedule, and a company profile — the free
+ *  source for the symbol page's stats grid + profile rail. It places nothing and
+ *  reads no account, so it is kept separate from the account-scoped
+ *  {@link READ_ONLY_TOOLS}; like them, none of {@link FORBIDDEN_TOOLS} may leak in. */
+export const MARKET_DATA_TOOLS = ["get_equity_fundamentals"] as const;
 
 /** Tools that must NEVER be allow-listed: `get_accounts` enumerates every linked
  *  account (breaks Agentic-only privacy), and the order tools place real trades.
@@ -391,4 +410,140 @@ export async function getRobinhoodLiveTrades(opts?: {
   }
   const raw = await (opts?.fetcher ?? defaultFetchOrders)();
   return mapLiveTrades(RobinhoodOrdersSchema.parse(raw));
+}
+
+/* --------------------- get_equity_fundamentals (market data) --------------- */
+// Read-only, symbol-scoped market data — the FREE source for the symbol page's
+// fundamentals + company profile (no metered Perplexity call). It places nothing
+// and reads no account: the prompt references no account number and forbids
+// get_accounts / order tools, allow-listing ONLY get_equity_fundamentals.
+
+const RhFundamentalsSchema = z
+  .object({
+    symbol: z.string().catch(""),
+    market_cap: z.union([z.string(), z.number()]).nullable().catch(null),
+    pe_ratio: z.union([z.string(), z.number()]).nullable().catch(null),
+    dividend_yield: z.union([z.string(), z.number()]).nullable().catch(null),
+    ceo: z.string().nullable().catch(null),
+    num_employees: z.union([z.string(), z.number()]).nullable().catch(null),
+    sector: z.string().nullable().catch(null),
+    industry: z.string().nullable().catch(null),
+    description: z.string().nullable().catch(null),
+  })
+  .passthrough();
+
+export type RobinhoodFundamentals = z.infer<typeof RhFundamentalsSchema>;
+
+export type FundamentalsFetcher = (symbol: string) => Promise<unknown>;
+
+/**
+ * Build the `claude -p` argv that reads one symbol's fundamentals through the
+ * host CLI. Pure + exported so the safety invariants are unit-tested without
+ * spawning: ONLY `get_equity_fundamentals` is allow-listed, every order /
+ * enumeration tool is explicitly disallowed, and — unlike the account reads — no
+ * account number is referenced (this is market data).
+ */
+export function buildFundamentalsCliCommand(symbol: string): {
+  cmd: string;
+  args: string[];
+} {
+  const prompt = [
+    `Use the ${MCP_SERVER} MCP for READ-ONLY market data.`,
+    `Do NOT call get_accounts, do NOT read any brokerage account, do NOT place or cancel any order.`,
+    `Call get_equity_fundamentals with symbols ["${symbol}"] (this places nothing).`,
+    `Then output ONLY a single minified JSON object — no prose, no markdown` +
+      ` fences — copying values verbatim from the tool result (never compute,` +
+      ` estimate, or invent a value; use null for anything unavailable):`,
+    `{"symbol":"${symbol}","market_cap":NUMBER_OR_NULL,"pe_ratio":NUMBER_OR_NULL,` +
+      `"dividend_yield":NUMBER_OR_NULL,"ceo":STRING_OR_NULL,` +
+      `"num_employees":NUMBER_OR_NULL,"sector":STRING_OR_NULL,` +
+      `"industry":STRING_OR_NULL,"description":STRING_OR_NULL}`,
+  ].join(" ");
+
+  return {
+    cmd: "claude",
+    args: [
+      "-p",
+      prompt,
+      "--allowedTools",
+      ...MARKET_DATA_TOOLS.map(toolId),
+      "--disallowedTools",
+      ...FORBIDDEN_TOOLS.map(toolId),
+    ],
+  };
+}
+
+/** Trim a long company blurb to a tidy rail-sized sentence (~240 chars). */
+function tidyDescription(raw: string | null): string | null {
+  if (!raw) return null;
+  if (raw.length <= 240) return raw;
+  const cut = raw.slice(0, 240);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${cut.slice(0, lastSpace > 0 ? lastSpace : 240).trimEnd()}…`;
+}
+
+/**
+ * Map a validated `get_equity_fundamentals` result into the structured
+ * fundamentals + profile the symbol page renders. Robinhood does not supply EPS,
+ * exchange, IPO date, or analyst consensus — those stay null (Perplexity may fill
+ * them). `dividend_yield` arrives as a percent value (0.36 === 0.36%), coerced to
+ * a fraction. Returns null when the symbol carried no usable data.
+ */
+export function mapRobinhoodFundamentals(raw: RobinhoodFundamentals): {
+  fundamentals: ResearchFundamentals;
+  profile: ResearchProfile;
+} | null {
+  const fundamentals: ResearchFundamentals = {
+    marketCap: coerceMoneyLike(raw.market_cap),
+    peRatio: coerceNumberLike(raw.pe_ratio),
+    eps: null,
+    dividendYield: coercePercentLike(raw.dividend_yield),
+  };
+  const profile: ResearchProfile = {
+    ceo: coerceStr(raw.ceo),
+    employees: coerceIntLike(raw.num_employees),
+    sector: coerceStr(raw.sector),
+    industry: coerceStr(raw.industry),
+    country: null,
+    exchange: null,
+    ipoDate: null,
+    description: tidyDescription(coerceStr(raw.description)),
+  };
+  const anyValue =
+    Object.values(fundamentals).some((v) => v !== null) ||
+    Object.values(profile).some((v) => v !== null);
+  return anyValue ? { fundamentals, profile } : null;
+}
+
+async function defaultFetchFundamentals(symbol: string): Promise<unknown> {
+  const { cmd, args } = buildFundamentalsCliCommand(symbol);
+  const { stdout } = await run(cmd, args, {
+    cwd: process.cwd(),
+    timeout: CLI_TIMEOUT_MS,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  return extractJsonObject(stdout);
+}
+
+/**
+ * Fetch one symbol's fundamentals + profile from Robinhood (read-only, no
+ * account, no metered cost). Gated on {@link hasRobinhoodConnection} (the same
+ * connection the LIVE panel uses) unless a `fetcher` is injected for tests.
+ * Best-effort: returns null on any failure so the caller falls back to Perplexity
+ * or "—" rather than throwing.
+ */
+export async function getRobinhoodFundamentals(
+  symbol: string,
+  opts?: { fetcher?: FundamentalsFetcher },
+): Promise<{
+  fundamentals: ResearchFundamentals;
+  profile: ResearchProfile;
+} | null> {
+  if (!opts?.fetcher && !hasRobinhoodConnection()) return null;
+  try {
+    const raw = await (opts?.fetcher ?? defaultFetchFundamentals)(symbol);
+    return mapRobinhoodFundamentals(RhFundamentalsSchema.parse(raw));
+  } catch {
+    return null;
+  }
 }

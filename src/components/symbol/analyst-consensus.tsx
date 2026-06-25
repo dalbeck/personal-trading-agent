@@ -2,15 +2,16 @@
 
 import { formatCurrency } from "@/lib/format";
 import {
-  researchNote,
+  perplexityNote,
   useSymbolResearch,
 } from "@/components/symbol/research-context";
 
 /**
- * Analyst-consensus block — **Perplexity** (`finance_search`). Rating chip plus
- * the low / mean / high price targets and the contributing analyst count. Shows
- * "—" until the auto-loaded research resolves, or a short note when it's off /
- * capped. Context only — not a recommendation.
+ * Analyst-consensus block — **Perplexity** (`finance_search`) only (Robinhood
+ * does not provide price targets). Rating chip plus the low / mean / high price
+ * targets and the contributing analyst count. Shows "—" until the auto-loaded
+ * research resolves, or a short note when Perplexity is off / capped. Context
+ * only — not a recommendation.
  */
 
 function Target({ label, value }: { label: string; value: number | null }) {
@@ -27,10 +28,12 @@ function Target({ label, value }: { label: string; value: number | null }) {
 }
 
 export function AnalystConsensus() {
-  const research = useSymbolResearch();
-  const loading = research.status === "loading";
-  const c = research.status === "loaded" ? research.result.consensus : null;
-  const note = researchNote(research);
+  const state = useSymbolResearch();
+  const loading = state.status === "loading";
+  const research = state.status === "loaded" ? state.research : null;
+  const c = research?.consensus ?? null;
+  const note =
+    research && !c ? perplexityNote(research.perplexity) : null;
 
   return (
     <section

@@ -7,28 +7,39 @@ import {
   formatPercent,
 } from "@/lib/format";
 import type { SymbolQuote } from "@/lib/symbol";
+import type { ResearchOrigin } from "@/lib/server/research/types";
 import { useSymbolResearch } from "@/components/symbol/research-context";
 
 /**
  * Perplexity-style stats grid. Price / OHLC / ranges / volume are **Alpaca**
- * (rendered immediately from the server-resolved quote); market cap, P/E, EPS
- * and dividend yield are **Perplexity** (filled in when the auto-loaded research
- * resolves, "—" when it's off / capped). Each cell is honestly source-tagged.
+ * (rendered immediately from the server-resolved quote). Market cap, P/E and
+ * dividend yield come from **Robinhood** `get_equity_fundamentals` (free,
+ * read-only) when connected, else Perplexity; EPS is Perplexity-only. Each cell
+ * is honestly source-tagged, and Perplexity/Robinhood cells fill in when the
+ * auto-loaded research resolves ("—" when neither has it).
  */
 
-type Source = "alpaca" | "perplexity";
+type Source = "alpaca" | "robinhood" | "perplexity";
+
+const SOURCE_LABEL: Record<Source, string> = {
+  alpaca: "Alpaca",
+  robinhood: "Robinhood",
+  perplexity: "Perplexity",
+};
+
+const SOURCE_TITLE: Record<Source, string> = {
+  alpaca: "Alpaca IEX market data",
+  robinhood: "Robinhood get_equity_fundamentals (read-only, no metered cost)",
+  perplexity: "Perplexity finance_search (metered, context only)",
+};
 
 function SourceTag({ source }: { source: Source }) {
   return (
     <span
       className="rounded-pill border border-line px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-fg-muted"
-      title={
-        source === "alpaca"
-          ? "Alpaca IEX market data"
-          : "Perplexity finance_search (metered, context only)"
-      }
+      title={SOURCE_TITLE[source]}
     >
-      {source === "alpaca" ? "Alpaca" : "Perplexity"}
+      {SOURCE_LABEL[source]}
     </span>
   );
 }
@@ -73,9 +84,16 @@ function rangeText(low: number | null, high: number | null): string {
 }
 
 export function SymbolStatsGrid({ quote }: { quote: SymbolQuote | null }) {
-  const research = useSymbolResearch();
-  const loading = research.status === "loading";
-  const f = research.status === "loaded" ? research.result.fundamentals : null;
+  const state = useSymbolResearch();
+  const loading = state.status === "loading";
+  const research = state.status === "loaded" ? state.research : null;
+  const f = research?.fundamentals ?? null;
+
+  // The market-cap / P/E / dividend trio is Robinhood-or-Perplexity; reflect the
+  // actual origin, falling back to where it *would* come from while empty.
+  const trioSource: Source =
+    (research?.fundamentalsSource as ResearchOrigin | undefined) ??
+    (research?.robinhoodConnected ? "robinhood" : "perplexity");
 
   const money = (v: number | null | undefined) =>
     v == null ? "—" : formatCurrency(v);
@@ -95,14 +113,14 @@ export function SymbolStatsGrid({ quote }: { quote: SymbolQuote | null }) {
         <Cell
           label="Market cap"
           value={f?.marketCap != null ? formatCompactCurrency(f.marketCap) : "—"}
-          source="perplexity"
+          source={trioSource}
           loading={loading}
         />
         <Cell label="Open" value={money(quote?.open)} source="alpaca" />
         <Cell
           label="P/E"
           value={num(f?.peRatio ?? null)}
-          source="perplexity"
+          source={trioSource}
           loading={loading}
         />
         <Cell
@@ -117,7 +135,7 @@ export function SymbolStatsGrid({ quote }: { quote: SymbolQuote | null }) {
               ? formatPercent(f.dividendYield, { signed: false })
               : "—"
           }
-          source="perplexity"
+          source={trioSource}
           loading={loading}
         />
         <Cell
@@ -139,9 +157,10 @@ export function SymbolStatsGrid({ quote }: { quote: SymbolQuote | null }) {
       </dl>
       <p className="mt-4 border-t border-line pt-3 text-xs text-fg-muted">
         <span className="font-medium">Alpaca</span> IEX feed (not the consolidated
-        tape) for price &amp; ranges; <span className="font-medium">Perplexity</span>{" "}
-        finance_search (metered, context only) for market cap, P/E, EPS &amp;
-        yield.
+        tape) for price &amp; ranges; <span className="font-medium">Robinhood</span>{" "}
+        fundamentals (free, read-only) for market cap, P/E &amp; yield, falling
+        back to <span className="font-medium">Perplexity</span> (metered, context
+        only) — which also supplies EPS.
       </p>
     </section>
   );

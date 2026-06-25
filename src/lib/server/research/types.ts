@@ -86,3 +86,39 @@ export interface ResearchProvider {
   /** Returns context, or `null` when off / capped / unavailable. Never throws. */
   research(query: ResearchQuery): Promise<ResearchResult | null>;
 }
+
+/** Which source actually supplied a field group, for honest per-section tagging. */
+export type ResearchOrigin = "robinhood" | "perplexity" | null;
+
+export type PerplexityStatus = "ok" | "off" | "capped" | "unavailable";
+
+/**
+ * The merged symbol-research payload the Perplexity-style layout consumes. The
+ * orchestrator (`lib/server/symbol-research.ts`) prefers **Robinhood**
+ * `get_equity_fundamentals` (read-only, no metered cost) for fundamentals +
+ * profile and falls back to **Perplexity** field-by-field; analyst consensus and
+ * the AI narrative come from Perplexity only. Cached per-symbol-per-day so a
+ * refresh or navigate-away-and-back never re-spends. Every field is nullable —
+ * the UI renders "—" rather than fabricating one.
+ */
+export interface SymbolResearch {
+  fundamentals: ResearchFundamentals | null;
+  fundamentalsSource: ResearchOrigin;
+  profile: ResearchProfile | null;
+  profileSource: ResearchOrigin;
+  /** Analyst consensus — Perplexity only (Robinhood does not provide it). */
+  consensus: ResearchConsensus | null;
+  /** AI narrative summary — Perplexity only. */
+  summary: string;
+  finance: ResearchFinanceResult[];
+  categories: string[];
+  sources: ResearchSource[];
+  /** Perplexity retrieval timestamp (RFC3339), when it was called. */
+  usedAt: string | null;
+  /** Real Perplexity per-call cost (USD), when reported. */
+  cost: number | null;
+  robinhoodConnected: boolean;
+  perplexity: PerplexityStatus;
+  /** True when this payload was served from the per-day cache (no fresh call). */
+  cached: boolean;
+}

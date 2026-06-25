@@ -2,15 +2,18 @@
 
 import { formatCompactNumber } from "@/lib/format";
 import {
-  researchNote,
+  perplexityNote,
   useSymbolResearch,
 } from "@/components/symbol/research-context";
 
 /**
- * Right-rail company profile. The symbol is always known; every other field is
- * **Perplexity** (`finance_search`) and shows "—" until the auto-loaded research
- * resolves, or a short note when it's off / capped. Profile / context only.
+ * Right-rail company profile. The symbol is always known; every other field
+ * comes from **Robinhood** `get_equity_fundamentals` (free, read-only) when
+ * connected, else **Perplexity** as the metered fallback. Shows "—" until the
+ * auto-loaded research resolves, or a short note when neither source has it.
  */
+
+const SOURCE_LABEL = { robinhood: "Robinhood", perplexity: "Perplexity" } as const;
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -24,14 +27,24 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 export function CompanyProfileRail({ symbol }: { symbol: string }) {
-  const research = useSymbolResearch();
-  const loading = research.status === "loading";
-  const profile = research.status === "loaded" ? research.result.profile : null;
-  const note = researchNote(research);
+  const state = useSymbolResearch();
+  const loading = state.status === "loading";
+  const research = state.status === "loaded" ? state.research : null;
+  const profile = research?.profile ?? null;
 
   const v = (s: string | null) => (loading ? "…" : (s ?? "—"));
   const employees =
     profile?.employees != null ? formatCompactNumber(profile.employees) : null;
+
+  const note =
+    research && !profile
+      ? (perplexityNote(research.perplexity) ??
+        "Company profile is unavailable for this symbol.")
+      : null;
+
+  const sourceLabel = research?.profileSource
+    ? SOURCE_LABEL[research.profileSource]
+    : "Robinhood / Perplexity";
 
   return (
     <aside
@@ -62,8 +75,8 @@ export function CompanyProfileRail({ symbol }: { symbol: string }) {
       {note ? <p className="mt-3 text-xs text-fg-muted">{note}</p> : null}
 
       <p className="mt-3 border-t border-line pt-3 text-xs text-fg-muted">
-        Profile via <span className="font-medium">Perplexity</span> finance_search
-        — context only.
+        Profile via <span className="font-medium">{sourceLabel}</span> — context
+        only.
       </p>
     </aside>
   );

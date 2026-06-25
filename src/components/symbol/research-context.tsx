@@ -1,28 +1,40 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { ResearchResult } from "@/lib/server/research/types";
+import type {
+  PerplexityStatus,
+  SymbolResearch,
+} from "@/lib/server/research/types";
 
 /**
- * Auto-loads the capped Perplexity `finance_search` highlights once when a
- * symbol page mounts, and shares the result with every Perplexity-sourced
- * island (stats grid, profile rail, analyst consensus, AI summary) so the
- * single metered call fans out to all of them. The in-code daily cap (enforced
- * server-side in the provider) is the cost guard; when the provider is off or
- * the cap is hit, consumers fall back to "—" and the research link-outs.
+ * Auto-loads the merged symbol research once when a symbol page mounts and
+ * shares it with every Perplexity-/Robinhood-sourced island (stats grid, profile
+ * rail, analyst consensus, AI summary). Sourcing is cheapest-first server-side:
+ * Robinhood fundamentals (free, read-only) preferred, Perplexity as the metered
+ * auto-fallback that also supplies consensus + the AI narrative. The result is
+ * cached per-symbol-per-day server-side, so a refresh or navigate-back never
+ * re-spends; off/capped degrade to "—" + the research link-outs.
  */
 
 export type ResearchState =
   | { status: "loading" }
-  | { status: "off" }
-  | { status: "capped" }
-  | { status: "unavailable" }
-  | { status: "loaded"; result: ResearchResult };
+  | { status: "loaded"; research: SymbolResearch };
 
-type HighlightsResponse = {
-  off?: boolean;
-  capped?: boolean;
-  result?: ResearchResult | null;
+const FALLBACK: SymbolResearch = {
+  fundamentals: null,
+  fundamentalsSource: null,
+  profile: null,
+  profileSource: null,
+  consensus: null,
+  summary: "",
+  finance: [],
+  categories: [],
+  sources: [],
+  usedAt: null,
+  cost: null,
+  robinhoodConnected: false,
+  perplexity: "unavailable",
+  cached: false,
 };
 
 const ResearchContext = createContext<ResearchState>({ status: "loading" });
@@ -50,14 +62,17 @@ export function SymbolResearchProvider({
           `/api/symbol/${encodeURIComponent(symbol)}/highlights`,
           { method: "POST" },
         );
-        const data = (await res.json()) as HighlightsResponse;
+        const data = (await res.json()) as SymbolResearch;
         if (cancelled) return;
-        if (data.result) setState({ status: "loaded", result: data.result });
-        else if (data.off) setState({ status: "off" });
-        else if (data.capped) setState({ status: "capped" });
-        else setState({ status: "unavailable" });
+        setState({
+          status: "loaded",
+          research:
+            data && typeof data === "object" && "perplexity" in data
+              ? data
+              : FALLBACK,
+        });
       } catch {
-        if (!cancelled) setState({ status: "unavailable" });
+        if (!cancelled) setState({ status: "loaded", research: FALLBACK });
       }
     })();
     return () => {
@@ -73,12 +88,11 @@ export function SymbolResearchProvider({
 }
 
 /**
- * Shared note for the off / capped / unavailable states, so each Perplexity
- * island can explain the "—" cells consistently and point at the link-outs.
- * Returns null while loading or once loaded.
+ * Note explaining a Perplexity-sourced section that has no data, so the analyst
+ * consensus + AI summary islands degrade consistently. Returns null when OK.
  */
-export function researchNote(state: ResearchState): string | null {
-  switch (state.status) {
+export function perplexityNote(status: PerplexityStatus): string | null {
+  switch (status) {
     case "off":
       return "AI research is off (a metered Perplexity add-on, off by default) — see the research links below.";
     case "capped":

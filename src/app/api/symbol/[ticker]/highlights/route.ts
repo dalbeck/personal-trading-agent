@@ -1,19 +1,21 @@
-import { getResearchCallCount } from "@/lib/server/research/usage";
-import { getResearchProvider } from "@/lib/server/research";
+import { getSymbolResearch } from "@/lib/server/symbol-research";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 
 /**
- * Symbol "highlights" via the capped Perplexity `finance_search` provider. The
- * Perplexity-style symbol layout **auto-loads** this once per visit (the price
- * header / stats / profile / consensus fan out from the single result). The
- * provider is **default-off** (`RESEARCH_PROVIDER=off`) and the daily cap is
- * enforced **in code** inside the provider, so this route can only spend one
- * capped call per visit and refuses gracefully past the cap — the cap is the
- * cost guard for auto-loading.
+ * Symbol research for the Perplexity-style layout. The page **auto-loads** this
+ * once per visit; the result (fundamentals, profile, analyst consensus, AI
+ * summary) fans out to every island.
+ *
+ * Sourcing is cheapest-first: **Robinhood** `get_equity_fundamentals` (read-only,
+ * no metered cost) for fundamentals + profile, **Perplexity** `finance_search`
+ * (metered, default-off, daily-capped in code) as the auto-fallback that also
+ * supplies analyst consensus + the AI narrative. The merged payload is **cached
+ * per-symbol-per-day**, so a refresh / navigate-back never re-spends — the cache
+ * + the in-code cap are the cost guards.
  *
  * Research/context only — never order pricing or execution. LOCAL, read-only.
- * Returns `{ off | capped, result }` so the UI falls back to "—" and the
- * link-outs with a clear note instead of an error.
+ * Always returns a `SymbolResearch` object (status flags inside) so the UI shows
+ * "—" + the link-outs instead of an error.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,19 +30,6 @@ export async function POST(
     return Response.json({ error: "invalid symbol" }, { status: 400 });
   }
 
-  const provider = getResearchProvider();
-  if (provider.name === "off") {
-    return Response.json({ off: true, capped: false, result: null });
-  }
-
-  const result = await provider.research({ symbol });
-  if (result) {
-    return Response.json({ off: false, capped: false, result });
-  }
-
-  // Null with the provider on means: cap hit, missing key, or a transient
-  // failure. Surface whether it was the cap so the note can be precise.
-  const cap = Number(process.env.PERPLEXITY_DAILY_CALL_CAP ?? "30");
-  const used = await getResearchCallCount(new Date().toISOString().slice(0, 10));
-  return Response.json({ off: false, capped: used >= cap, result: null });
+  const research = await getSymbolResearch(symbol);
+  return Response.json(research);
 }
