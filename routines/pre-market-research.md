@@ -40,6 +40,22 @@ ideas** (not only re-rate current holdings) and keep the tracked universe curren
    protective stop. **Size against the relevant book's equity** — use the paper
    snapshot's equity for paper ideas and the **live** snapshot's equity for live
    ideas (the live account may be small; **fractional shares are allowed**).
+   **If a book has no snapshot** (e.g. no paper account configured yet), **skip
+   that book** and say so — never fabricate equity or a price.
+   **Pricing — use ONLY this endpoint, never invent a price:** fetch a recent
+   Alpaca price via the local symbol endpoint and use the latest close as the
+   marketable-limit reference. **Do NOT use any Robinhood or other MCP
+   market-data tool** — they are not permitted in this routine and the charter
+   mandates **Alpaca-only** pricing. You have `Read`, `WebSearch`, `WebFetch`,
+   `Bash(curl:*)`, and `Write(data/**)` — that's all you need; if a tool prompts
+   for permission, don't use it, route around it.
+
+   ```bash
+   curl -fsS "http://127.0.0.1:${PORT:-3000}/api/symbol/NVDA/bars?range=1M" | tail -c 400
+   ```
+
+   If you can't price a candidate this way, **skip it** — don't report a
+   permissions block; just propose the names you could price.
 4. Write each candidate as a **proposal** JSON in `data/proposals/` conforming to
    `TradeProposalSchema` (`src/lib/schemas.ts`), `status: "pending"` (see
    `.agents/data-format.md`). Pick the book + kind:
