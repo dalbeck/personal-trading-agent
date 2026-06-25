@@ -246,6 +246,53 @@ describe("per-trade approval", () => {
     expect(res.brokerOrderId).toBeUndefined();
   });
 
+  it("runs the red-team when a proposal carries NO verdict, and blocks a reject", async () => {
+    // A discovery proposal that wasn't red-teamed must still clear the gate at
+    // approval — the red-team runs here and a reject blocks the order.
+    const gate = await closedGate();
+    let reachedSink = false;
+    const res = await submitTradeApproval(
+      {
+        order: { ...ORDER, redTeam: null },
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      {
+        ...gate,
+        snapshot: null,
+        redTeamExec: async () =>
+          '{"verdict":"reject","notes":"Thesis leans on a single day of price action."}',
+        placeDryRun: async () => {
+          reachedSink = true;
+          return { destination: "mock", brokerOrderId: "x" };
+        },
+      },
+    );
+    expect(res.outcome).toBe("blocked-redteam");
+    expect(reachedSink).toBe(false); // never reached the sink/broker
+  });
+
+  it("runs the red-team when no verdict and proceeds on approve", async () => {
+    const gate = await closedGate();
+    const res = await submitTradeApproval(
+      {
+        order: { ...ORDER, redTeam: null },
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      {
+        ...gate,
+        snapshot: null,
+        mockOrderId: "mock-rt",
+        redTeamExec: async () => '{"verdict":"approve","notes":"Survives."}',
+      },
+    );
+    expect(res.outcome).toBe("approved");
+    expect(res.dryRun).toBe(true);
+  });
+
   it("re-runs the risk gate at approval and blocks a breaching order", async () => {
     const gate = await closedGate();
     // Tiny equity → the order is far more than 20% of the account.
