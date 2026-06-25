@@ -57,6 +57,12 @@ is never contaminated. `data/control/risk-settings.json` (`RiskSettingsSchema`)
 is the human's per-rail overrides of the charter `RISK_LIMITS` — likewise an
 internal state file (written directly, not a `data/` artifact contract), layered
 in at per-trade approval (`src/lib/server/risk-settings.ts`; see `.agents/infra.md`).
+`data/control/order-counter.json` (`{ date, count }`, ET calendar day) is the
+**persisted per-ET-day order counter** — incremented at each placement (the
+paper batch + every human approval) and read back as `RiskContext.ordersToday`
+so the charter daily-order cap (≤6/day) fires across runs and across paths, and
+resets at the New York day boundary (`src/lib/server/order-counter.ts`). Another
+internal state file — written directly, not a `data/` artifact contract.
 
 **Proposal `account` / `advisory` (live vs paper).** A `TradeProposal` carries
 `account` (`paper` | `live`, default `paper`) and `advisory` (default `false`).

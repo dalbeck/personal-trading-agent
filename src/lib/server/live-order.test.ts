@@ -421,6 +421,139 @@ describe("per-trade approval", () => {
   });
 });
 
+describe("M1 — real risk context at approval (daily cap + emergency stop)", () => {
+  // Roomy account so the order itself (1 share @ $100, stop $95) clears the
+  // size/risk rails — isolating the daily-cap and emergency-stop rails.
+  const BIG_SNAPSHOT = {
+    account: "paper",
+    asOf: "2026-06-24T10:00:00-04:00",
+    currency: "USD",
+    equity: 100_000,
+    cash: 100_000,
+    buyingPower: 100_000,
+    totalPl: 0,
+    totalPlPct: 0,
+    dayPl: 0,
+    dayPlPct: 0,
+    positions: [],
+    equityCurve: [],
+  } as PortfolioSnapshot;
+
+  const CALM = { spyIntradayChangePct: 0, vix: 15 };
+
+  it("blocks the 7th placement of an ET day on the approval path (daily-order cap)", async () => {
+    const gate = await closedGate();
+    // Six clean placements — each one increments the persisted ET-day counter.
+    for (let i = 0; i < 6; i++) {
+      const res = await submitTradeApproval(
+        {
+          order: ORDER,
+          decision: "approve",
+          approver: "human",
+          timestamp: `2026-06-24T10:0${i}:00-04:00`,
+        },
+        {
+          ...gate,
+          snapshot: BIG_SNAPSHOT,
+          market: CALM,
+          mockOrderId: `mock-${i}`,
+        },
+      );
+      expect(res.outcome).toBe("approved");
+    }
+    // The 7th — same ET day — is blocked by the daily-order-cap rail, reading the
+    // real persisted counter (no ordersToday override here).
+    const seventh = await submitTradeApproval(
+      {
+        order: ORDER,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:30:00-04:00",
+      },
+      { ...gate, snapshot: BIG_SNAPSHOT, market: CALM, mockOrderId: "mock-7" },
+    );
+    expect(seventh.outcome).toBe("blocked-risk");
+    expect(seventh.brokerOrderId).toBeUndefined();
+  });
+
+  it("the daily-cap counter resets on a new ET day (7th-of-day blocks, next day clears)", async () => {
+    const gate = await closedGate();
+    for (let i = 0; i < 6; i++) {
+      await submitTradeApproval(
+        {
+          order: ORDER,
+          decision: "approve",
+          approver: "human",
+          timestamp: `2026-06-24T10:0${i}:00-04:00`,
+        },
+        { ...gate, snapshot: BIG_SNAPSHOT, market: CALM, mockOrderId: `m-${i}` },
+      );
+    }
+    // Same data dir, next ET day → the counter is back to 0 and an order clears.
+    const nextDay = await submitTradeApproval(
+      {
+        order: ORDER,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-25T10:00:00-04:00",
+      },
+      { ...gate, snapshot: BIG_SNAPSHOT, market: CALM, mockOrderId: "m-next" },
+    );
+    expect(nextDay.outcome).toBe("approved");
+  });
+
+  it("blocks an order when SPY is down −2% intraday (emergency stop)", async () => {
+    const gate = await closedGate();
+    const res = await submitTradeApproval(
+      {
+        order: ORDER,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      {
+        ...gate,
+        snapshot: BIG_SNAPSHOT,
+        market: { spyIntradayChangePct: -0.021, vix: 15 },
+      },
+    );
+    expect(res.outcome).toBe("blocked-risk");
+    expect(res.brokerOrderId).toBeUndefined();
+  });
+
+  it("blocks an order when VIX is above 30 (emergency stop)", async () => {
+    const gate = await closedGate();
+    const res = await submitTradeApproval(
+      {
+        order: ORDER,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      {
+        ...gate,
+        snapshot: BIG_SNAPSHOT,
+        market: { spyIntradayChangePct: 0, vix: 31 },
+      },
+    );
+    expect(res.outcome).toBe("blocked-risk");
+  });
+
+  it("a calm-market in-cap order still approves (rails fire only on real danger)", async () => {
+    const gate = await closedGate();
+    const res = await submitTradeApproval(
+      {
+        order: ORDER,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      { ...gate, snapshot: BIG_SNAPSHOT, market: CALM, mockOrderId: "ok" },
+    );
+    expect(res.outcome).toBe("approved");
+  });
+});
+
 describe("hasValidOverride", () => {
   it("is true only for a present override with a non-empty (trimmed) comment", () => {
     expect(hasValidOverride({ comment: "I accept the event risk." })).toBe(true);
