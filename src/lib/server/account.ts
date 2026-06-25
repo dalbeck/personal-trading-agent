@@ -10,6 +10,7 @@ import {
   hasRobinhoodConnection,
   type PortfolioFetcher,
 } from "@/lib/server/robinhood";
+import { enrichLivePositions, type SnapshotGetter } from "@/lib/server/live-price";
 import { enforceLiveDrawdownKill } from "@/lib/server/live-guards";
 import { recordSnapshot } from "@/lib/server/writers";
 import type { PortfolioSnapshot } from "@/lib/types";
@@ -64,34 +65,68 @@ export async function getPaperAccount(): Promise<PaperAccount> {
   };
 }
 
+const DISCONNECTED: LiveAccount = {
+  snapshot: null,
+  source: "disconnected",
+  connected: false,
+  notice:
+    "Robinhood Agentic account not connected — live trading is off. " +
+    "Connecting and funding are deliberate human actions, gated on a passing Phase 2 scorecard.",
+};
+
 /**
  * Resolves the **live** Robinhood Agentic account for the dashboard LIVE panel
- * (Phase 3 M1, read-only). When no connection is configured — the shipped
- * default — it returns a clear `disconnected` state so the panel renders LIVE
- * TRADING: OFF rather than stale numbers. When connected, it pulls a fresh
- * read-only snapshot via `get_portfolio`, **persists it** to `data/snapshots/`
- * so the panel and the agent share one source of truth, and falls back to the
- * last persisted live snapshot (with a notice) if the read fails.
+ * (read-only). This renders from the **last persisted live snapshot** so the
+ * page paints instantly — it does NOT spawn the `claude` CLI on every render
+ * (that read takes tens of seconds; doing it per page load is what made the
+ * LIVE pages slow and littered `data/snapshots/`). The fresh read happens
+ * out-of-band via {@link refreshLiveAccount} (the Refresh button / a routine).
+ *
+ * When no account is configured — the shipped default — it returns a clear
+ * `disconnected` state so the panel renders LIVE TRADING: OFF.
  *
  * This path is read-only: it can never place an order.
  */
-export async function getLiveAccount(opts?: {
-  fetcher?: PortfolioFetcher;
-  dataDir?: string;
-}): Promise<LiveAccount> {
-  if (!opts?.fetcher && !hasRobinhoodConnection()) {
+export async function getLiveAccount(): Promise<LiveAccount> {
+  if (!hasRobinhoodConnection()) return DISCONNECTED;
+
+  const snapshot = await readLatestSnapshot("live");
+  if (!snapshot) {
     return {
       snapshot: null,
-      source: "disconnected",
-      connected: false,
+      source: "robinhood",
+      connected: true,
       notice:
-        "Robinhood Agentic account not connected — live trading is off. " +
-        "Connecting and funding are deliberate human actions, gated on a passing Phase 2 scorecard.",
+        "Connected — no live snapshot yet. Use Refresh to pull the account.",
     };
   }
+  return { snapshot, source: "robinhood", connected: true, notice: null };
+}
+
+/**
+ * Fetch a **fresh** read-only snapshot of the live Agentic account: read it via
+ * the `claude` CLI (`get_portfolio` / `get_equity_positions`), enrich each
+ * position with the current Alpaca price (market value + unrealized P&L —
+ * Robinhood's position data carries no live mark), persist it, run the live
+ * drawdown kill switch, and return it. This is the only path that spawns the
+ * CLI; the page render reads what this persists. Falls back to the last saved
+ * snapshot (with a notice) if the read fails.
+ *
+ * Read-only: it can never place an order. `fetcher`/`getSnapshot` are injectable
+ * for tests so this runs without a CLI, a network, or a live account.
+ */
+export async function refreshLiveAccount(opts?: {
+  fetcher?: PortfolioFetcher;
+  getSnapshot?: SnapshotGetter;
+  dataDir?: string;
+}): Promise<LiveAccount> {
+  if (!opts?.fetcher && !hasRobinhoodConnection()) return DISCONNECTED;
 
   try {
-    const snapshot = await getRobinhoodLiveSnapshot({ fetcher: opts?.fetcher });
+    const raw = await getRobinhoodLiveSnapshot({ fetcher: opts?.fetcher });
+    const snapshot = await enrichLivePositions(raw, {
+      getSnapshot: opts?.getSnapshot,
+    }).catch(() => raw); // enrichment is best-effort; never sink the read on it
     // Persist so the LIVE panel and the agent read one shared source of truth.
     await recordSnapshot(snapshot, { dataDir: opts?.dataDir }).catch(() => {
       /* persistence is best-effort; never sink the live read on a write error */
@@ -101,10 +136,9 @@ export async function getLiveAccount(opts?: {
     const kill = await enforceLiveDrawdownKill(snapshot, {
       dataDir: opts?.dataDir,
     }).catch(() => null);
-    const notice =
-      kill?.halted
-        ? `Live drawdown −${(kill.drawdownPct * 100).toFixed(1)}% tripped the kill switch — live trading halted.`
-        : null;
+    const notice = kill?.halted
+      ? `Live drawdown −${(kill.drawdownPct * 100).toFixed(1)}% tripped the kill switch — live trading halted.`
+      : null;
     return { snapshot, source: "robinhood", connected: true, notice };
   } catch (err) {
     const snapshot = await readLatestSnapshot("live");
@@ -114,7 +148,7 @@ export async function getLiveAccount(opts?: {
       connected: true,
       notice: `Robinhood live read unavailable (${
         (err as Error).message
-      }) — showing the last saved live snapshot.`,
+      })${snapshot ? " — showing the last saved live snapshot." : "."}`,
     };
   }
 }

@@ -2,7 +2,11 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { getLiveAccount, getPaperAccount } from "./account";
+import {
+  getLiveAccount,
+  getPaperAccount,
+  refreshLiveAccount,
+} from "./account";
 
 // No ALPACA_* keys are set in the test environment, so the resolver must fall
 // back to the seed snapshot with a non-blocking notice.
@@ -27,22 +31,56 @@ describe("getLiveAccount", () => {
     expect(res.notice).toMatch(/not connected/i);
   });
 
-  it("returns a live snapshot when a portfolio fetcher is supplied", async () => {
+  it("renders from the persisted snapshot — no live read on the page path", async () => {
+    // getLiveAccount no longer spawns the CLI; with no account configured it is
+    // disconnected (covered above). The fresh read lives in refreshLiveAccount.
+    const res = await getLiveAccount();
+    expect(res.snapshot).toBeNull();
+  });
+});
+
+describe("refreshLiveAccount", () => {
+  it("reads via the fetcher and enriches positions with the Alpaca price", async () => {
     const dataDir = await mkdtemp(path.join(tmpdir(), "pta-live-"));
-    const res = await getLiveAccount({
+    const res = await refreshLiveAccount({
       dataDir,
       fetcher: async () => ({
         currency: "USD",
         equity: 100,
-        cash: 100,
-        buying_power: 100,
+        cash: 4,
+        buying_power: 4,
         last_equity: 100,
-        positions: [],
+        positions: [
+          {
+            symbol: "NVDA",
+            quantity: "0.1523",
+            side: "long",
+            average_buy_price: "196.97",
+            last_price: null, // Robinhood gives no live mark
+            market_value: 0,
+            cost_basis: "30",
+            unrealized_pl: 0,
+            unrealized_pl_pct: 0,
+          },
+        ],
       }),
+      // Injected Alpaca snapshot — last trade $150.
+      getSnapshot: async () =>
+        ({
+          latestTrade: { p: 150, t: "2026-06-25T20:00:00Z" },
+          dailyBar: null,
+          prevDailyBar: null,
+          minuteBar: null,
+        }) as never,
     });
+
     expect(res.connected).toBe(true);
     expect(res.source).toBe("robinhood");
-    expect(res.snapshot?.account).toBe("live");
-    expect(res.snapshot?.equity).toBe(100);
+    const pos = res.snapshot?.positions[0];
+    expect(pos?.symbol).toBe("NVDA");
+    // Market value + P&L are now computed from the Alpaca mark, not 0.
+    expect(pos?.lastPrice).toBe(150);
+    expect(pos?.marketValue).toBeCloseTo(0.1523 * 150, 4);
+    expect(pos?.unrealizedPl).toBeCloseTo(0.1523 * 150 - 30, 4);
   });
 });
