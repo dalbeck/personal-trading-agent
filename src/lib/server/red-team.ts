@@ -129,11 +129,17 @@ export async function runRedTeam(
   }
 }
 
+/** The codex binary to spawn. Defaults to `codex` (PATH-resolved), but can be
+ *  pinned via `CODEX_BIN` — needed when a broken/shadowing codex is earlier on
+ *  the PATH (e.g. an nvm `@openai/codex` whose native binary is missing, which
+ *  shadows a working Homebrew install in the launchd daemon's PATH). */
+const CODEX_BIN = process.env.CODEX_BIN || "codex";
+
 /** Spawn `codex exec` (a different model family) and capture its stdout. */
 const defaultCodexExec: RedTeamExec = (prompt) =>
   new Promise<string>((resolve, reject) => {
     // argv (no shell) so the prompt can't inject commands.
-    const child = spawn("codex", ["exec", prompt], { cwd: process.cwd() });
+    const child = spawn(CODEX_BIN, ["exec", prompt], { cwd: process.cwd() });
     child.stdin.end(); // `codex exec` reads stdin; close it so it won't hang.
 
     let stdout = "";
