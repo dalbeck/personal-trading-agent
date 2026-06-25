@@ -12,6 +12,7 @@ import { TickerLink } from "@/components/ticker-link";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
   ADVISORY_TAG,
+  LIVE_APPROVE_TAG,
   isAdvisoryProposal,
   type AdvisoryDecision,
 } from "@/lib/proposal-advisory";
@@ -125,6 +126,7 @@ export function ProposalsList({
           const pending = status === "pending";
           const result = results[p.id];
           const advisory = isAdvisoryProposal(p);
+          const liveApprovable = p.account === "live" && !advisory;
           const estCost = p.qty * p.limitPrice;
           return (
             <Card
@@ -145,6 +147,11 @@ export function ProposalsList({
                   {advisory ? (
                     <span className="inline-flex items-center rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide text-fg">
                       {ADVISORY_TAG}
+                    </span>
+                  ) : null}
+                  {liveApprovable ? (
+                    <span className="inline-flex items-center rounded-pill border border-accent bg-surface px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide text-fg">
+                      {LIVE_APPROVE_TAG}
                     </span>
                   ) : null}
                   {p.sample ? <SampleDataBadge /> : null}

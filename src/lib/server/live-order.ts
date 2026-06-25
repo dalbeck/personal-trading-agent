@@ -143,6 +143,9 @@ export interface ApprovalOrder {
   research?: string;
   tags?: string[];
   redTeam?: RedTeamVerdict | null;
+  /** Which book the order is for. A live order is risk-checked against the live
+   *  account's equity (not paper); defaults to paper. */
+  account?: "paper" | "live";
 }
 
 export type ApprovalOutcome =
@@ -246,11 +249,12 @@ export async function submitTradeApproval(
   }
 
   // Re-run the hard risk gate at approval time against current account state.
+  // A live order is sized against the LIVE account's equity, not paper.
   const proposed = toProposedOrder(order);
   const snapshot =
     opts.snapshot !== undefined
       ? opts.snapshot
-      : await readLatestSnapshot("paper");
+      : await readLatestSnapshot(order.account ?? "paper");
   if (snapshot) {
     const context: RiskContext = {
       equity: snapshot.equity,

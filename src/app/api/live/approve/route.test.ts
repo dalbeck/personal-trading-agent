@@ -85,14 +85,27 @@ describe("POST /api/live/approve — advisory proposals are non-executable", () 
     expect(setProposalStatus).not.toHaveBeenCalled();
   });
 
-  it("REFUSES a live proposal even if the advisory flag is missing (fail-safe)", async () => {
+  it("ROUTES an approvable live proposal (advisory:false) through the order path", async () => {
+    // Approvable live proposals are NOT advisory — the human can approve them
+    // and the app routes the order. The GATE (not this route) is the real-money
+    // boundary: gate-closed it lands in the dry-run sink. So it must reach
+    // submitTradeApproval, where routing/gating happens.
     readProposals.mockResolvedValue([
       proposal({ account: "live", advisory: false }),
     ]);
+    submitTradeApproval.mockResolvedValue({
+      outcome: "approved",
+      destination: "alpaca-paper",
+      dryRun: true,
+    });
 
     const res = await POST(post({ proposalId: "p-1", decision: "approve" }));
-    expect(res.status).toBe(422);
-    expect(submitTradeApproval).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(submitTradeApproval).toHaveBeenCalledTimes(1);
+    // Gate-closed → dry-run sink, never Robinhood.
+    const body = await res.json();
+    expect(body.dryRun).toBe(true);
+    expect(body.destination).not.toBe("robinhood");
   });
 
   it("still routes a normal PAPER proposal through the order path", async () => {

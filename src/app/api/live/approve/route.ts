@@ -87,6 +87,7 @@ export async function POST(req: Request): Promise<Response> {
         thesis: proposal.thesis,
         reasoning: proposal.reasoning,
         redTeam: proposal.redTeam,
+        account: proposal.account,
       },
     });
   } catch (err) {

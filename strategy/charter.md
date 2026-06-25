@@ -5,9 +5,13 @@ comply; the hard-coded risk engine (`lib/risk/`) and the red-team prosecutor
 enforce it. **The agent may never edit this file or override a rule** — changing
 the charter is a deliberate human act, recorded in the change log below.
 
-> **Scope: paper only.** Phase 2 runs entirely on Alpaca paper. No real-money
-> order, no live brokerage, no Robinhood. Real money is Phase 3 and requires the
-> separate two-gate human approval.
+> **Scope.** The **autonomous desk trades paper only** (Alpaca) — it is the
+> proving ground and never places a real-money order on its own. **Live
+> (Robinhood) execution is human-approved only:** the desk proposes, the human
+> approves each order, and only then does the app place it — and only once the
+> **two gates** are open (a deliberate human action the agent cannot perform).
+> The app **never auto-trades**. Hands-off automation (no human in the loop)
+> remains gated on a passing Phase 2 evaluation scorecard.
 
 ## Universe
 
@@ -79,6 +83,12 @@ order, no execution path).
   prosecutor (different model family, defaults to "no") before it can be placed.
 - Each trade and each rejection is written to the decision journal at decision
   time; rejections record the blocking rule or the prosecutor's reasoning.
+- **Live execution is human-approved, per trade.** Every live order requires an
+  explicit human approval at decision time; the app never auto-trades. It can
+  only reach Robinhood once **both gates** are open (`assertLiveOrderAllowed`
+  fails closed); the agent can open neither gate nor grant itself order
+  permission. Until then, an approved live order routes to the dry-run sink.
+  Hands-off automation stays gated on the Phase 2 scorecard.
 
 ## Benchmark & goal
 
@@ -90,6 +100,16 @@ order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-06-25** — Reframed **scope** for **human-approved live execution**: the
+  autonomous desk still trades paper only, but live (Robinhood) orders are now
+  permitted **when a human approves each one** and **both gates are open** — the
+  app never auto-trades, and the agent can open neither gate. Hands-off
+  automation stays gated on the Phase 2 scorecard. Added the matching Governance
+  bullet. No risk-rail or cap numbers changed (`charter.config.ts` unchanged).
+  Rationale: the owner wants the human to be the per-trade decision-maker
+  (propose → approve → place) rather than executing every live trade by hand;
+  the two-gate + per-trade-approval safety model is unchanged. See
+  `planning/live-execution-spec.md`.
 - **2026-06-25** — Added the **Discovery caps (Phase 3)** section: at most **6**
   new proposals per discovery run (tracks the daily order cap) and a **20**-symbol
   watchlist ceiling for auto-added discovery candidates. Mirrored in
