@@ -180,6 +180,9 @@ export interface SymbolResearch {
   cost: number | null;
   robinhoodConnected: boolean;
   perplexity: PerplexityStatus;
-  /** True when this payload was served from the per-day cache (no fresh call). */
+  /** True when this payload was served from the cache (no fresh call). */
   cached: boolean;
+  /** When this payload was fetched (ISO). Drives the "fetched N ago" freshness
+   *  label + the soft max-age refetch. Null on a never-cached live build. */
+  fetchedAt: string | null;
 }

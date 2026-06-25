@@ -8,7 +8,11 @@ import {
   formatPercent,
   toneForValue,
 } from "@/lib/format";
-import { RESEARCH_PROVIDER_LABEL } from "@/lib/research-display";
+import {
+  RESEARCH_PROVIDER_LABEL,
+  isResearchStale,
+  researchAgeLabel,
+} from "@/lib/research-display";
 import type {
   EarningsQuarter,
   FinanceSection,
@@ -30,10 +34,15 @@ export function ResearchSummaryCard({
   research,
   quote,
   loading = false,
+  onRefresh,
+  refreshing = false,
 }: {
   research: SymbolResearch | null;
   quote: SymbolQuote | null;
   loading?: boolean;
+  /** When provided, renders the freshness label + a manual Refresh control. */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const note = research ? perplexityNote(research.perplexity) : null;
   const hasContent =
@@ -50,11 +59,20 @@ export function ResearchSummaryCard({
       aria-labelledby="ai-research-heading"
       className="rounded-card border border-line bg-surface-raised p-5"
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="ai-research-heading" className="text-sm font-semibold text-fg">
           AI research highlights
         </h2>
-        <p className="text-xs text-fg-muted">{sourceNote(research)}</p>
+        <div className="flex items-center gap-2.5">
+          <p className="text-xs text-fg-muted">{sourceNote(research)}</p>
+          {onRefresh ? (
+            <FreshnessRefresh
+              research={research}
+              onRefresh={onRefresh}
+              refreshing={refreshing}
+            />
+          ) : null}
+        </div>
       </div>
 
       {loading ? (
@@ -78,12 +96,63 @@ export function ResearchSummaryCard({
   );
 }
 
-/** Honest one-line provenance, e.g. "Perplexity Finance · capped · cached today". */
+/** Honest one-line provenance, e.g. "Perplexity Finance · capped · cached". */
 function sourceNote(research: SymbolResearch | null): string {
   const parts = [RESEARCH_PROVIDER_LABEL];
   if (research?.perplexity === "capped") parts.push("capped");
-  if (research?.cached) parts.push("cached today");
+  if (research?.cached) parts.push("cached");
   return parts.join(" · ");
+}
+
+/**
+ * Freshness label ("fetched N ago", flagged stale past the threshold) + a manual
+ * Refresh control. Refresh re-spends (a metered call), so it is disabled while a
+ * refresh is in flight and when the daily research cap is hit. Display-only
+ * staleness — it never auto-spends.
+ */
+function FreshnessRefresh({
+  research,
+  onRefresh,
+  refreshing,
+}: {
+  research: SymbolResearch | null;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  const fetchedAt = research?.fetchedAt ?? null;
+  const age = researchAgeLabel(fetchedAt);
+  const stale = isResearchStale(fetchedAt);
+  const capped = research?.perplexity === "capped";
+
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      {refreshing ? (
+        <span className="text-fg-muted">Refreshing…</span>
+      ) : age ? (
+        <span
+          className={stale ? "font-medium text-warning" : "text-fg-muted"}
+          title={fetchedAt ? new Date(fetchedAt).toLocaleString() : undefined}
+        >
+          fetched {age}
+          {stale ? " · stale" : ""}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={refreshing || capped}
+        aria-label="Refresh research"
+        title={
+          capped
+            ? "Daily research cap reached — try again tomorrow"
+            : "Re-fetch research (uses a metered call)"
+        }
+        className="rounded-pill border border-line bg-surface-overlay px-2.5 py-0.5 font-medium text-fg transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Refresh
+      </button>
+    </div>
+  );
 }
 
 function CardBody({

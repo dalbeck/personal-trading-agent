@@ -32,9 +32,18 @@ import type {
  * field is nullable and the UI renders "—".
  */
 
+/** Soft max-age: cached research older than this auto-refetches (the daily cap
+ *  still gates the spend). A manual refresh (`force`) always refetches. */
+const RESEARCH_MAX_AGE_MS =
+  Number(process.env.RESEARCH_MAX_AGE_DAYS ?? 7) * 86_400_000;
+
 interface GetSymbolResearchOpts {
   now?: () => Date;
   dataDir?: string;
+  /** Force a refetch (manual Refresh), bypassing the fresh-cache short-circuit. */
+  force?: boolean;
+  /** Override the soft max-age (tests). */
+  maxAgeMs?: number;
   /** Injectable Robinhood fundamentals fetch (tests bypass the CLI). */
   fetchRobinhood?: (
     symbol: string,
@@ -102,6 +111,7 @@ export function mergeSymbolResearch(args: {
     robinhoodConnected,
     perplexity: perplexityStatus,
     cached: false,
+    fetchedAt: null,
   };
 }
 
@@ -112,9 +122,16 @@ export async function getSymbolResearch(
   const now = opts?.now?.() ?? new Date();
   const date = now.toISOString().slice(0, 10);
   const dataDir = opts?.dataDir;
+  const maxAgeMs = opts?.maxAgeMs ?? RESEARCH_MAX_AGE_MS;
 
-  const cached = await readResearchCache(symbol, date, { dataDir });
-  if (cached) return cached;
+  // Freshness policy: serve the cached entry unless it is older than the soft
+  // max-age or the caller forced a manual refresh. Crossing midnight no longer
+  // re-spends — only age or an explicit Refresh does.
+  const cached = await readResearchCache(symbol, { dataDir });
+  if (cached && !opts?.force) {
+    const age = now.getTime() - Date.parse(cached.fetchedAt ?? "");
+    if (Number.isFinite(age) && age >= 0 && age <= maxAgeMs) return cached;
+  }
 
   const robinhoodConnected = opts?.robinhoodConnected ?? hasRobinhoodConnection();
   const provider = opts?.provider ?? getResearchProvider();
@@ -150,15 +167,22 @@ export async function getSymbolResearch(
   });
 
   // Only cache a payload that carries real data — never pin a transient failure
-  // (or a plain "off/capped with nothing") for the rest of the day.
-  if (
+  // (or a plain "off/capped with nothing").
+  const hasData =
     merged.fundamentals ||
     merged.profile ||
     merged.consensus ||
-    merged.summary
-  ) {
-    await writeResearchCache(symbol, date, merged, { dataDir });
+    merged.summary;
+  if (hasData) {
+    const fetchedAt = now.toISOString();
+    await writeResearchCache(symbol, merged, fetchedAt, { dataDir });
+    return { ...merged, fetchedAt };
   }
 
+  // A refetch that came back empty (e.g. the daily cap was hit) must not wipe a
+  // good prior cache: keep the cached data, surface the fresh status flag.
+  if (cached) {
+    return { ...cached, perplexity: merged.perplexity };
+  }
   return merged;
 }

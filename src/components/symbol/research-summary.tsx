@@ -1,7 +1,10 @@
 "use client";
 
 import { ResearchSummaryCard } from "@/components/symbol/research-summary-card";
-import { useSymbolResearch } from "@/components/symbol/research-context";
+import {
+  useResearchRefresh,
+  useSymbolResearch,
+} from "@/components/symbol/research-context";
 import type { SymbolQuote } from "@/lib/symbol";
 
 /**
@@ -12,12 +15,15 @@ import type { SymbolQuote } from "@/lib/symbol";
  */
 export function SymbolResearchSummary({ quote }: { quote: SymbolQuote | null }) {
   const state = useSymbolResearch();
+  const { refresh, refreshing } = useResearchRefresh();
   const research = state.status === "loaded" ? state.research : null;
   return (
     <ResearchSummaryCard
       research={research}
       quote={quote}
       loading={state.status === "loading"}
+      onRefresh={refresh}
+      refreshing={refreshing}
     />
   );
 }
