@@ -53,7 +53,10 @@ the sync is idempotent (an internal state file, like the halt latch / funding
 tracker — written directly, not a `data/` artifact contract). Coaching entries
 stay behavior-driven: `paper` reviews grade the desk; `live` reviews coach the
 human's manual execution, kept in separate entries so the paper-desk evaluation
-is never contaminated.
+is never contaminated. `data/control/risk-settings.json` (`RiskSettingsSchema`)
+is the human's per-rail overrides of the charter `RISK_LIMITS` — likewise an
+internal state file (written directly, not a `data/` artifact contract), layered
+in at per-trade approval (`src/lib/server/risk-settings.ts`; see `.agents/infra.md`).
 
 **Proposal `account` / `advisory` (live vs paper).** A `TradeProposal` carries
 `account` (`paper` | `live`, default `paper`) and `advisory` (default `false`).

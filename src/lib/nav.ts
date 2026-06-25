@@ -11,6 +11,7 @@ import {
   OverviewIcon,
   PositionsIcon,
   ProposalsIcon,
+  RiskIcon,
   RoutinesIcon,
   StrategyIcon,
 } from "@/components/icons";
@@ -38,5 +39,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Logs", href: "/logs", icon: LogsIcon },
   { label: "Operations", href: "/operations", icon: OperationsIcon },
   { label: "Evaluation", href: "/evaluation", icon: EvaluationIcon },
+  { label: "Risk settings", href: "/risk", icon: RiskIcon },
   { label: "Go-live", href: "/go-live", icon: GoLiveIcon },
 ];

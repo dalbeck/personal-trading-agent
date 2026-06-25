@@ -35,7 +35,13 @@ const advisoryStatusLabel: Partial<Record<Status, string>> = {
 };
 
 interface DecisionResult {
-  outcome: "approved" | "denied" | "blocked-risk" | "blocked-redteam";
+  outcome:
+    | "approved"
+    | "denied"
+    | "blocked-risk"
+    | "blocked-redteam"
+    | "blocked-caps"
+    | "error";
   destination?: "robinhood" | "alpaca-paper" | "mock";
   brokerOrderId?: string;
   dryRun: boolean;
@@ -46,7 +52,23 @@ const outcomeLabel: Record<DecisionResult["outcome"], string> = {
   denied: "Denied (journaled)",
   "blocked-risk": "Blocked by risk rails",
   "blocked-redteam": "Blocked by red-team",
+  "blocked-caps": "Blocked by live caps",
+  error: "Order error (still pending)",
 };
+
+interface Violation {
+  rule: string;
+  message: string;
+}
+
+interface PrecheckResult {
+  redTeamRejects: boolean;
+  redTeamNotes: string | null;
+  railViolations: Violation[];
+  capViolations: Violation[];
+  liveEnabled: boolean;
+  blocked: boolean;
+}
 
 export function ProposalsList({
   proposals,
@@ -62,6 +84,11 @@ export function ProposalsList({
   >({});
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [precheck, setPrecheck] = useState<{
+    loading: boolean;
+    result: PrecheckResult | null;
+  }>({ loading: false, result: null });
+  const [overrideComment, setOverrideComment] = useState("");
 
   const statusOf = (p: TradeProposal): Status => {
     const adv = advResults[p.id];
@@ -71,13 +98,23 @@ export function ProposalsList({
     return r.outcome === "approved" ? "approved" : "rejected";
   };
 
-  async function decide(id: string, decision: "approve" | "deny") {
+  async function decide(
+    id: string,
+    decision: "approve" | "deny",
+    overrideCommentText?: string,
+  ) {
     setBusyId(id);
     try {
       const res = await fetch("/api/live/approve", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ proposalId: id, decision }),
+        body: JSON.stringify({
+          proposalId: id,
+          decision,
+          ...(overrideCommentText && overrideCommentText.trim()
+            ? { override: { comment: overrideCommentText.trim() } }
+            : {}),
+        }),
       });
       const data = (await res.json()) as DecisionResult & { error?: string };
       if (res.ok) {
@@ -87,6 +124,26 @@ export function ProposalsList({
     } finally {
       setBusyId(null);
       setConfirmId(null);
+    }
+  }
+
+  // Open the approve dialog and run the read-only precheck so the 2-step
+  // override can show exactly what (if anything) is blocking the order. All
+  // state writes happen after an await — never synchronously in an effect.
+  async function openConfirm(id: string) {
+    setConfirmId(id);
+    setOverrideComment("");
+    setPrecheck({ loading: true, result: null });
+    try {
+      const res = await fetch("/api/live/approve/precheck", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ proposalId: id }),
+      });
+      const data = res.ok ? ((await res.json()) as PrecheckResult) : null;
+      setPrecheck({ loading: false, result: data });
+    } catch {
+      setPrecheck({ loading: false, result: null });
     }
   }
 
@@ -110,8 +167,13 @@ export function ProposalsList({
   }
 
   const confirmProposal = proposals.find((p) => p.id === confirmId) ?? null;
-  const redTeamRejected =
-    confirmProposal?.redTeam?.verdict === "reject";
+  // The precheck (read-only) tells us exactly what is blocking the order, so the
+  // dialog can require a typed justification before "Override & approve".
+  const blocks = precheck.result;
+  const blocked = blocks?.blocked ?? false;
+  const overrideReady = overrideComment.trim().length > 0;
+  const confirmBlocked =
+    busyId !== null || precheck.loading || (blocked && !overrideReady);
 
   return (
     <>
@@ -235,7 +297,7 @@ export function ProposalsList({
                         variant="primary"
                         size="sm"
                         disabled={busyId === p.id}
-                        onClick={() => setConfirmId(p.id)}
+                        onClick={() => openConfirm(p.id)}
                       >
                         Approve…
                       </Button>
@@ -275,6 +337,7 @@ export function ProposalsList({
 
       <AlertDialog
         open={confirmProposal !== null}
+        size="lg"
         title={
           confirmProposal
             ? `Approve ${confirmProposal.action.toUpperCase()} ${confirmProposal.symbol}?`
@@ -288,64 +351,121 @@ export function ProposalsList({
         confirmLabel={
           busyId
             ? "Routing…"
-            : liveEnabled
-              ? "Approve — place LIVE order"
-              : "Approve (dry-run)"
+            : precheck.loading
+              ? "Checking rails…"
+              : blocked
+                ? "Override & approve"
+                : liveEnabled
+                  ? "Approve — place LIVE order"
+                  : "Approve (dry-run)"
         }
-        confirmVariant={liveEnabled ? "danger" : "primary"}
-        confirmDisabled={redTeamRejected || busyId !== null}
-        onConfirm={() => confirmProposal && decide(confirmProposal.id, "approve")}
+        confirmVariant={blocked || liveEnabled ? "danger" : "primary"}
+        confirmDisabled={confirmBlocked}
+        onConfirm={() =>
+          confirmProposal &&
+          decide(
+            confirmProposal.id,
+            "approve",
+            blocked ? overrideComment : undefined,
+          )
+        }
         onDismiss={() => setConfirmId(null)}
       >
         {confirmProposal ? (
-          <div className="rounded-card border border-line bg-surface p-3">
-            <dl className="grid grid-cols-2 gap-y-1.5 text-sm">
-              <dt className="text-fg-muted">Ticker</dt>
-              <dd className="text-right font-medium text-fg">
-                {confirmProposal.symbol}
-              </dd>
-              <dt className="text-fg-muted">Side / action</dt>
-              <dd className="text-right tabular-nums text-fg">
-                {confirmProposal.action} · {confirmProposal.side}
-              </dd>
-              <dt className="text-fg-muted">Quantity</dt>
-              <dd className="text-right tabular-nums text-fg">
-                {confirmProposal.qty}
-              </dd>
-              <dt className="text-fg-muted">Order type</dt>
-              <dd className="text-right text-fg">marketable-limit</dd>
-              <dt className="text-fg-muted">Limit price</dt>
-              <dd className="text-right tabular-nums text-fg">
-                {formatCurrency(confirmProposal.limitPrice)}
-              </dd>
-              <dt className="text-fg-muted">Est. cost</dt>
-              <dd className="text-right tabular-nums text-fg">
-                {formatCurrency(
-                  confirmProposal.qty * confirmProposal.limitPrice,
-                )}
-              </dd>
-              {confirmProposal.stopPrice !== null ? (
-                <>
-                  <dt className="text-fg-muted">Stop</dt>
-                  <dd className="text-right tabular-nums text-fg">
-                    {formatCurrency(confirmProposal.stopPrice)}
-                  </dd>
-                </>
-              ) : null}
-            </dl>
+          <div className="flex flex-col gap-4">
+            <div className="rounded-card border border-line bg-surface p-4">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                <dt className="text-fg-muted">Ticker</dt>
+                <dd className="text-right font-medium text-fg">
+                  {confirmProposal.symbol}
+                </dd>
+                <dt className="text-fg-muted">Side / action</dt>
+                <dd className="text-right tabular-nums text-fg">
+                  {confirmProposal.action} · {confirmProposal.side}
+                </dd>
+                <dt className="text-fg-muted">Quantity</dt>
+                <dd className="text-right tabular-nums text-fg">
+                  {confirmProposal.qty}
+                </dd>
+                <dt className="text-fg-muted">Order type</dt>
+                <dd className="text-right text-fg">marketable-limit</dd>
+                <dt className="text-fg-muted">Limit price</dt>
+                <dd className="text-right tabular-nums text-fg">
+                  {formatCurrency(confirmProposal.limitPrice)}
+                </dd>
+                <dt className="text-fg-muted">Est. cost</dt>
+                <dd className="text-right tabular-nums text-fg">
+                  {formatCurrency(
+                    confirmProposal.qty * confirmProposal.limitPrice,
+                  )}
+                </dd>
+                {confirmProposal.stopPrice !== null ? (
+                  <>
+                    <dt className="text-fg-muted">Stop</dt>
+                    <dd className="text-right tabular-nums text-fg">
+                      {formatCurrency(confirmProposal.stopPrice)}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
 
-            <p className="mt-3 border-t border-line pt-3 text-pretty text-sm text-fg">
-              {confirmProposal.thesis}
-            </p>
+              <p className="mt-3 border-t border-line pt-3 text-pretty text-sm text-fg">
+                {confirmProposal.thesis}
+              </p>
+            </div>
 
             {confirmProposal.redTeam ? (
-              <RedTeamVerdict verdict={confirmProposal.redTeam} className="mt-3" />
+              <RedTeamVerdict verdict={confirmProposal.redTeam} />
             ) : null}
 
-            {redTeamRejected ? (
-              <p className="mt-3 text-pretty text-sm font-medium text-danger">
-                Red-team rejected this trade — it cannot be approved.
+            {precheck.loading ? (
+              <p className="text-sm text-fg-muted">
+                Checking the risk rails and red-team…
               </p>
+            ) : blocked && blocks ? (
+              <div className="rounded-card border border-danger-border bg-danger-surface p-4">
+                <p className="text-sm font-semibold text-danger">
+                  This order is blocked by a safeguard. Overriding is a
+                  deliberate, logged choice on your own account.
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-danger">
+                  {blocks.redTeamRejects ? (
+                    <li>
+                      <span className="font-semibold">Red-team REJECT</span>
+                      {blocks.redTeamNotes ? ` — ${blocks.redTeamNotes}` : ""}
+                    </li>
+                  ) : null}
+                  {blocks.railViolations.map((v) => (
+                    <li key={v.rule}>
+                      <span className="font-semibold">Rail · {v.rule}</span> —{" "}
+                      {v.message}
+                    </li>
+                  ))}
+                  {blocks.capViolations.map((v) => (
+                    <li key={v.rule}>
+                      <span className="font-semibold">Live cap · {v.rule}</span>{" "}
+                      — {v.message}
+                    </li>
+                  ))}
+                </ul>
+                <label className="mt-3 block">
+                  <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+                    Justification (required to override)
+                  </span>
+                  <textarea
+                    value={overrideComment}
+                    onChange={(e) => setOverrideComment(e.target.value)}
+                    rows={3}
+                    placeholder="Why are you overriding this safeguard? This is logged to the journal for your audit."
+                    className="mt-1 w-full rounded-card border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </label>
+                {!overrideReady ? (
+                  <p className="mt-1 text-xs text-fg-muted">
+                    Enter a justification to enable “Override &amp; approve”.
+                  </p>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}

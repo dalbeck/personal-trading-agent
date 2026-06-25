@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/header";
+import { LiveBanner } from "@/components/live-banner";
 import { Sidebar } from "@/components/sidebar";
 
 const inter = Inter({
@@ -36,6 +37,7 @@ export default function RootLayout({
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
             <Header />
+            <LiveBanner />
             {/* Fluid full-width shell: comfortable 24–32px gutters, capped at
                 1800px on ultra-wide so line lengths stay sane. The inner
                 wrapper carries the height chain (flex-1) so pages that fill the

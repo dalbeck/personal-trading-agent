@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HARNESS_ORDER_PERMISSIONS } from "./gate";
 import {
   buildPlaceOrderCliCommand,
+  hasValidOverride,
   placeLiveOrder,
   routeApprovedOrder,
   submitTradeApproval,
@@ -417,5 +418,153 @@ describe("per-trade approval", () => {
     );
     expect(body).toMatch(/routed to robinhood/);
     expect(body).not.toMatch(/dry-run sink/);
+  });
+});
+
+describe("hasValidOverride", () => {
+  it("is true only for a present override with a non-empty (trimmed) comment", () => {
+    expect(hasValidOverride({ comment: "I accept the event risk." })).toBe(true);
+    expect(hasValidOverride({ comment: "   " })).toBe(false);
+    expect(hasValidOverride({ comment: "" })).toBe(false);
+    expect(hasValidOverride(null)).toBe(false);
+    expect(hasValidOverride(undefined)).toBe(false);
+  });
+});
+
+describe("human override of approval blocks", () => {
+  const REJECTED: ApprovalOrder = {
+    ...ORDER,
+    redTeam: { verdict: "reject", notes: "Crowded long; stop too wide.", factors: [], basis: null },
+  };
+
+  it("a blank override comment does NOT bypass a red-team reject", async () => {
+    const gate = await closedGate();
+    const res = await submitTradeApproval(
+      {
+        order: REJECTED,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+        override: { comment: "   " }, // whitespace only → not valid
+      },
+      { ...gate, snapshot: null },
+    );
+    expect(res.outcome).toBe("blocked-redteam");
+    expect(res.brokerOrderId).toBeUndefined();
+  });
+
+  it("no override at all leaves the red-team reject blocking", async () => {
+    const gate = await closedGate();
+    const res = await submitTradeApproval(
+      {
+        order: REJECTED,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      { ...gate, snapshot: null },
+    );
+    expect(res.outcome).toBe("blocked-redteam");
+  });
+
+  it("a valid override (non-empty comment) bypasses the red-team reject, places to the dry-run sink, and LOGS the override", async () => {
+    const gate = await closedGate();
+    const comment = "I accept the event risk and am sizing to a single share.";
+    const res = await submitTradeApproval(
+      {
+        order: REJECTED,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+        override: { comment },
+      },
+      { ...gate, snapshot: null, mockOrderId: "mock-ovr" },
+    );
+    expect(res.outcome).toBe("approved");
+    // The override never opens the gate: a gate-closed approval still goes to the
+    // dry-run sink, never Robinhood.
+    expect(res.dryRun).toBe(true);
+    expect(res.destination).not.toBe("robinhood");
+
+    // Every override is logged — the comment, the tag, and what was overridden.
+    const files = await journalFiles(gate.dataDir);
+    const trade = files.find((f) => f.includes("msft-buy"))!;
+    expect(trade).toBeDefined();
+    const body = await readFile(
+      path.join(gate.dataDir, "decision-journal", trade),
+      "utf8",
+    );
+    expect(body).toContain("HUMAN OVERRIDE");
+    expect(body).toContain(comment);
+    expect(body).toContain("override:red-team");
+    expect(body).toContain("human-override");
+  });
+
+  it("a valid override bypasses a risk-rail violation and logs which rail was overridden", async () => {
+    const gate = await closedGate();
+    // Tiny equity → the order exceeds the 20% per-position size rail.
+    const snapshot = {
+      account: "paper",
+      asOf: "2026-06-24T10:00:00-04:00",
+      currency: "USD",
+      equity: 100,
+      cash: 100,
+      buyingPower: 100,
+      totalPl: 0,
+      totalPlPct: 0,
+      dayPl: 0,
+      dayPlPct: 0,
+      positions: [],
+      equityCurve: [],
+    } as PortfolioSnapshot;
+
+    const res = await submitTradeApproval(
+      {
+        order: ORDER, // red-team approves; the rail is what blocks
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+        override: { comment: "Deliberate concentrated starter position." },
+      },
+      { ...gate, snapshot, mockOrderId: "mock-rail" },
+    );
+    expect(res.outcome).toBe("approved");
+
+    const files = await journalFiles(gate.dataDir);
+    const trade = files.find((f) => f.includes("msft-buy"))!;
+    const body = await readFile(
+      path.join(gate.dataDir, "decision-journal", trade),
+      "utf8",
+    );
+    expect(body).toContain("override:position-size");
+    expect(body).toContain("Deliberate concentrated starter position.");
+  });
+
+  it("without an override, the same rail violation still blocks", async () => {
+    const gate = await closedGate();
+    const snapshot = {
+      account: "paper",
+      asOf: "2026-06-24T10:00:00-04:00",
+      currency: "USD",
+      equity: 100,
+      cash: 100,
+      buyingPower: 100,
+      totalPl: 0,
+      totalPlPct: 0,
+      dayPl: 0,
+      dayPlPct: 0,
+      positions: [],
+      equityCurve: [],
+    } as PortfolioSnapshot;
+    const res = await submitTradeApproval(
+      {
+        order: ORDER,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      { ...gate, snapshot },
+    );
+    expect(res.outcome).toBe("blocked-risk");
   });
 });

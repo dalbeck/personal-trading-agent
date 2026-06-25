@@ -3,7 +3,13 @@ import "server-only";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
-import { evaluateOrder, type ProposedOrder, type RiskContext } from "@/lib/risk";
+import {
+  evaluateOrder,
+  type ProposedOrder,
+  type RiskContext,
+  type RiskLimits,
+  type Violation,
+} from "@/lib/risk";
 import type { PortfolioSnapshot, RedTeamVerdict } from "@/lib/types";
 import { hasAlpacaCredentials, placePaperOrder } from "./alpaca";
 import { readLatestSnapshot } from "./data";
@@ -16,6 +22,7 @@ import {
   evaluateLiveCaps,
   liveCapContextFromSnapshot,
 } from "./live-guards";
+import { getEffectiveRiskConfig } from "./risk-settings";
 import {
   runRedTeam,
   type RedTeamExec,
@@ -254,12 +261,32 @@ export interface ApprovalResult {
   error?: string;
 }
 
+/**
+ * A per-trade human override of an approval block (a red-team REJECT and/or a
+ * risk-rail / live-cap violation). The owner can override any of these on their
+ * own funded account, but ONLY with a **non-empty justification comment** — the
+ * single safeguard the software enforces here (the two live gates are separate
+ * and never overridable). A blank comment is NOT a valid override. Every applied
+ * override is journaled with this comment. See `.agents/infra.md`.
+ */
+export interface ApprovalOverride {
+  comment: string;
+}
+
+/** True only for a present override carrying a non-empty (trimmed) comment. */
+export function hasValidOverride(override?: ApprovalOverride | null): boolean {
+  return !!override && override.comment.trim().length > 0;
+}
+
 export interface ApprovalInput {
   order: ApprovalOrder;
   decision: "approve" | "deny";
   approver: string;
   timestamp: string;
   reason?: string;
+  /** Present (with a non-empty comment) to override a red-team reject and/or a
+   *  rail/cap violation at this approval. */
+  override?: ApprovalOverride | null;
 }
 
 export interface ApprovalOpts extends RouteOpts {
@@ -269,6 +296,33 @@ export interface ApprovalOpts extends RouteOpts {
   liveSnapshot?: PortfolioSnapshot | null;
   /** Red-team prosecutor seam (tests inject; default spawns `codex exec`). */
   redTeamExec?: RedTeamExec;
+  /** Effective risk config seam (tests inject; defaults to the human's settings
+   *  overlaid on the charter limits). */
+  riskConfig?: { limits: RiskLimits; skipRules: readonly string[] };
+}
+
+/**
+ * The blocks an order faces at approval time, evaluated WITHOUT side effects:
+ * the red-team verdict, the risk-rail violations (with the human's risk-settings
+ * overlay applied), and the live-cap violations (only when the order will go
+ * live). Used by the approve precheck (to drive the 2-step override UI) and by
+ * {@link submitTradeApproval} itself.
+ */
+export interface ApprovalBlocks {
+  redTeam: RedTeamVerdict | null;
+  redTeamRejects: boolean;
+  railViolations: Violation[];
+  capViolations: Violation[];
+  liveEnabled: boolean;
+}
+
+/** True when an order is blocked by red-team and/or a rail/cap violation. */
+export function approvalIsBlocked(b: ApprovalBlocks): boolean {
+  return (
+    b.redTeamRejects ||
+    b.railViolations.length > 0 ||
+    b.capViolations.length > 0
+  );
 }
 
 function toProposedOrder(o: ApprovalOrder): ProposedOrder {
@@ -304,9 +358,88 @@ function highWater(snapshot: PortfolioSnapshot): number {
 }
 
 /**
+ * Evaluate every approval-time block WITHOUT side effects: the cross-model
+ * red-team verdict, the risk-rail violations (with the human's risk-settings
+ * overlay applied — a disabled rail is skipped, an adjusted number is honoured),
+ * and the live-cap violations (only when the order will actually go live). The
+ * red-team **fails closed** to a reject if it has no stored verdict and the
+ * prosecutor is unavailable. Used by the approve precheck (to drive the 2-step
+ * override UI) and by {@link submitTradeApproval}.
+ */
+export async function evaluateApprovalBlocks(
+  order: ApprovalOrder,
+  opts: ApprovalOpts = {},
+): Promise<ApprovalBlocks> {
+  const proposed = toProposedOrder(order);
+
+  const redTeam =
+    order.redTeam ??
+    (await runRedTeam(toRedTeamProposal(order), { exec: opts.redTeamExec }));
+  const redTeamRejects = redTeam.verdict === "reject";
+
+  // Risk rails — sized against the relevant book, with the human's overlay.
+  const snapshot =
+    opts.snapshot !== undefined
+      ? opts.snapshot
+      : await readLatestSnapshot(order.account ?? "paper");
+  let railViolations: Violation[] = [];
+  if (snapshot) {
+    const { limits, skipRules } =
+      opts.riskConfig ??
+      (await getEffectiveRiskConfig({ dataDir: opts.dataDir }));
+    const context: RiskContext = {
+      equity: snapshot.equity,
+      highWaterEquity: highWater(snapshot),
+      openPositions: snapshot.positions.map((p) => ({
+        symbol: p.symbol,
+        marketValue: p.marketValue,
+      })),
+      ordersToday: 0,
+      spyIntradayChangePct: 0,
+      vix: 15,
+    };
+    railViolations = evaluateOrder(proposed, context, limits, {
+      skipRules,
+    }).violations;
+  }
+
+  // Live-only caps (M4) — only when this order will actually go live.
+  const status = await getLiveTradingStatus(gateOpts(opts));
+  let capViolations: Violation[] = [];
+  if (status.liveEnabled) {
+    const liveSnap =
+      opts.liveSnapshot !== undefined
+        ? opts.liveSnapshot
+        : await readLatestSnapshot("live");
+    capViolations = evaluateLiveCaps(
+      proposed,
+      liveCapContextFromSnapshot(
+        liveSnap,
+        Number(process.env.LIVE_FUNDED_CAPITAL_USD ?? 0),
+      ),
+    ).violations;
+  }
+
+  return {
+    redTeam,
+    redTeamRejects,
+    railViolations,
+    capViolations,
+    liveEnabled: status.liveEnabled,
+  };
+}
+
+/**
  * Record a human approval/denial and, on approval, route the order through the
  * gate to its destination. This is the ONLY place an approved live-intent order
  * is sent to a broker, and it records the decision before doing so.
+ *
+ * A red-team **reject** and any risk-rail / live-cap **violation** block the
+ * order UNLESS the human supplies a valid {@link ApprovalOverride} (a non-empty
+ * comment) — their deliberate, logged choice on their own funded account. The
+ * two live gates are never overridden here: an approved order still routes
+ * through {@link routeApprovedOrder}, so the gate-closed default still lands in
+ * the dry-run sink, never Robinhood.
  */
 export async function submitTradeApproval(
   input: ApprovalInput,
@@ -336,86 +469,47 @@ export async function submitTradeApproval(
     return { outcome: "denied", journalId: id, dryRun: true };
   }
 
-  // Every live-intent order must clear the cross-model red-team before it can be
-  // placed (charter). If the proposal already carries a verdict, use it; if not
-  // (e.g. a discovery proposal that wasn't red-teamed), run it now. The red-team
-  // fails closed to a "reject", so a missing/unavailable prosecutor blocks — it
-  // never silently allows. A "reject" can never be approved into an order.
-  const redTeam =
-    order.redTeam ??
-    (await runRedTeam(toRedTeamProposal(order), { exec: opts.redTeamExec }));
-  if (redTeam.verdict === "reject") {
+  const blocks = await evaluateApprovalBlocks(order, opts);
+  const override = hasValidOverride(input.override);
+  const proposed = toProposedOrder(order);
+
+  // Each block holds UNLESS the human supplied a valid (non-empty-comment)
+  // override. A blank comment is not a valid override, so the block still fires.
+  if (blocks.redTeamRejects && !override) {
     const { id } = await recordRejection(
       {
         ...journalMeta,
         proposedAction: order.action,
         rejectedBy: "codex-redteam",
-        redTeam: redTeam.notes,
-        reason: redTeam.notes,
+        redTeam: blocks.redTeam?.notes,
+        reason: blocks.redTeam?.notes ?? "red-team reject",
       },
       { dataDir: opts.dataDir },
     );
     return { outcome: "blocked-redteam", journalId: id, dryRun: true };
   }
 
-  // Re-run the hard risk gate at approval time against current account state.
-  // A live order is sized against the LIVE account's equity, not paper.
-  const proposed = toProposedOrder(order);
-  const snapshot =
-    opts.snapshot !== undefined
-      ? opts.snapshot
-      : await readLatestSnapshot(order.account ?? "paper");
-  if (snapshot) {
-    const context: RiskContext = {
-      equity: snapshot.equity,
-      highWaterEquity: highWater(snapshot),
-      openPositions: snapshot.positions.map((p) => ({
-        symbol: p.symbol,
-        marketValue: p.marketValue,
-      })),
-      ordersToday: 0,
-      spyIntradayChangePct: 0,
-      vix: 15,
-    };
-    const risk = evaluateOrder(proposed, context);
-    if (!risk.ok) {
-      const { id } = await recordRiskRejection(
-        { ...journalMeta, proposedAction: order.action },
-        risk,
-        { dataDir: opts.dataDir },
-      );
-      return { outcome: "blocked-risk", journalId: id, dryRun: true };
-    }
-  }
-
-  // Live-only caps (M4): when this order will actually go live, enforce the
-  // account exposure ceiling + funded-capital guard against the live account.
-  const status = await getLiveTradingStatus(gateOpts(opts));
-  if (status.liveEnabled) {
-    const liveSnap =
-      opts.liveSnapshot !== undefined
-        ? opts.liveSnapshot
-        : await readLatestSnapshot("live");
-    const caps = evaluateLiveCaps(
-      proposed,
-      liveCapContextFromSnapshot(
-        liveSnap,
-        Number(process.env.LIVE_FUNDED_CAPITAL_USD ?? 0),
-      ),
+  if (blocks.railViolations.length > 0 && !override) {
+    const { id } = await recordRiskRejection(
+      { ...journalMeta, proposedAction: order.action },
+      { ok: false, violations: blocks.railViolations },
+      { dataDir: opts.dataDir },
     );
-    if (!caps.ok) {
-      const { id } = await recordRiskRejection(
-        { ...journalMeta, proposedAction: order.action },
-        caps,
-        { dataDir: opts.dataDir },
-      );
-      return { outcome: "blocked-caps", journalId: id, dryRun: false };
-    }
+    return { outcome: "blocked-risk", journalId: id, dryRun: true };
   }
 
-  // Approved + passed the rails → route through the gate to its destination.
-  // A broker rejection (e.g. the sink can't fill the order) must not crash the
-  // caller: surface it as a clean `error` outcome with nothing journaled.
+  if (blocks.capViolations.length > 0 && !override) {
+    const { id } = await recordRiskRejection(
+      { ...journalMeta, proposedAction: order.action },
+      { ok: false, violations: blocks.capViolations },
+      { dataDir: opts.dataDir },
+    );
+    return { outcome: "blocked-caps", journalId: id, dryRun: false };
+  }
+
+  // Approved (clean or via override) → route through the gate to its
+  // destination. A broker rejection must not crash the caller: surface it as a
+  // clean `error` with nothing journaled.
   let placed: PlacedAt & { dryRun: boolean };
   try {
     placed = await routeApprovedOrder(proposed, opts);
@@ -423,13 +517,41 @@ export async function submitTradeApproval(
     return {
       outcome: "error",
       journalId: "",
-      dryRun: !status.liveEnabled,
+      dryRun: !blocks.liveEnabled,
       error: (err as Error).message,
     };
   }
+
+  // Build the override audit trail — tags + a comment line on the trade entry —
+  // ONLY when a real block was overridden.
+  const overrideTags: string[] = [];
+  const overrodeReasons: string[] = [];
+  if (override && approvalIsBlocked(blocks)) {
+    if (blocks.redTeamRejects) {
+      overrideTags.push("override:red-team");
+      overrodeReasons.push(
+        `red-team reject (${blocks.redTeam?.notes ?? "no notes"})`,
+      );
+    }
+    for (const v of blocks.railViolations) {
+      overrideTags.push(`override:${v.rule}`);
+      overrodeReasons.push(`rail ${v.rule}: ${v.message}`);
+    }
+    for (const v of blocks.capViolations) {
+      overrideTags.push(`override:${v.rule}`);
+      overrodeReasons.push(`live cap ${v.rule}: ${v.message}`);
+    }
+    overrideTags.push("human-override");
+  }
+
   const sinkNote = placed.dryRun
     ? ` (dry-run sink — no real money; harness gate closed)`
     : "";
+  const overrideNote =
+    overrodeReasons.length > 0
+      ? ` HUMAN OVERRIDE — comment: "${input.override!.comment.trim()}". Overrode: ${overrodeReasons.join("; ")}.`
+      : "";
+
   const { id } = await recordTradeDecision(
     {
       timestamp,
@@ -442,11 +564,16 @@ export async function submitTradeApproval(
       takeProfit: order.takeProfit,
       riskPct: order.riskPct,
       reviewDate: order.reviewDate,
-      tags: [...(order.tags ?? []), placed.dryRun ? "dry-run" : "live", "human-approved"],
+      tags: [
+        ...(order.tags ?? []),
+        placed.dryRun ? "dry-run" : "live",
+        "human-approved",
+        ...overrideTags,
+      ],
       thesis: order.thesis,
       research: order.research,
       redTeam: order.redTeam?.notes,
-      decision: `Approved by ${approver}; routed to ${placed.destination}${sinkNote}. Broker order ${placed.brokerOrderId}.`,
+      decision: `Approved by ${approver}; routed to ${placed.destination}${sinkNote}. Broker order ${placed.brokerOrderId}.${overrideNote}`,
     },
     { dataDir: opts.dataDir },
   );
