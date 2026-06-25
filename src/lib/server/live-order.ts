@@ -1,5 +1,8 @@
 import "server-only";
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { z } from "zod";
 import { evaluateOrder, type ProposedOrder, type RiskContext } from "@/lib/risk";
 import type { PortfolioSnapshot, RedTeamVerdict } from "@/lib/types";
 import { hasAlpacaCredentials, placePaperOrder } from "./alpaca";
@@ -7,7 +10,7 @@ import { readLatestSnapshot } from "./data";
 import {
   assertLiveOrderAllowed,
   getLiveTradingStatus,
-  LIVE_ORDER_TOOLS,
+  ROBINHOOD_MCP_SERVER,
 } from "./gate";
 import {
   evaluateLiveCaps,
@@ -99,14 +102,92 @@ export async function placeLiveOrder(
   return place(order);
 }
 
-/** Default Robinhood `place_equity_order` MCP call. Never invoked while the
- *  gate is closed. The live wire shape is verified during the gated M5
- *  connection. */
-const defaultRobinhoodPlaceOrder: LivePlaceOrder = async () => {
-  // Belt-and-suspenders: this function only runs once the gate is open (M5).
-  throw new Error(
-    `Live Robinhood order tool (${LIVE_ORDER_TOOLS[0]}) is not wired in this build — gate must be open (M5).`,
-  );
+const runCli = promisify(execFile);
+
+/** How long to wait for the `claude` CLI order placement before failing. */
+const LIVE_ORDER_CLI_TIMEOUT_MS = 90_000;
+
+/** Tools the order spawn must NEVER call — everything except the single
+ *  `place_equity_order`. Enumeration + cancel + option order tools are all
+ *  explicitly disallowed in the spawned argv (belt to the gate's suspenders). */
+const PLACE_DISALLOWED_TOOLS = [
+  "get_accounts",
+  "cancel_equity_order",
+  "place_option_order",
+  "cancel_option_order",
+].map((t) => `mcp__${ROBINHOOD_MCP_SERVER}__${t}`);
+
+/** Pull the first balanced JSON object out of CLI stdout. */
+function extractOrderJson(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("Robinhood order placement returned no JSON object");
+  }
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+/**
+ * Build the `claude -p` argv that places ONE marketable-limit order for the
+ * configured Agentic account through the host CLI's authenticated Robinhood MCP
+ * session. Pure + exported so the safety invariants are unit-tested without
+ * spawning: ONLY `place_equity_order` is allow-listed (account-scoped), every
+ * enumeration / cancel / option tool is explicitly disallowed, and exactly one
+ * order is requested. Reached ONLY when both gates are open.
+ */
+export function buildPlaceOrderCliCommand(
+  account: string,
+  order: ProposedOrder,
+): { cmd: string; args: string[] } {
+  const placeTool = `mcp__${ROBINHOOD_MCP_SERVER}__place_equity_order`;
+  const prompt = [
+    `Use the ${ROBINHOOD_MCP_SERVER} MCP. Operate ONLY on brokerage account ${account}.`,
+    `Place EXACTLY ONE marketable-limit order and nothing else: do NOT call`,
+    `get_accounts, do NOT cancel or modify any order, do NOT place any other order.`,
+    `Call place_equity_order with account_number "${account}", symbol`,
+    `"${order.symbol}", side "${order.action}", quantity ${order.qty}, order`,
+    `type limit, limit price ${order.limitPrice}, time in force day.`,
+    `Then output ONLY a single minified JSON object — no prose, no markdown`,
+    `fences — copying the broker's order id verbatim: {"orderId":STRING}.`,
+  ].join(" ");
+
+  return {
+    cmd: "claude",
+    args: [
+      "-p",
+      prompt,
+      "--allowedTools",
+      placeTool,
+      "--disallowedTools",
+      ...PLACE_DISALLOWED_TOOLS,
+    ],
+  };
+}
+
+/**
+ * Default Robinhood `place_equity_order` via the host `claude` CLI (argv, never
+ * a shell), mirroring the read-only client's transport. **Self-gates**
+ * (`assertLiveOrderAllowed`) so it is unreachable unless both gates are open,
+ * on top of {@link placeLiveOrder}'s gate. The exact MCP request/response shape
+ * is verified during the supervised, human-present gate-open step (M5); until
+ * then this is never invoked. Injectable via `opts.placeLive` for tests.
+ */
+const defaultRobinhoodPlaceOrder: LivePlaceOrder = async (order) => {
+  await assertLiveOrderAllowed();
+  const account = process.env.ROBINHOOD_AGENTIC_ACCOUNT_NUMBER ?? "";
+  if (!account) {
+    throw new Error("ROBINHOOD_AGENTIC_ACCOUNT_NUMBER is not set");
+  }
+  const { cmd, args } = buildPlaceOrderCliCommand(account, order);
+  const { stdout } = await runCli(cmd, args, {
+    cwd: process.cwd(),
+    timeout: LIVE_ORDER_CLI_TIMEOUT_MS,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  const parsed = z
+    .object({ orderId: z.string().min(1) })
+    .parse(extractOrderJson(stdout));
+  return { destination: "robinhood", brokerOrderId: parsed.orderId };
 };
 
 /**
