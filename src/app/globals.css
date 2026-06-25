@@ -22,6 +22,10 @@
   --accent: #b7df2f;
   --accent-hover: #c3fe09; /* hover lightens toward #C3FE09 (design-system) */
   --accent-foreground: #0a0a0a; /* black text on accent fill */
+  /* Link text — a darkened, readable form of the lime accent (lime-on-white is
+     <2:1 and unreadable). This stays ≥4.5:1 on our light surfaces. */
+  --link: #3f6212;
+  --link-hover: #2f4d0e;
   --gain: #00a301;
   --loss: #e03a00;
   /* Semantic status/verdict tones — text on a solid light tint, ≥4.5:1.
@@ -49,6 +53,9 @@
   --accent: #b7df2f;
   --accent-hover: #c3fe09;
   --accent-foreground: #0a0a0a;
+  /* On black, the lime accent is high-contrast, so links use it directly. */
+  --link: #b7df2f;
+  --link-hover: #c3fe09;
   --gain: #00c805;
   --loss: #ff5000;
   /* Semantic status/verdict tones — bright text on a dark tint, ≥4.5:1. */
@@ -77,6 +84,8 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-foreground: var(--accent-foreground);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
   --color-gain: var(--gain);
   --color-loss: var(--loss);
   --color-success: var(--success-fg);

@@ -74,7 +74,7 @@ export function CompanyProfileRail({ symbol }: { symbol: string }) {
                 href={`https://${profile.domain}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent underline-offset-2 hover:underline"
+                className="text-link underline-offset-2 hover:text-link-hover hover:underline"
               >
                 {profile.domain}
               </a>

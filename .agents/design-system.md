@@ -41,7 +41,8 @@ Derived from the Robinhood UI design skill (`ihlamury/design-skills`), with its 
 | gain | #00C805 | #00A301 |
 | loss | #FF5000 | #E03A00 |
 
-- Accent (lime) = primary actions, links, and focus **only** — never a surface, and **never to convey status** (see below). (The source skill mislabeled it as a card surface; do not repeat that.)
+- Accent (lime) = primary actions (as a **fill** with black text) and focus **only** — never a surface, and **never to convey status** (see below). (The source skill mislabeled it as a card surface; do not repeat that.)
+- **Link text uses the `link` token, NOT raw `accent`.** Lime text on a light surface is <2:1 and unreadable, so `--link` is a **darkened lime** in light mode (`#3F6212`, ≥4.5:1) and the lime accent in dark mode (high-contrast on black). Use `text-link` / `hover:text-link-hover` for anchor text — never `text-accent` for resting link text. (`text-accent` stays valid for an accent **fill**, focus ring, or a hover on dark surfaces.)
 - Maintain ≥4.5:1 text contrast in both themes.
 
 ### Status & verdict colors

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { CountryFlag } from "@/components/country-flag";
 import { OwnershipBadge } from "@/components/mode-scope";
-import { countryFlag } from "@/lib/format";
 import type { Ownership } from "@/lib/universe";
 import { useSymbolResearch } from "@/components/symbol/research-context";
 
@@ -23,7 +23,7 @@ export function SymbolCompanyHeader({
   const profile = state.status === "loaded" ? state.research.profile : null;
   const name = profile?.name ?? null;
   const exchange = profile?.exchange ?? null;
-  const flag = countryFlag(profile?.country ?? null);
+  const country = profile?.country ?? null;
 
   const meta = [symbol, exchange].filter(Boolean).join(" · ");
 
@@ -37,12 +37,12 @@ export function SymbolCompanyHeader({
           </h1>
           <OwnershipBadge ownership={ownership} />
         </div>
-        <p className="mt-0.5 text-sm text-fg-muted">
-          {meta}
-          {flag ? (
+        <p className="mt-0.5 flex items-center gap-1.5 text-sm text-fg-muted">
+          <span>{meta}</span>
+          {country ? (
             <>
-              {" · "}
-              <span aria-hidden>{flag}</span>
+              <span aria-hidden>·</span>
+              <CountryFlag country={country} />
             </>
           ) : null}
         </p>
