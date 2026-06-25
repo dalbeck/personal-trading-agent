@@ -42,7 +42,7 @@ describe("sweepPendingRedTeam", () => {
     const res = await sweepPendingRedTeam({
       proposals: [
         proposal({ id: "a", redTeam: null }),
-        proposal({ id: "b", redTeam: { verdict: "approve", notes: "ok" } }),
+        proposal({ id: "b", redTeam: { verdict: "approve", notes: "ok", factors: [], basis: null } }),
       ],
       exec,
       setVerdict,
@@ -51,7 +51,7 @@ describe("sweepPendingRedTeam", () => {
     expect(exec).toHaveBeenCalledTimes(1); // only the verdict-less one
     expect(setVerdict).toHaveBeenCalledWith(
       "a",
-      { verdict: "concern", notes: "Chasing highs." },
+      { verdict: "concern", notes: "Chasing highs.", factors: [], basis: null },
       expect.anything(),
     );
   });

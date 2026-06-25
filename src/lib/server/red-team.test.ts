@@ -38,9 +38,59 @@ describe("buildProsecutorPrompt", () => {
 });
 
 describe("parseVerdict", () => {
-  it("parses a bare JSON object", () => {
+  it("parses a bare JSON object (back-compat: empty factors, null basis)", () => {
     const v = parseVerdict('{"verdict":"reject","notes":"Valuation too rich."}');
-    expect(v).toEqual({ verdict: "reject", notes: "Valuation too rich." });
+    expect(v).toEqual({
+      verdict: "reject",
+      notes: "Valuation too rich.",
+      factors: [],
+      basis: null,
+    });
+  });
+
+  it("parses structured factors + a basis line", () => {
+    const raw = JSON.stringify({
+      verdict: "concern",
+      notes: "Stop is too wide for the catalyst.",
+      factors: [
+        { label: "Entry", assessment: "Chasing an extended breakout.", stance: "refutes" },
+        { label: "Edge", assessment: "Revisions still positive.", stance: "supports" },
+        { label: "Stop", assessment: "2x ATR is loose.", stance: "neutral" },
+      ],
+      basis: "Trade only at half size.",
+    });
+    const v = parseVerdict(raw);
+    expect(v.verdict).toBe("concern");
+    expect(v.basis).toBe("Trade only at half size.");
+    expect(v.factors).toHaveLength(3);
+    expect(v.factors[0]).toEqual({
+      label: "Entry",
+      assessment: "Chasing an extended breakout.",
+      stance: "refutes",
+    });
+    expect(v.factors[1].stance).toBe("supports");
+  });
+
+  it("drops malformed factors and defaults an unknown stance to neutral", () => {
+    const raw = JSON.stringify({
+      verdict: "approve",
+      notes: "Holds up.",
+      factors: [
+        { label: "Entry", assessment: "Clean retest." }, // no stance → neutral
+        { label: "", assessment: "missing label" }, // dropped
+        { label: "Stop", assessment: "" }, // dropped
+        { label: "Edge", assessment: "Strong RS.", stance: "bogus" }, // → neutral
+      ],
+    });
+    const v = parseVerdict(raw);
+    expect(v.factors).toHaveLength(2);
+    expect(v.factors[0].stance).toBe("neutral");
+    expect(v.factors[1]).toEqual({
+      label: "Edge",
+      assessment: "Strong RS.",
+      stance: "neutral",
+    });
+    expect(v.basis).toBeNull();
   });
 
   it("extracts JSON from a markdown code fence", () => {
@@ -68,9 +118,10 @@ describe("parseVerdict", () => {
 
 describe("redTeamOutcome", () => {
   it("maps verdicts to gate outcomes", () => {
-    expect(redTeamOutcome({ verdict: "reject", notes: "x" })).toBe("block");
-    expect(redTeamOutcome({ verdict: "concern", notes: "x" })).toBe("downsize");
-    expect(redTeamOutcome({ verdict: "approve", notes: "x" })).toBe("allow");
+    const base = { factors: [], basis: null };
+    expect(redTeamOutcome({ verdict: "reject", notes: "x", ...base })).toBe("block");
+    expect(redTeamOutcome({ verdict: "concern", notes: "x", ...base })).toBe("downsize");
+    expect(redTeamOutcome({ verdict: "approve", notes: "x", ...base })).toBe("allow");
   });
 });
 
@@ -82,6 +133,8 @@ describe("runRedTeam", () => {
     expect(v).toEqual({
       verdict: "reject",
       notes: "Thesis leans on consensus.",
+      factors: [],
+      basis: null,
     });
   });
 

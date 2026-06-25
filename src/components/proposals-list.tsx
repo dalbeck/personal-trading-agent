@@ -6,6 +6,7 @@ import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/page-shell";
+import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
@@ -31,12 +32,6 @@ const statusTone: Record<Status, BadgeTone> = {
 const advisoryStatusLabel: Partial<Record<Status, string>> = {
   reviewed: "Reviewed",
   dismissed: "Dismissed",
-};
-
-const redTeamTone: Record<string, BadgeTone> = {
-  approve: "gain",
-  concern: "neutral",
-  reject: "loss",
 };
 
 interface DecisionResult {
@@ -190,19 +185,7 @@ export function ProposalsList({
               />
 
               {p.redTeam ? (
-                <div className="mt-3 rounded-card border border-line bg-surface-overlay p-3">
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                      Codex red-team
-                    </span>
-                    <Badge tone={redTeamTone[p.redTeam.verdict]}>
-                      {p.redTeam.verdict}
-                    </Badge>
-                  </div>
-                  <p className="text-pretty text-sm text-fg-muted">
-                    {p.redTeam.notes}
-                  </p>
-                </div>
+                <RedTeamVerdict verdict={p.redTeam} className="mt-3" />
               ) : null}
 
               {advisory ? (
@@ -356,18 +339,11 @@ export function ProposalsList({
             </p>
 
             {confirmProposal.redTeam ? (
-              <div className="mt-3 flex items-start gap-2 text-xs">
-                <Badge tone={redTeamTone[confirmProposal.redTeam.verdict]}>
-                  red-team: {confirmProposal.redTeam.verdict}
-                </Badge>
-                <span className="text-pretty text-fg-muted">
-                  {confirmProposal.redTeam.notes}
-                </span>
-              </div>
+              <RedTeamVerdict verdict={confirmProposal.redTeam} className="mt-3" />
             ) : null}
 
             {redTeamRejected ? (
-              <p className="mt-3 text-xs font-medium text-loss">
+              <p className="mt-3 text-pretty text-sm font-medium text-danger">
                 Red-team rejected this trade — it cannot be approved.
               </p>
             ) : null}
