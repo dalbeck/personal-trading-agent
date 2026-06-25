@@ -22,8 +22,27 @@ export function isValidSymbol(raw: string): boolean {
 export interface SymbolPricePoint {
   /** RFC3339 bar timestamp. */
   t: string;
-  /** Close price. */
+  /** Open. */
+  o: number;
+  /** High. */
+  h: number;
+  /** Low. */
+  l: number;
+  /** Close. */
   c: number;
+  /** Volume. */
+  v: number;
+}
+
+/**
+ * Map a 0–1 fraction across the chart's plotting area to the nearest bar index.
+ * Pure so the hover crosshair's snapping is unit-tested without a DOM. Clamps
+ * out-of-range fractions to the first/last bar; returns 0 for a degenerate series.
+ */
+export function nearestIndex(plotFraction: number, count: number): number {
+  if (count <= 1) return 0;
+  const clamped = Math.min(1, Math.max(0, plotFraction));
+  return Math.round(clamped * (count - 1));
 }
 
 export interface SymbolQuote {

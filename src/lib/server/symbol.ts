@@ -57,6 +57,11 @@ export function rangeWindow(
   }
 }
 
+/** Map a raw Alpaca OHLCV bar to the chart's point contract (full OHLCV). */
+export function barToPoint(bar: AlpacaOhlcBar): SymbolPricePoint {
+  return { t: bar.t, o: bar.o, h: bar.h, l: bar.l, c: bar.c, v: bar.v };
+}
+
 /** Keep only the bars on the most recent calendar date present (latest session). */
 export function latestSessionOnly(bars: AlpacaOhlcBar[]): AlpacaOhlcBar[] {
   if (bars.length === 0) return bars;
@@ -161,7 +166,7 @@ export async function getSymbolBars(
   try {
     const bars = await getStockBars(symbol, win, { fetchImpl: opts?.fetchImpl });
     const series = win.sessionOnly ? latestSessionOnly(bars) : bars;
-    return series.map((b) => ({ t: b.t, c: b.c }));
+    return series.map(barToPoint);
   } catch {
     return [];
   }
@@ -204,7 +209,7 @@ export async function getSymbolDetail(
 
   const rawBars = barsRes.status === "fulfilled" ? barsRes.value : [];
   const series = win.sessionOnly ? latestSessionOnly(rawBars) : rawBars;
-  const bars = series.map((b) => ({ t: b.t, c: b.c }));
+  const bars = series.map(barToPoint);
 
   const yearBars = yearRes.status === "fulfilled" ? yearRes.value : [];
   const week = week52Range(yearBars);
