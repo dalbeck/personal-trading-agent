@@ -4,12 +4,25 @@ The pre-trade checklist and banked lessons. Unlike the charter, this file
 **evolves**: the weekly coaching pass promotes durable lessons into the banked
 section (each tagged with the date it was promoted and its source).
 
+## Strategy identity
+
+This is a **technical trend-following desk.** Technical evidence (trend,
+momentum, relative strength, volume, structure) is the **primary** rationale for
+every entry, and the profit target is technically anchored. **Fundamentals are a
+catalyst-check and a disqualifier only** — they can supply the named catalyst or
+veto a setup (a value trap, an imminent earnings binary), but a thesis that
+leads with valuation or fundamentals ("cheap," "undervalued") is out of mandate
+and the red-team penalizes it. (See the charter's Analytical identity section.)
+
 ## Pre-trade checklist
 
 Every proposal should clear these before it reaches the red-team. A weak answer
 on any single item is a reason to pass or to downsize.
 
-1. **Thesis** — one sentence on why this name, why now.
+1. **Thesis** — one sentence on why this name, why now. The **primary rationale
+   must be technical** (trend / momentum / relative strength / volume /
+   structure); fundamentals appear only as the catalyst-check (see Strategy
+   identity). A valuation- or fundamental-led thesis is out of mandate.
 2. **Trend** — price above a rising 50-day and 200-day; structure of higher
    highs / higher lows intact. No counter-trend entries.
 3. **Momentum** — entering on a constructive reset (pullback to the rising
@@ -45,3 +58,14 @@ Durable lessons promoted from the coaching log. Newest first.
 - **Let the governance filters work** — recorded rejections (volatility cap,
   risk-cap breaches, red-team "no") have avoided more losers than they've cost
   in missed upside.
+
+## Change log
+
+Structural edits to this playbook (distinct from the banked lessons above).
+Newest first.
+
+- **2026-06-25** — **Analytical identity (strategy coherence M1).** Added the
+  **Strategy identity** section and made the Thesis checklist item require a
+  **technical primary rationale**, with fundamentals as a catalyst-check /
+  disqualifier only. Mirrors the charter's new Analytical identity section. See
+  `planning/strategy-coherence-spec.md`.

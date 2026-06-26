@@ -35,6 +35,14 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).toMatch(/json/i);
     expect(prompt).toMatch(/verdict/i);
   });
+
+  it("penalizes a fundamental/valuation-primary thesis and flags analyst-price targets", () => {
+    const prompt = buildProsecutorPrompt(proposal);
+    expect(prompt).toMatch(/technical/i);
+    expect(prompt).toMatch(/out of mandate|penaliz/i);
+    expect(prompt).toMatch(/fundamental|valuation/i);
+    expect(prompt).toMatch(/analyst_price|analyst price/i);
+  });
 });
 
 describe("parseVerdict", () => {

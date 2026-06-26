@@ -49,6 +49,7 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     `- Thesis: ${p.thesis}`,
   ];
   lines.push(
+    "This is a TECHNICAL trend-following desk. The thesis must be PRIMARILY technical (trend, momentum, relative strength, volume, price structure). If the primary rationale is fundamental or valuation ('cheap', 'undervalued', 'earnings growth', 'analyst upgrade') rather than price/trend evidence, it is OUT OF MANDATE — penalize it in the Edge factor and lean toward reject or concern. Fundamentals are only a catalyst-check / disqualifier, never the primary reason to enter.",
     "A target anchored to a sell-side analyst_price — or left unspecified — is WEAK (the desk is borrowing someone else's number, not its own thesis); call it out in the Target factor.",
   );
   if (p.reasoning) lines.push(`- Reasoning: ${p.reasoning}`);
