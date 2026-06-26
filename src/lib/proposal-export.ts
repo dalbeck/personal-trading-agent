@@ -17,7 +17,7 @@
  */
 import type { Content, TDocumentDefinitions } from "pdfmake/interfaces";
 import { stringifyFrontmatter } from "@/lib/server/frontmatter";
-import { buildProposalLenses, type ProposalLens } from "@/lib/proposal-lens";
+import { buildProposalLenses, type ProposalLensView } from "@/lib/proposal-lens";
 import { STRATEGY_LABEL } from "@/lib/strategy";
 import { targetTypeLabel } from "@/lib/target-type";
 import { catalystTypeLabel } from "@/lib/catalyst";
@@ -175,7 +175,7 @@ export function proposalToMarkdown(p: TradeProposal, opts: ExportOpts): string {
   return stringifyFrontmatter(frontmatter, lines.join("\n"));
 }
 
-function redTeamMarkdown(lens: ProposalLens): string[] {
+function redTeamMarkdown(lens: ProposalLensView): string[] {
   const rt = lens.redTeam;
   if (!rt) return ["_The cross-model red-team has not judged this lens yet._"];
   const out: string[] = [`**Verdict:** ${rt.verdict}`, ""];
@@ -294,7 +294,7 @@ function rowsTable(rows: [string, string][]): Content {
   };
 }
 
-function redTeamPdf(lens: ProposalLens): Content[] {
+function redTeamPdf(lens: ProposalLensView): Content[] {
   const rt = lens.redTeam;
   if (!rt)
     return [

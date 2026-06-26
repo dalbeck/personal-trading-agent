@@ -3,7 +3,11 @@ import { readLatestSnapshot } from "@/lib/server/data";
 import { getSymbolResearch } from "@/lib/server/symbol-research";
 import { rangeWindow } from "@/lib/server/symbol";
 import { recordManualProposal } from "@/lib/server/writers";
-import { runRedTeam, type RedTeamExec } from "@/lib/server/red-team";
+import {
+  runRedTeam,
+  type RedTeamExec,
+  type RedTeamProposal,
+} from "@/lib/server/red-team";
 import {
   evaluateOrder,
   type ProposedOrder,
@@ -13,12 +17,16 @@ import {
 import {
   buildManualProposalDraft,
   type BuilderCatalystType,
+  type ManualProposalDraft,
 } from "@/lib/proposal-builder";
 import type { Ohlc } from "@/lib/indicators";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 import { TradeProposalSchema } from "@/lib/schemas";
-import type { Strategy } from "@/lib/strategy";
-import type { RedTeamVerdict, TradeProposal } from "@/lib/types";
+import type {
+  ProposalLensBreakdown,
+  RedTeamVerdict,
+  TradeProposal,
+} from "@/lib/types";
 
 /**
  * On-demand "analyze a symbol" pipeline (Phase 3 M2). Runs the **full pipeline**
@@ -46,11 +54,6 @@ export interface ResearchContext {
 
 export interface AnalyzeSymbolOpts {
   account?: "paper" | "live";
-  /** Which mandate the human chose to analyze under (value-sleeve M1). `trend`
-   *  (default) runs the technical lens; `value` runs the value / mean-reversion
-   *  lens — the proposal carries `strategy: "value"` and the red-team is briefed
-   *  with the value mandate (counter-trend expected, value-trap hunted). */
-  strategy?: Strategy;
   now?: () => Date;
   dataDir?: string;
   // Seams (default to the real fetchers).
@@ -138,6 +141,51 @@ function toOrder(p: TradeProposal): ProposedOrder {
   };
 }
 
+/** Brief the red-team prosecutor for one lens's draft, under its own mandate. */
+function redTeamInput(d: ManualProposalDraft): RedTeamProposal {
+  return {
+    symbol: d.symbol,
+    action: d.action,
+    side: d.side,
+    strategy: d.strategy,
+    qty: d.qty,
+    limitPrice: d.limitPrice,
+    stopPrice: d.stopPrice,
+    takeProfit: d.takeProfit,
+    targetType: d.targetType,
+    relativeVolume: d.relativeVolume,
+    catalyst: d.catalyst,
+    catalystType: d.catalystType,
+    thesis: d.thesis,
+    reasoning: d.reasoning,
+  };
+}
+
+/** Turn a lens's draft + its red-team verdict into a persisted lens breakdown. */
+function draftToLens(
+  d: ManualProposalDraft,
+  redTeam: RedTeamVerdict,
+): ProposalLensBreakdown {
+  return {
+    strategy: d.strategy,
+    limitPrice: d.limitPrice,
+    stopPrice: d.stopPrice,
+    takeProfit: d.takeProfit,
+    targetType: d.targetType,
+    qty: d.qty,
+    riskPct: d.riskPct,
+    relativeVolume: d.relativeVolume,
+    catalyst: d.catalyst,
+    catalystType: d.catalystType,
+    convictionScore: d.convictionScore,
+    convictionTier: d.convictionTier,
+    confidence: d.confidence,
+    thesis: d.thesis,
+    reasoning: d.reasoning,
+    redTeam,
+  };
+}
+
 export async function analyzeSymbol(
   rawSymbol: string,
   opts: AnalyzeSymbolOpts = {},
@@ -148,7 +196,6 @@ export async function analyzeSymbol(
   }
 
   const account = opts.account ?? "live";
-  const strategy: Strategy = opts.strategy ?? "trend";
   const now = opts.now?.() ?? new Date();
   const dataDir = opts.dataDir;
 
@@ -174,16 +221,21 @@ export async function analyzeSymbol(
     };
   }
 
-  const draft = buildManualProposalDraft({
+  // Dual-lens (M1): evaluate the SAME symbol under BOTH the trend and value
+  // mandates and produce ONE proposal holding both breakdowns. Research is
+  // fetched once and shared (so the Perplexity cap is respected); each lens gets
+  // its own deterministic draft and its own cross-model red-team verdict.
+  const researchInput = {
     symbol,
     bars,
     equity: snapshot.equity,
-    strategy,
     sector: research.sector,
     catalyst: research.catalyst,
     catalystType: research.catalystType,
-  });
-  if (!draft) {
+  };
+  const trendDraft = buildManualProposalDraft({ ...researchInput, strategy: "trend" });
+  const valueDraft = buildManualProposalDraft({ ...researchInput, strategy: "value" });
+  if (!trendDraft || !valueDraft) {
     return {
       ok: false,
       code: "insufficient-data",
@@ -191,29 +243,46 @@ export async function analyzeSymbol(
     };
   }
 
-  // Build the candidate proposal object so rails + red-team see the real order.
   const createdAt = now.toISOString();
-  // Unique PER RUN, not just per day: a second same-day analysis of the same
-  // symbol must not collide on id, or the two proposals would share one
-  // `/proposals/[id]` URL and trip a duplicate React key in the queue. Stamp the
-  // full time (to the millisecond) into the id.
-  const id = `manual-${symbol}-${createdAt
-    .slice(0, 23)
-    .replace(/[-:.T]/g, "")}`;
+  // Unique PER RUN, not just per day (so two same-day analyses don't collide on
+  // id → one `/proposals/[id]` URL + a duplicate React key).
+  const id = `manual-${symbol}-${createdAt.slice(0, 23).replace(/[-:.T]/g, "")}`;
   const advisory = false; // approvable; the gate (not this) is the money boundary
+
+  // Run each lens's red-team under its matching mandate.
+  const [trendRedTeam, valueRedTeam] = await Promise.all([
+    runRedTeam(redTeamInput(trendDraft), { exec: opts.redTeamExec }),
+    runRedTeam(redTeamInput(valueDraft), { exec: opts.redTeamExec }),
+  ]);
+
+  const lenses: ProposalLensBreakdown[] = [
+    draftToLens(trendDraft, trendRedTeam),
+    draftToLens(valueDraft, valueRedTeam),
+  ];
+
+  // The proposal's top-level fields mirror the ACTIVE (default) lens — the
+  // higher-conviction one (tie → trend). The human can toggle + approve under
+  // the other on the detail page; the slim list shows this default.
+  const active =
+    valueDraft.convictionScore > trendDraft.convictionScore
+      ? { draft: valueDraft, redTeam: valueRedTeam }
+      : { draft: trendDraft, redTeam: trendRedTeam };
+
   const proposal: TradeProposal = TradeProposalSchema.parse({
-    ...draft,
+    ...active.draft,
     id,
     createdAt,
     account,
     advisory,
     origin: "manual-request",
     status: "pending",
+    redTeam: active.redTeam,
+    lenses,
   });
 
-  // Risk rails — informational preview at proposal time (the binding re-check
-  // runs at approval). SPY/VIX use a neutral reading here; equity/positions are
-  // the snapshot's, so the size/sector/concentration rails are real.
+  // Risk rails — informational preview for the ACTIVE lens (the binding re-check
+  // runs at approval, under whichever lens the human acts). SPY/VIX neutral here;
+  // equity/positions are the snapshot's, so size/sector/concentration are real.
   const ctx: RiskContext = {
     equity: snapshot.equity,
     highWaterEquity: snapshot.highWaterEquity,
@@ -224,29 +293,6 @@ export async function analyzeSymbol(
   };
   const risk = evaluateOrder(toOrder(proposal), ctx);
 
-  // Red-team — the cross-model prosecutor; fails closed. A weak manual pick is
-  // flagged here, never rubber-stamped.
-  const redTeam = await runRedTeam(
-    {
-      symbol: proposal.symbol,
-      action: proposal.action,
-      side: proposal.side,
-      strategy: proposal.strategy,
-      qty: proposal.qty,
-      limitPrice: proposal.limitPrice,
-      stopPrice: proposal.stopPrice,
-      takeProfit: proposal.takeProfit,
-      targetType: proposal.targetType,
-      relativeVolume: proposal.relativeVolume,
-      catalyst: proposal.catalyst,
-      catalystType: proposal.catalystType,
-      thesis: proposal.thesis,
-      reasoning: proposal.reasoning,
-    },
-    { exec: opts.redTeamExec },
-  );
-
-  // Persist the review candidate with the verdict attached, tagged manual-request.
   await recordManualProposal(
     {
       id,
@@ -270,7 +316,8 @@ export async function analyzeSymbol(
       confidence: proposal.confidence,
       thesis: proposal.thesis,
       reasoning: proposal.reasoning,
-      redTeam,
+      redTeam: active.redTeam,
+      lenses,
     },
     { account, advisory },
     { dataDir },
@@ -278,9 +325,9 @@ export async function analyzeSymbol(
 
   return {
     ok: true,
-    proposal: { ...proposal, redTeam },
+    proposal,
     risk,
-    redTeam,
+    redTeam: active.redTeam,
     usedPerplexity: research.usedPerplexity,
   };
 }

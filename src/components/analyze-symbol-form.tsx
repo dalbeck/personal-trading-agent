@@ -3,43 +3,41 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { STRATEGIES, STRATEGY_DESCRIPTION, type Strategy } from "@/lib/strategy";
-import { strategyStyle } from "@/lib/strategy-style";
+import { STRATEGY_LABEL, type Strategy } from "@/lib/strategy";
+
+type Verdict = "approve" | "concern" | "reject";
+interface LensOutcome {
+  strategy: Strategy;
+  verdict: Verdict | null;
+}
 
 type Outcome =
   | {
       ok: true;
       symbol: string;
-      strategy: Strategy;
-      verdict: "approve" | "concern" | "reject";
+      lenses: LensOutcome[];
       railsOk: boolean;
       railViolations: { rule: string; message: string }[];
-      convictionTier: "high" | "moderate" | "watch" | null;
       usedPerplexity: boolean;
     }
   | { ok: false; error: string };
 
-const verdictWord: Record<"approve" | "concern" | "reject", string> = {
-  approve: "Red-team: approve",
-  concern: "Red-team: concern",
-  reject: "Red-team: reject",
-};
-const verdictTone: Record<"approve" | "concern" | "reject", string> = {
+const verdictTone: Record<Verdict, string> = {
   approve: "text-success",
   concern: "text-warning",
   reject: "text-danger",
 };
 
 /**
- * On-demand "Analyze a symbol" control (M2). Enter a ticker and the desk runs
- * the full pipeline — research → proposal → risk rails → red-team — and queues
- * the result below for review. It **places nothing**; a weak pick is flagged by
- * the gates, never rubber-stamped. The book follows the current view mode.
+ * On-demand "Analyze a symbol" control. Enter a ticker and the desk runs the full
+ * pipeline under **both** the trend and value mandates (dual-lens M1) — research
+ * → proposal → risk rails → red-team for each lens — and queues **one** proposal
+ * holding both breakdowns. It **places nothing**; a weak pick under both lenses
+ * is flagged by the gates, never rubber-stamped. The book follows the view mode.
  */
 export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
   const router = useRouter();
   const [symbol, setSymbol] = useState("");
-  const [strategy, setStrategy] = useState<Strategy>("trend");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
 
@@ -53,7 +51,7 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
       const res = await fetch("/api/proposals/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol: ticker, strategy }),
+        body: JSON.stringify({ symbol: ticker }),
       });
       const data = (await res.json()) as Outcome & { error?: string };
       if (res.ok && data.ok) {
@@ -92,43 +90,12 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
         </Button>
       </form>
 
-      {/* Lens picker (value-sleeve M1) — judge the ticker under the trend
-          mandate or the separate value / mean-reversion mandate. */}
-      <div className="mt-3">
-        <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
-          Lens
-        </span>
-        <div
-          className="mt-1 inline-flex overflow-hidden rounded-pill border border-line"
-          role="group"
-          aria-label="Strategy lens to analyze under"
-        >
-          {STRATEGIES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              title={STRATEGY_DESCRIPTION[s]}
-              aria-pressed={strategy === s}
-              onClick={() => setStrategy(s)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
-                strategy === s
-                  ? "bg-accent/15 text-fg"
-                  : "text-fg-muted hover:bg-surface-overlay hover:text-fg"
-              }`}
-            >
-              {strategyStyle[s].label}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1.5 text-pretty text-xs text-fg-muted">
-          {STRATEGY_DESCRIPTION[strategy]}
-        </p>
-      </div>
-
       <p className="mt-2 text-pretty text-xs text-fg-muted">
-        Runs the full pipeline (research → proposal → risk rails → red-team) for
-        the {mode} book and queues the candidate below for review. It places
-        nothing; a weak pick is flagged, not rubber-stamped.
+        Runs the full pipeline (research → proposal → risk rails → red-team) under
+        <span className="font-medium text-fg"> both the trend and value lenses</span>{" "}
+        for the {mode} book and queues one candidate below — open it to toggle
+        between the breakdowns. It places nothing; a weak pick is flagged, not
+        rubber-stamped.
       </p>
 
       {outcome ? (
@@ -136,15 +103,18 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
           <div className="mt-3 rounded-card border border-line bg-surface-overlay p-3 text-sm">
             <p className="text-fg">
               <span className="font-semibold">{outcome.symbol}</span> analyzed
-              under the{" "}
-              <span className="font-medium">
-                {strategyStyle[outcome.strategy].label.toLowerCase()}
-              </span>{" "}
-              lens and added below
-              {outcome.convictionTier ? ` · ${outcome.convictionTier} conviction` : ""}.{" "}
-              <span className={verdictTone[outcome.verdict]}>
-                {verdictWord[outcome.verdict]}
-              </span>
+              under both lenses and added below.{" "}
+              {outcome.lenses.map((l, i) => (
+                <span key={l.strategy}>
+                  {i > 0 ? " · " : ""}
+                  {STRATEGY_LABEL[l.strategy]}:{" "}
+                  <span
+                    className={l.verdict ? verdictTone[l.verdict] : "text-fg-muted"}
+                  >
+                    {l.verdict ?? "not run"}
+                  </span>
+                </span>
+              ))}
               {" · "}
               <span className={outcome.railsOk ? "text-success" : "text-danger"}>
                 {outcome.railsOk ? "rails clear" : "rails flagged"}

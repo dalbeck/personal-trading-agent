@@ -184,6 +184,24 @@ proposals come from the manual analyze-a-symbol **lens** picker (`strategy` in
 the `POST /api/proposals/analyze` body) and, when enabled, the discovery run (see
 `valueSleeveEnabled` below). Defaults to `trend` so older records still validate.
 
+**Proposal `lenses` (dual-lens M1).** A **manual** analyze-a-symbol proposal is
+evaluated under **both** the trend and value mandates and carries **both**
+breakdowns in **`lenses`** (an array of `ProposalLensSchema`: per-lens
+`strategy`, levels — `limitPrice`/`stopPrice`/`takeProfit`/`targetType`, `qty`,
+`riskPct`, `relativeVolume`, catalyst, conviction, `thesis`/`reasoning`, and its
+own **`redTeam`** verdict judged by that mandate). The proposal's **top-level
+fields mirror the active lens** — the higher-conviction one by default (tie →
+trend) — for the slim list + execution + back-compat. `lenses` is **empty `[]`
+for single-lens** proposals (every **discovery** candidate — discovery stays
+single-lens — and older manual records), in which case the top-level fields ARE
+the lone lens. The detail page derives the per-lens view via `buildProposalLenses`
+(`src/lib/proposal-lens.ts`) and shows a glanceable dual-verdict summary + a
+Trend/Value toggle when `isDualLens`; the **acting lens at approval** is picked
+by `resolveActiveLens` — its levels + red-team verdict drive the order, and the
+journal records it as a `lens:<strategy>` tag. The manual pipeline fetches
+research **once** (shared across both lenses) so the Perplexity cap is respected.
+Defaults to `[]` so older records still validate.
+
 **Proposal `convictionScore` / `convictionTier` (M1 diversified discovery).** A
 `TradeProposal` also carries `convictionScore` (a `0–1` composite of the playbook
 signals — trend, momentum, relative strength, volume, R:R, catalyst) and

@@ -11,6 +11,8 @@ import { formatCurrency, formatPercent } from "@/lib/format";
 import { confidenceBucket } from "@/lib/confidence";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { isAdvisoryProposal, type AdvisoryDecision } from "@/lib/proposal-advisory";
+import { resolveActiveLens } from "@/lib/proposal-lens";
+import { STRATEGY_LABEL, type Strategy } from "@/lib/strategy";
 import type { TradeProposal } from "@/lib/types";
 
 /**
@@ -63,11 +65,22 @@ interface PrecheckResult {
 export function ProposalActions({
   proposal: p,
   liveEnabled,
+  activeLens,
+  dual = false,
 }: {
   proposal: TradeProposal;
   liveEnabled: boolean;
+  /** The lens the human has toggled to (dual-lens M1). Approving acts under it:
+   *  the order uses this lens's levels + red-team verdict, and the journal
+   *  records it. Omitted/undefined for single-lens proposals. */
+  activeLens?: Strategy;
+  /** Whether the proposal is dual-lens — drives the "acting under X lens" copy. */
+  dual?: boolean;
 }) {
   const router = useRouter();
+  // The lens whose levels/verdict approval acts under. For single-lens this is
+  // the lone (top-level) lens; the server resolves the same way from `actingLens`.
+  const al = resolveActiveLens(p, activeLens);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<DecisionResult | null>(null);
   const [advResult, setAdvResult] = useState<AdvisoryDecision | null>(null);
@@ -95,6 +108,7 @@ export function ProposalActions({
         body: JSON.stringify({
           proposalId: p.id,
           decision,
+          ...(activeLens ? { actingLens: activeLens } : {}),
           ...(overrideCommentText && overrideCommentText.trim()
             ? { override: { comment: overrideCommentText.trim() } }
             : {}),
@@ -122,7 +136,10 @@ export function ProposalActions({
       const res = await fetch("/api/live/approve/precheck", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ proposalId: p.id }),
+        body: JSON.stringify({
+          proposalId: p.id,
+          ...(activeLens ? { actingLens: activeLens } : {}),
+        }),
       });
       const data = res.ok ? ((await res.json()) as PrecheckResult) : null;
       setPrecheck({ loading: false, result: data });
@@ -168,11 +185,11 @@ export function ProposalActions({
 
   const rr = computeRiskReward({
     action: p.action,
-    entry: p.limitPrice,
-    stop: p.stopPrice,
-    target: p.takeProfit,
+    entry: al.limitPrice,
+    stop: al.stopPrice,
+    target: al.takeProfit,
   });
-  const conf = p.confidence === null ? null : confidenceBucket(p.confidence);
+  const conf = al.confidence === null ? null : confidenceBucket(al.confidence);
   const blocks = precheck.result;
   const blocked = blocks?.blocked ?? false;
   const overrideReady = overrideComment.trim().length > 0;
@@ -294,6 +311,15 @@ export function ProposalActions({
         onDismiss={() => setConfirming(false)}
       >
         <div className="flex flex-col gap-4">
+          {dual && activeLens ? (
+            <p className="rounded-card border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg">
+              Approving under the{" "}
+              <span className="font-semibold">{STRATEGY_LABEL[activeLens]}</span>{" "}
+              lens — this order uses its levels and verdict, and the journal
+              records it as the rationale. Toggle the lens on the page to act
+              under the other.
+            </p>
+          ) : null}
           <div className="rounded-card border border-line bg-surface p-4">
             <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <dt className="text-fg-muted">Ticker</dt>
@@ -303,38 +329,38 @@ export function ProposalActions({
                 {p.action} · {p.side}
               </dd>
               <dt className="text-fg-muted">Quantity</dt>
-              <dd className="text-right tabular-nums text-fg">{p.qty}</dd>
+              <dd className="text-right tabular-nums text-fg">{al.qty}</dd>
               <dt className="text-fg-muted">Order type</dt>
               <dd className="text-right text-fg">
                 <Term term="marketable-limit">marketable-limit</Term>
               </dd>
               <dt className="text-fg-muted">Limit price</dt>
               <dd className="text-right tabular-nums text-fg">
-                {formatCurrency(p.limitPrice)}
+                {formatCurrency(al.limitPrice)}
               </dd>
               <dt className="text-fg-muted">Est. cost</dt>
               <dd className="text-right tabular-nums text-fg">
-                {formatCurrency(p.qty * p.limitPrice)}
+                {formatCurrency(al.qty * al.limitPrice)}
               </dd>
-              {p.stopPrice !== null ? (
+              {al.stopPrice !== null ? (
                 <>
                   <dt className="text-fg-muted">Stop</dt>
                   <dd className="text-right tabular-nums text-fg">
-                    {formatCurrency(p.stopPrice)}
+                    {formatCurrency(al.stopPrice)}
                   </dd>
                 </>
               ) : null}
             </dl>
             <p className="mt-3 border-t border-line pt-3 text-pretty text-sm text-fg">
-              {p.thesis}
+              {al.thesis}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <StatChip label="Est. cost" value={formatCurrency(p.qty * p.limitPrice)} />
+            <StatChip label="Est. cost" value={formatCurrency(al.qty * al.limitPrice)} />
             <StatChip
               label="Risk"
-              value={formatPercent(p.riskPct, { signed: false })}
+              value={formatPercent(al.riskPct, { signed: false })}
             />
             <StatChip
               label="R:R"
@@ -347,7 +373,7 @@ export function ProposalActions({
             />
           </div>
 
-          {p.redTeam ? <RedTeamVerdict verdict={p.redTeam} /> : null}
+          {al.redTeam ? <RedTeamVerdict verdict={al.redTeam} /> : null}
 
           {precheck.loading ? (
             <p className="text-sm text-fg-muted">

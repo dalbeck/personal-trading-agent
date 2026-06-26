@@ -210,6 +210,38 @@ export const ConvictionTier = z.enum(["high", "moderate", "watch"]);
  */
 export const Strategy = z.enum(["trend", "value"]);
 
+/**
+ * One **lens breakdown** carried by a dual-lens proposal (dual-lens M1). The
+ * manual analyze-a-symbol pipeline now evaluates a ticker under **both** the
+ * trend and value mandates and produces **one** proposal holding both
+ * breakdowns. Each lens carries its own levels, sizing, conviction, narrative,
+ * and **red-team verdict** (judged by its matching mandate) — they may differ.
+ * The proposal's **top-level fields mirror the active lens** (for the slim list
+ * + execution + back-compat); this array holds every lens for the detail page's
+ * toggle and for the acting-lens approval. Empty for single-lens proposals
+ * (discovery, older records) — then the top-level fields ARE the one lens.
+ */
+export const ProposalLensSchema = z
+  .object({
+    strategy: Strategy,
+    limitPrice: money,
+    stopPrice: money.nullable().default(null),
+    takeProfit: money.nullable().default(null),
+    targetType: TargetType.nullable().default(null),
+    qty: z.number().positive(),
+    riskPct: ratio,
+    relativeVolume: z.number().nonnegative().nullable().default(null),
+    catalyst: z.string().nullable().default(null),
+    catalystType: CatalystType.nullable().default(null),
+    convictionScore: z.number().min(0).max(1).nullable().default(null),
+    convictionTier: ConvictionTier.nullable().default(null),
+    confidence: z.number().min(0).max(1).nullable().default(null),
+    thesis: z.string().min(1),
+    reasoning: z.string().min(1),
+    redTeam: RedTeamVerdictSchema.nullable().default(null),
+  })
+  .strict();
+
 export const TradeProposalSchema = z
   .object({
     id: z.string().min(1),
@@ -279,6 +311,12 @@ export const TradeProposalSchema = z
     // discovery) so older proposals still validate.
     origin: z.enum(["discovery", "manual-request"]).nullable().default(null),
     redTeam: RedTeamVerdictSchema.nullable().default(null),
+    // Dual-lens breakdowns (dual-lens M1). A **manual** analyze-a-symbol proposal
+    // now carries BOTH the trend and value lens here; the top-level fields above
+    // mirror the **active** lens (default + execution). Empty `[]` = single-lens
+    // (discovery candidates, older manual records) — the top-level fields are the
+    // lone lens. Discovery stays single-lens; only manual analyze is dual.
+    lenses: z.array(ProposalLensSchema).default([]),
     reviewByDate: isoDate.nullable().default(null),
     // Seeded/demo content. Live records written by the routines/scout omit this
     // (or set it false). Any view rendering a sample record flags it so demo

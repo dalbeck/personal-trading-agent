@@ -27,7 +27,10 @@ import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
 import { formatRelativeVolume, REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { RISK_LIMITS } from "@strategy/charter.config";
-import type { TradeProposal } from "@/lib/types";
+import type { Strategy } from "@/lib/strategy";
+import type { CatalystType } from "@/lib/catalyst";
+import type { TargetType } from "@/lib/target-type";
+import type { RedTeamVerdict } from "@/lib/types";
 
 export type CheckStatus = "pass" | "flag" | "na";
 
@@ -37,8 +40,28 @@ export interface CheckItem {
   detail: string;
 }
 
+/**
+ * The minimal field set the checklist reads — a `TradeProposal` satisfies it
+ * structurally, and so does a per-lens breakdown merged with the proposal's
+ * action/side (so a dual-lens proposal can build a checklist per lens).
+ */
+export interface ChecklistInput {
+  action: "buy" | "sell";
+  side?: "long" | "short";
+  strategy: Strategy;
+  limitPrice: number;
+  stopPrice: number | null;
+  takeProfit: number | null;
+  targetType: TargetType | null;
+  riskPct: number;
+  catalyst: string | null;
+  catalystType: CatalystType | null;
+  relativeVolume: number | null;
+  redTeam: RedTeamVerdict | null;
+}
+
 /** Shared hard-rail + governance items both mandates clear identically. */
-function rewardRiskItem(p: TradeProposal): CheckItem {
+function rewardRiskItem(p: ChecklistInput): CheckItem {
   const rr = computeRiskReward({
     action: p.action,
     entry: p.limitPrice,
@@ -52,7 +75,7 @@ function rewardRiskItem(p: TradeProposal): CheckItem {
   };
 }
 
-function riskCapItem(p: TradeProposal): CheckItem {
+function riskCapItem(p: ChecklistInput): CheckItem {
   return {
     label: `Risk ≤ ${formatPercent(RISK_LIMITS.perPositionRiskPct, {
       signed: false,
@@ -62,7 +85,7 @@ function riskCapItem(p: TradeProposal): CheckItem {
   };
 }
 
-function redTeamItem(p: TradeProposal): CheckItem {
+function redTeamItem(p: ChecklistInput): CheckItem {
   return {
     label: "Red-team not a reject",
     status: !p.redTeam ? "na" : p.redTeam.verdict === "reject" ? "flag" : "pass",
@@ -70,7 +93,7 @@ function redTeamItem(p: TradeProposal): CheckItem {
   };
 }
 
-function stopItem(p: TradeProposal, label: string): CheckItem {
+function stopItem(p: ChecklistInput, label: string): CheckItem {
   return {
     label,
     status: p.stopPrice === null ? "flag" : "pass",
@@ -78,7 +101,7 @@ function stopItem(p: TradeProposal, label: string): CheckItem {
   };
 }
 
-function targetItem(p: TradeProposal, label: string): CheckItem {
+function targetItem(p: ChecklistInput, label: string): CheckItem {
   return {
     label,
     status:
@@ -87,7 +110,7 @@ function targetItem(p: TradeProposal, label: string): CheckItem {
   };
 }
 
-function catalystItem(p: TradeProposal, label: string): CheckItem {
+function catalystItem(p: ChecklistInput, label: string): CheckItem {
   return {
     label,
     status:
@@ -97,7 +120,7 @@ function catalystItem(p: TradeProposal, label: string): CheckItem {
 }
 
 /** The trend mandate's checklist (the desk's original). */
-function trendChecklist(p: TradeProposal): CheckItem[] {
+function trendChecklist(p: ChecklistInput): CheckItem[] {
   return [
     rewardRiskItem(p),
     riskCapItem(p),
@@ -126,7 +149,7 @@ function trendChecklist(p: TradeProposal): CheckItem[] {
  * `fundamental` target is a pass here (it isn't `analyst_price`/missing). Quality
  * vs the value-trap is judged by the value red-team lens, not a structured field.
  */
-function valueChecklist(p: TradeProposal): CheckItem[] {
+function valueChecklist(p: ChecklistInput): CheckItem[] {
   return [
     rewardRiskItem(p),
     riskCapItem(p),
@@ -138,6 +161,6 @@ function valueChecklist(p: TradeProposal): CheckItem[] {
 }
 
 /** Build the derived pre-trade checklist for a proposal, by its strategy. */
-export function buildChecklist(p: TradeProposal): CheckItem[] {
+export function buildChecklist(p: ChecklistInput): CheckItem[] {
   return p.strategy === "value" ? valueChecklist(p) : trendChecklist(p);
 }

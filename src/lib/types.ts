@@ -9,6 +9,7 @@ import type {
   MaterialNewsItemSchema,
   PortfolioSnapshotSchema,
   PositionSchema,
+  ProposalLensSchema,
   RedTeamFactorSchema,
   RedTeamVerdictSchema,
   RejectionJournalEntrySchema,
@@ -38,6 +39,7 @@ export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 
 export type RedTeamFactor = z.infer<typeof RedTeamFactorSchema>;
 export type RedTeamVerdict = z.infer<typeof RedTeamVerdictSchema>;
+export type ProposalLensBreakdown = z.infer<typeof ProposalLensSchema>;
 export type TradeProposal = z.infer<typeof TradeProposalSchema>;
 
 export type CoachingEntry = z.infer<typeof CoachingEntrySchema>;

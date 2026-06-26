@@ -4,6 +4,7 @@ import {
   evaluateApprovalBlocks,
 } from "@/lib/server/live-order";
 import { isAdvisoryProposal } from "@/lib/proposal-advisory";
+import { resolveActiveLens } from "@/lib/proposal-lens";
 
 /**
  * Read-only precheck for the approve dialog (Phase 3 M7). Evaluates the blocks a
@@ -19,7 +20,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
-  let body: { proposalId?: string };
+  let body: { proposalId?: string; actingLens?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -43,25 +44,33 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
+  // Evaluate the blocks for the lens the human is acting under (dual-lens M1):
+  // its red-team verdict + levels drive what blocks the order. Single-lens →
+  // the lone top-level lens, so the precheck is unchanged.
+  const actingLens =
+    body.actingLens === "trend" || body.actingLens === "value"
+      ? body.actingLens
+      : undefined;
+  const lens = resolveActiveLens(proposal, actingLens);
   const blocks = await evaluateApprovalBlocks({
     symbol: proposal.symbol,
     action: proposal.action,
     side: proposal.side,
-    qty: proposal.qty,
-    limitPrice: proposal.limitPrice,
-    stopPrice: proposal.stopPrice,
-    takeProfit: proposal.takeProfit,
-    riskPct: proposal.riskPct,
+    qty: lens.qty,
+    limitPrice: lens.limitPrice,
+    stopPrice: lens.stopPrice,
+    takeProfit: lens.takeProfit,
+    riskPct: lens.riskPct,
     reviewDate: proposal.reviewByDate ?? new Date().toISOString().slice(0, 10),
-    thesis: proposal.thesis,
-    reasoning: proposal.reasoning,
-    redTeam: proposal.redTeam,
+    thesis: lens.thesis,
+    reasoning: lens.reasoning,
+    redTeam: lens.redTeam,
     account: proposal.account,
     sector: proposal.sector,
-    targetType: proposal.targetType,
-    relativeVolume: proposal.relativeVolume,
-    catalyst: proposal.catalyst,
-    catalystType: proposal.catalystType,
+    targetType: lens.targetType,
+    relativeVolume: lens.relativeVolume,
+    catalyst: lens.catalyst,
+    catalystType: lens.catalystType,
   });
 
   return Response.json({

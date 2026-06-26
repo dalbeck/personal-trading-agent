@@ -57,22 +57,32 @@ export function ProposalDetailView({
 }) {
   const lenses = buildProposalLenses(p);
   const dual = isDualLens(lenses);
-  const [activeIdx, setActiveIdx] = useState(0);
+  // Default the toggle to the proposal's ACTIVE lens (its top-level strategy =
+  // the higher-conviction default), so the detail opens on the same lens the
+  // slim list shows. Falls back to the first lens.
+  const defaultIdx = Math.max(
+    0,
+    lenses.findIndex((l) => l.strategy === p.strategy),
+  );
+  const [activeIdx, setActiveIdx] = useState(defaultIdx);
   const lens = lenses[activeIdx] ?? lenses[0];
 
   const advisory = isAdvisoryProposal(p);
   const liveApprovable = p.account === "live" && !advisory;
+  // Levels/sizing/thesis/research follow the ACTIVE lens, so the toggle switches
+  // the whole breakdown (single-lens proposals have one lens == the top-level).
   const rr = computeRiskReward({
     action: p.action,
-    entry: p.limitPrice,
-    stop: p.stopPrice,
-    target: p.takeProfit,
+    entry: lens.limitPrice,
+    stop: lens.stopPrice,
+    target: lens.takeProfit,
   });
-  const conf = p.confidence === null ? null : confidenceBucket(p.confidence);
-  const estCost = p.qty * p.limitPrice;
+  const conf =
+    lens.confidence === null ? null : confidenceBucket(lens.confidence);
+  const estCost = lens.qty * lens.limitPrice;
   const riskPerShare =
-    p.stopPrice === null ? null : Math.abs(p.limitPrice - p.stopPrice);
-  const totalRisk = riskPerShare === null ? null : riskPerShare * p.qty;
+    lens.stopPrice === null ? null : Math.abs(lens.limitPrice - lens.stopPrice);
+  const totalRisk = riskPerShare === null ? null : riskPerShare * lens.qty;
   const created = new Date(p.createdAt);
 
   return (
@@ -127,7 +137,7 @@ export function ProposalDetailView({
           {p.sector ? <span>{p.sector}</span> : null}
           {p.sector ? <Dot /> : null}
           <span>
-            {p.action} {p.side} · {p.qty} @ {formatCurrency(p.limitPrice)}
+            {p.action} {p.side} · {lens.qty} @ {formatCurrency(lens.limitPrice)}
           </span>
           <Dot />
           <span>
@@ -188,10 +198,10 @@ export function ProposalDetailView({
               </span>
             </div>
             <p className="text-pretty text-sm leading-relaxed text-fg">
-              {p.thesis}
+              {lens.thesis}
             </p>
             <p className="mt-2 text-pretty text-sm leading-relaxed text-fg-muted">
-              {p.reasoning}
+              {lens.reasoning}
             </p>
           </Section>
 
@@ -220,9 +230,9 @@ export function ProposalDetailView({
           </Section>
 
           <Section title="Research">
-            {p.catalyst ? (
+            {lens.catalyst ? (
               <p className="text-pretty text-sm leading-relaxed text-fg">
-                {p.catalyst}
+                {lens.catalyst}
               </p>
             ) : (
               <p className="text-sm text-fg-muted">
@@ -260,19 +270,26 @@ export function ProposalDetailView({
 
         {/* Side rail — sizing math + the gated actions. */}
         <div className="flex flex-col gap-6">
-          <Section title="Sizing math">
+          <Section
+            title="Sizing math"
+            note={
+              dual
+                ? `For the ${STRATEGY_LABEL[lens.strategy].toLowerCase()} lens — approving uses these levels.`
+                : undefined
+            }
+          >
             <RiskRewardBar
               action={p.action}
-              entry={p.limitPrice}
-              stop={p.stopPrice}
-              target={p.takeProfit}
-              confidence={p.confidence}
+              entry={lens.limitPrice}
+              stop={lens.stopPrice}
+              target={lens.takeProfit}
+              confidence={lens.confidence}
               className="mb-1"
             />
             <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <MathRow
                 label="Quantity × limit"
-                value={`${p.qty} × ${formatCurrency(p.limitPrice)}`}
+                value={`${lens.qty} × ${formatCurrency(lens.limitPrice)}`}
               />
               <MathRow label="Estimated cost" value={formatCurrency(estCost)} />
               <MathRow
@@ -285,7 +302,7 @@ export function ProposalDetailView({
               />
               <MathRow
                 label="Risk (% equity)"
-                value={formatPercent(p.riskPct, { signed: false })}
+                value={formatPercent(lens.riskPct, { signed: false })}
               />
               <MathRow
                 label="Reward : risk"
@@ -299,7 +316,12 @@ export function ProposalDetailView({
           </Section>
 
           <Section title="Decision">
-            <ProposalActions proposal={p} liveEnabled={liveEnabled} />
+            <ProposalActions
+              proposal={p}
+              liveEnabled={liveEnabled}
+              activeLens={lens.strategy}
+              dual={dual}
+            />
           </Section>
 
           <Section title="Export">
