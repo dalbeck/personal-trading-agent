@@ -6,6 +6,7 @@ import {
   BarChart3,
   Check,
   ChevronDown,
+  ChevronRight,
   ClipboardCheck,
   Flag,
   GraduationCap,
@@ -90,5 +91,6 @@ export const ArrowDownRightIcon = lucideIcon(ArrowDownRight);
 export const XIcon = lucideIcon(X);
 export const InfoIcon = lucideIcon(Info);
 export const ChevronDownIcon = lucideIcon(ChevronDown);
+export const ChevronRightIcon = lucideIcon(ChevronRight);
 export const CheckIcon = lucideIcon(Check);
 export const FlagIcon = lucideIcon(Flag);

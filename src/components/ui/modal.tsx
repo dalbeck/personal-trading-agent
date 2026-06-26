@@ -16,11 +16,14 @@ export function Modal({
   title,
   onDismiss,
   children,
+  footer,
 }: {
   open: boolean;
   title: string;
   onDismiss: () => void;
   children?: ReactNode;
+  /** Optional pinned action bar below the scrollable body (stays in view). */
+  footer?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -42,7 +45,7 @@ export function Modal({
       onClick={(e) => {
         if (e.target === ref.current) onDismiss();
       }}
-      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-2xl overflow-hidden rounded-card border border-line bg-surface-overlay p-0 text-fg shadow-overlay backdrop:bg-black/50"
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-4xl overflow-hidden rounded-card border border-line bg-surface-overlay p-0 text-fg shadow-overlay backdrop:bg-black/50"
     >
       <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
         <div className="flex items-start justify-between gap-4 border-b border-line bg-surface-overlay px-6 py-4">
@@ -62,6 +65,11 @@ export function Modal({
           </button>
         </div>
         <div className="overflow-y-auto px-6 py-5">{children}</div>
+        {footer ? (
+          <div className="border-t border-line bg-surface-overlay px-6 py-4">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </dialog>
   );
