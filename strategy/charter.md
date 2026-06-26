@@ -14,6 +14,29 @@ the charter is a deliberate human act, recorded in the change log below.
 > focus. The app **never auto-trades**; hands-off automation (no human in the
 > loop) remains gated on a passing Phase 2 evaluation scorecard.
 
+## Analytical identity
+
+**This is a technical, trend-following desk.** Technical evidence — trend,
+momentum, relative strength, volume, and price structure — drives every
+**entry, exit, and sizing** decision, and the profit target is always
+**technically anchored** (prior high, measured move, or ATR multiple).
+
+**Fundamentals (Perplexity research) serve one defined role: a catalyst check
+and a disqualifier — never the primary entry rationale, and never the source of
+the price target.** Concretely, fundamentals may only:
+
+- supply or confirm the **named catalyst** behind a move, and
+- **disqualify** an otherwise-clean technical setup — a value trap (deteriorating
+  fundamentals under a bid) or an **imminent earnings binary** inside the holding
+  window.
+
+A thesis whose *primary* rationale is fundamental or valuation ("cheap on
+earnings," "undervalued vs. peers") is **out of mandate**; the red-team
+prosecutor penalizes it. Likewise a sell-side **`analyst_price` target is weak /
+disqualifying** — the desk sets its own technical target, it does not borrow an
+analyst's number (reinforced under Execution quality and the playbook Target
+rule).
+
 ## Universe
 
 - Listed **US equities only**. **No options, no crypto, no futures, no margin.**
@@ -109,6 +132,17 @@ order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-06-25** — **Analytical identity declared (strategy coherence M1).**
+  Added the **Analytical identity** section stating plainly that this is a
+  **technical trend-following desk**: technical evidence drives entry, exit,
+  sizing, and the (technical) target, while **fundamentals serve only as a
+  catalyst-check and disqualifier** — never the primary entry rationale, never
+  the price-target source. Reinforced that a sell-side `analyst_price` target is
+  weak/disqualifying. The red-team prosecutor now penalizes a fundamental- or
+  valuation-primary thesis (on top of flagging analyst-price targets). No
+  risk-rail or cap numbers changed (`charter.config.ts` untouched); this raises
+  proposal **quality** only — no gate or execution change. See
+  `planning/strategy-coherence-spec.md`.
 - **2026-06-25** — **Target & sector governance (pre-live polish M3).** Added a
   **sector-concentration rail** (≤ **40%** of equity per sector, mirrored in
   `charter.config.ts` `maxSectorWeightPct`, tripwired by `charter-config.test.ts`)
