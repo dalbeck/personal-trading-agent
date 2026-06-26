@@ -19,6 +19,37 @@ export function PageTitle({
   );
 }
 
+/**
+ * A "chapter break" between major sections on dense pages (M4): a serif section
+ * title (larger than a card title) + an optional note, with generous top space
+ * so sections read as distinct chapters rather than one continuous stream.
+ * Pair with big inter-section gaps — hierarchy + whitespace, not more chrome.
+ */
+export function SectionTitle({
+  title,
+  note,
+  children,
+}: {
+  title: string;
+  note?: string;
+  /** Optional right-aligned slot (e.g. a link or badge). */
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div>
+        <h2 className="font-serif text-lg font-semibold text-fg">{title}</h2>
+        {note ? (
+          <p className="mt-1 max-w-2xl text-pretty text-sm text-fg-muted">
+            {note}
+          </p>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 /** Bordered card surface used across views. */
 export function Card({
   children,

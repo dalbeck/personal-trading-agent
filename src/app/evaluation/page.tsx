@@ -1,5 +1,5 @@
 import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
-import { Card, PageTitle, StatCard } from "@/components/page-shell";
+import { Card, PageTitle, SectionTitle, StatCard } from "@/components/page-shell";
 import { ProgressBar } from "@/components/ui/progress";
 import { formatCurrency, formatPercent, toneForValue } from "@/lib/format";
 import { getEvaluationScorecard, getLiveBookPerformance } from "@/lib/server/eval";
@@ -57,13 +57,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-fg">
-          {title}
-        </h2>
-        {note ? <p className="text-xs text-fg-muted">{note}</p> : null}
-      </div>
+    <section className="flex flex-col gap-4">
+      <SectionTitle title={title} note={note} />
       {children}
     </section>
   );
