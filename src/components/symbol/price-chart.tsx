@@ -15,6 +15,7 @@ import {
   type SymbolQuote,
   type SymbolRange,
 } from "@/lib/symbol";
+import { Term } from "@/components/term";
 
 const compactNumber = new Intl.NumberFormat("en-US", {
   notation: "compact",
@@ -203,7 +204,7 @@ export function PriceChart({
               ) : null}
             </div>
             <p className="mt-1 text-xs text-fg-muted sm:text-right">
-              Alpaca · IEX feed
+              Alpaca · <Term term="iex">IEX feed</Term>
             </p>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { formatCurrency, formatPercent } from "@/lib/format";
+import { Term } from "@/components/term";
 import { confidenceBucket } from "@/lib/confidence";
 import {
   computeRiskReward,
@@ -42,7 +43,7 @@ export function RiskRewardBar({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-baseline gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-            Reward : risk
+            <Term term="rr">Reward : risk</Term>
           </span>
           {rr ? (
             <span className="text-base font-semibold tabular-nums text-fg">
@@ -120,11 +121,10 @@ function ConfidenceMeter({ value }: { value: number }) {
   const { level, pct, filled, segments } = confidenceBucket(value);
   const summary = `${level} · ${pct}%`;
   return (
-    <div
-      className="flex items-center gap-2"
-      title="Model confidence — self-rated by the model and uncalibrated. One input alongside the risk rails and red-team, not a probability."
-    >
-      <span className="text-xs text-fg-muted">Model confidence</span>
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-fg-muted">
+        <Term term="model-confidence">Model confidence</Term>
+      </span>
       <div
         role="meter"
         aria-label={`Model confidence: ${level}, ${pct}%`}
