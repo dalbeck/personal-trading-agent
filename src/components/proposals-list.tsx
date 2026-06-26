@@ -182,7 +182,7 @@ export function ProposalsList({
 
   return (
     <>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         {proposals.map((p) => {
           const status = statusOf(p);
           const pending = status === "pending";
@@ -195,12 +195,15 @@ export function ProposalsList({
               key={p.id}
               className={advisory ? "border-accent/50" : undefined}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Badge tone={p.action === "buy" ? "gain" : "loss"}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Badge tone={p.action === "buy" ? "gain" : "loss"} solid>
                     {p.action.toUpperCase()}
                   </Badge>
-                  <TickerLink symbol={p.symbol} className="font-semibold text-fg" />
+                  <TickerLink
+                    symbol={p.symbol}
+                    className="text-base font-semibold text-fg"
+                  />
                   <span className="text-sm tabular-nums text-fg-muted">
                     {p.qty} @ {formatCurrency(p.limitPrice)} limit
                   </span>
@@ -223,57 +226,44 @@ export function ProposalsList({
                 </div>
               </div>
 
-              <p className="mt-3 text-pretty text-sm text-fg">{p.thesis}</p>
-              <p className="mt-2 text-pretty text-sm text-fg-muted">
+              <p className="mt-4 text-pretty text-sm leading-relaxed text-fg">
+                {p.thesis}
+              </p>
+              <p className="mt-2 text-pretty text-sm leading-relaxed text-fg-muted">
                 {p.reasoning}
               </p>
 
-              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm tabular-nums">
-                <span className="text-fg-muted">
-                  Est. cost{" "}
-                  <span className="font-semibold text-fg">
-                    {formatCurrency(estCost)}
-                  </span>
-                </span>
-                <span className="text-fg-muted">
-                  Risk{" "}
-                  <span className="font-semibold text-fg">
-                    {formatPercent(p.riskPct, { signed: false })}
-                  </span>
-                </span>
-                <span className="text-fg-muted">
-                  Target{" "}
-                  <span
-                    className={`font-semibold ${
-                      isWeakTarget(p.targetType) ? "text-warning" : "text-fg"
-                    }`}
-                  >
-                    {targetTypeLabel(p.targetType)}
-                    {isWeakTarget(p.targetType) ? " · weak" : ""}
-                  </span>
-                </span>
-                <span className="text-fg-muted">
-                  Rel. vol{" "}
-                  <span className="font-semibold text-fg">
-                    {p.relativeVolume == null
+              <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-3 lg:grid-cols-5">
+                <MetricCell label="Est. cost" value={formatCurrency(estCost)} />
+                <MetricCell
+                  label="Risk"
+                  value={formatPercent(p.riskPct, { signed: false })}
+                />
+                <MetricCell
+                  label="Target"
+                  value={`${targetTypeLabel(p.targetType)}${
+                    isWeakTarget(p.targetType) ? " · weak" : ""
+                  }`}
+                  tone={isWeakTarget(p.targetType) ? "warning" : "default"}
+                />
+                <MetricCell
+                  label="Rel. vol"
+                  value={
+                    p.relativeVolume == null
                       ? "—"
-                      : formatRelativeVolume(p.relativeVolume)}
-                  </span>
-                </span>
-                <span className="text-fg-muted" title={p.catalyst ?? undefined}>
-                  Catalyst{" "}
-                  <span
-                    className={`font-semibold ${
-                      isWeakCatalyst(p.catalystType) ? "text-warning" : "text-fg"
-                    }`}
-                  >
-                    {catalystTypeLabel(p.catalystType)}
-                    {isWeakCatalyst(p.catalystType) ? " · weak" : ""}
-                  </span>
-                </span>
-              </div>
+                      : formatRelativeVolume(p.relativeVolume)
+                  }
+                />
+                <MetricCell
+                  label="Catalyst"
+                  value={`${catalystTypeLabel(p.catalystType)}${
+                    isWeakCatalyst(p.catalystType) ? " · weak" : ""
+                  }`}
+                  tone={isWeakCatalyst(p.catalystType) ? "warning" : "default"}
+                />
+              </dl>
               {p.catalyst ? (
-                <p className="mt-1.5 text-pretty text-xs text-fg-muted">
+                <p className="mt-2 text-pretty text-xs text-fg-muted">
                   <span className="font-medium text-fg">Catalyst:</span>{" "}
                   {p.catalyst}
                 </p>
@@ -519,5 +509,32 @@ export function ProposalsList({
         ) : null}
       </AlertDialog>
     </>
+  );
+}
+
+/** One labelled figure inside the proposal metrics grid. `warning` tone flags a
+ *  weak target/catalyst without shouting. */
+function MetricCell({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "warning";
+}) {
+  return (
+    <div className="bg-surface-raised px-3 py-2.5">
+      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-fg-muted">
+        {label}
+      </dt>
+      <dd
+        className={`mt-0.5 text-sm font-semibold tabular-nums ${
+          tone === "warning" ? "text-warning" : "text-fg"
+        }`}
+      >
+        {value}
+      </dd>
+    </div>
   );
 }
