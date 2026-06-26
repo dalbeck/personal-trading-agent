@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Card } from "@/components/page-shell";
+import { InfoIcon } from "@/components/icons";
 
 /**
  * Card wrapper for an Overview module: a titled header with an optional
@@ -57,7 +58,13 @@ export function ModuleEmpty({
   cta?: { href: string; label: string };
 }) {
   return (
-    <div className="flex flex-col items-start gap-2 rounded-card border border-dashed border-line bg-surface p-4">
+    <div className="flex flex-col items-start gap-3 rounded-card border border-dashed border-line bg-surface p-5">
+      <span
+        aria-hidden
+        className="grid size-9 place-items-center rounded-[12px] bg-fg-muted/10 text-fg-muted"
+      >
+        <InfoIcon className="size-[18px]" />
+      </span>
       <p className="text-pretty text-sm text-fg-muted">{message}</p>
       {cta ? (
         <Link

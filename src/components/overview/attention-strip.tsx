@@ -94,7 +94,7 @@ function AttentionItem({
   return (
     <Link
       href={href}
-      className={`group flex items-center gap-3 rounded-card border ${ring} bg-surface p-3 transition-colors hover:bg-surface-overlay`}
+      className={`group flex items-center gap-3 rounded-card border ${ring} bg-surface p-3 transition-[transform,background-color] duration-150 ease-out hover:-translate-y-0.5 hover:bg-surface-overlay`}
     >
       <span className={`text-2xl font-semibold tabular-nums ${countClass}`}>
         {count}

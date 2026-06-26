@@ -33,7 +33,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
       ? "bg-gain/12 text-gain"
       : "bg-loss/12 text-loss";
   return (
-    <Card>
+    <Card interactive>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span

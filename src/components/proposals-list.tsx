@@ -215,6 +215,7 @@ export function ProposalsList({
           return (
             <Card
               key={p.id}
+              interactive
               className={`overflow-hidden p-0 ${advisory ? "border-accent/50" : ""}`}
             >
               {/* Zone 1 — tinted header strip: side pill, serif ticker, status */}

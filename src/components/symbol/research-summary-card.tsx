@@ -1,6 +1,7 @@
 "use client";
 
 import { Markdown } from "@/components/markdown";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   formatCompactCurrency,
   formatCurrency,
@@ -80,9 +81,9 @@ export function ResearchSummaryCard({
 
       {loading ? (
         <div className="mt-4 flex flex-col gap-2" aria-hidden>
-          <span className="h-4 w-full animate-pulse rounded bg-surface-overlay" />
-          <span className="h-4 w-5/6 animate-pulse rounded bg-surface-overlay" />
-          <span className="h-4 w-2/3 animate-pulse rounded bg-surface-overlay" />
+          <Skeleton className="h-4 w-full rounded" />
+          <Skeleton className="h-4 w-5/6 rounded" />
+          <Skeleton className="h-4 w-2/3 rounded" />
         </div>
       ) : research && hasContent ? (
         <CardBody research={research} quote={quote} />

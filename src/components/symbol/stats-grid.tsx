@@ -7,6 +7,7 @@ import {
   formatPercent,
 } from "@/lib/format";
 import { RESEARCH_PROVIDER_LABEL, RESEARCH_PROVIDER_SHORT } from "@/lib/research-display";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { SymbolQuote } from "@/lib/symbol";
 import { formatRelativeVolume } from "@/lib/volume";
 import type { ResearchOrigin } from "@/lib/server/research/types";
@@ -67,10 +68,7 @@ function Cell({
       </dt>
       <dd className="text-sm font-semibold tabular-nums text-fg">
         {loading ? (
-          <span
-            className="inline-block h-4 w-16 animate-pulse rounded bg-surface-overlay align-middle"
-            aria-hidden
-          />
+          <Skeleton className="inline-block h-4 w-16 rounded align-middle" />
         ) : (
           value
         )}
