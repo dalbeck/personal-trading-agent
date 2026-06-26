@@ -12,24 +12,26 @@
    in @theme below (bg-surface, text-fg, text-gain, …) — never hardcoded colors.
 --------------------------------------------------------------------------- */
 :root {
-  /* Light mode */
+  /* Light mode (secondary theme — inherits the Plaid token system; dark is the
+     reference design). Blue/green/red are tuned darker than the dark theme so
+     they clear ≥4.5:1 as text on white (verified). */
   --surface-base: #ffffff;
-  --surface-raised: #f7f7f7;
+  --surface-raised: #f7f7f8;
   --surface-overlay: #ffffff;
-  --border-default: #e5e5e5;
-  --text-primary: #1a1a1a;
-  --text-secondary: #5c5c5c;
-  --accent: #b7df2f;
-  --accent-hover: #c3fe09; /* hover lightens toward #C3FE09 (design-system) */
-  --accent-foreground: #0a0a0a; /* black text on accent fill */
-  /* Link text — a darkened, readable form of the lime accent (lime-on-white is
-     <2:1 and unreadable). This stays ≥4.5:1 on our light surfaces. */
-  --link: #3f6212;
-  --link-hover: #2f4d0e;
-  --gain: #00a301;
-  --loss: #e03a00;
+  --border-default: #e6e6e8;
+  --text-primary: #1b1b1b;
+  --text-secondary: #5f5e5a;
+  --text-tertiary: #6e6e6b; /* hints — ≥4.5:1 on both light surfaces */
+  --accent: #2a72a3; /* Plaid blue, deepened for white text on the fill */
+  --accent-hover: #245f89;
+  --accent-foreground: #ffffff; /* white text on the blue fill */
+  /* Link text — the blue accent, deepened to stay ≥4.5:1 on light surfaces. */
+  --link: #1f6193;
+  --link-hover: #184f79;
+  --gain: #0a7a33; /* spec light gain deepened for ≥4.5:1 as text */
+  --loss: #c93600; /* spec light loss deepened for ≥4.5:1 as text */
   /* Semantic status/verdict tones — text on a solid light tint, ≥4.5:1.
-     Distinct from gain/loss (trading P&L) and the lime accent (actions). */
+     Distinct from gain/loss (trading P&L) and the blue accent (actions). */
   --success-fg: #0b6b2e;
   --success-surface: #e6f4eb;
   --success-border: #bfe3cc;
@@ -43,21 +45,22 @@
 }
 
 .dark {
-  /* Dark mode */
-  --surface-base: #000000;
-  --surface-raised: #0e0e0e;
-  --surface-overlay: #1a1a1a;
-  --border-default: #2a2a2a;
-  --text-primary: #ececec;
-  --text-secondary: #a0a0a0;
-  --accent: #b7df2f;
-  --accent-hover: #c3fe09;
-  --accent-foreground: #0a0a0a;
-  /* On black, the lime accent is high-contrast, so links use it directly. */
-  --link: #b7df2f;
-  --link-hover: #c3fe09;
-  --gain: #00c805;
-  --loss: #ff5000;
+  /* Dark mode (PRIMARY / reference theme — Plaid corrected tokens). */
+  --surface-base: #1b1b1b;
+  --surface-raised: #242426;
+  --surface-overlay: #2e2e32;
+  --border-default: #373d3e;
+  --text-primary: #eaeef2;
+  --text-secondary: #9e9e9f;
+  --text-tertiary: #9499a0; /* hints — lightened from the spec's #6E7174 to clear ≥4.5:1 */
+  --accent: #7fb4d5; /* Plaid soft-blue — black text on the fill */
+  --accent-hover: #98c6e0;
+  --accent-foreground: #0b0b0b;
+  /* On the dark surface the soft-blue accent is high-contrast, so links use it. */
+  --link: #7fb4d5;
+  --link-hover: #98c6e0;
+  --gain: #22c55e;
+  --loss: #ff6b3d;
   /* Semantic status/verdict tones — bright text on a dark tint, ≥4.5:1. */
   --success-fg: #54e08a;
   --success-surface: #0f2418;
@@ -81,6 +84,7 @@
   --color-line: var(--border-default);
   --color-fg: var(--text-primary);
   --color-fg-muted: var(--text-secondary);
+  --color-fg-subtle: var(--text-tertiary);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-foreground: var(--accent-foreground);
@@ -101,9 +105,11 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
-  /* Radius scale (design-system): cards 12–19px, pills 21px. */
-  --radius-card: 16px;
-  --radius-pill: 21px;
+  /* Radius scale (design-system, Plaid-generous): cards 18–20px, pills 26px+,
+     inputs ~14px. No tight corners. */
+  --radius-card: 18px;
+  --radius-pill: 26px;
+  --radius-input: 14px;
 }
 
 @layer base {

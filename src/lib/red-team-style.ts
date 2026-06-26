@@ -5,7 +5,7 @@ import type { RedTeamFactor, RedTeamVerdict } from "@/lib/types";
  * proposal card and the approve dialog so the two never drift.
  *
  * Colours are **semantic status tones** (see `.agents/design-system.md` →
- * "Status & verdict colors"), never the lime accent: approve → success,
+ * "Status & verdict colors"), never the blue accent: approve → success,
  * concern → warning, reject → danger. Each renders readable text on a light tint
  * of the same hue at ≥4.5:1 in both themes (the same tokens the evaluation
  * verdict uses).
