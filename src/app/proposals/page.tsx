@@ -6,16 +6,18 @@ import { RunHint } from "@/components/run-hint";
 import { SampleDataBanner } from "@/components/sample-data-badge";
 import { anySample } from "@/lib/sample-data";
 import { readProposals } from "@/lib/server/data";
+import { readDiscoverySettings } from "@/lib/server/discovery-settings";
 import { getLiveTradingStatus } from "@/lib/server/gate";
 import { getViewMode } from "@/lib/server/mode";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProposalsPage() {
-  const [all, { liveEnabled }, mode] = await Promise.all([
+  const [all, { liveEnabled }, mode, discoverySettings] = await Promise.all([
     readProposals(),
     getLiveTradingStatus(),
     getViewMode(),
+    readDiscoverySettings(),
   ]);
   const isLive = mode === "live";
   // Each proposal is tagged with its account (default paper). The view mode
@@ -62,7 +64,11 @@ export default async function ProposalsPage() {
           />
         </Card>
       ) : (
-        <ProposalsList proposals={proposals} liveEnabled={liveEnabled} />
+        <ProposalsList
+          proposals={proposals}
+          liveEnabled={liveEnabled}
+          initialMinTier={discoverySettings.minConvictionTier}
+        />
       )}
     </div>
   );

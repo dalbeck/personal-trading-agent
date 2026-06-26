@@ -417,3 +417,35 @@ export const RiskSettingsSchema = z
     updatedAt: isoDateTime.nullable().default(null),
   })
   .strict();
+
+/* --------------------------------------------------------------------------
+ * DiscoverySettings — the human's tuning of the discovery **review funnel**
+ * (M3), persisted in `data/control/discovery-settings.json` (an internal state
+ * file, like risk-settings — NOT a `data/` artifact contract). These are
+ * **preferences, NOT safety rails**: they shape how many ranked candidates a
+ * run surfaces and how the queue is filtered for display. They are explicitly
+ * **separate from the hard risk rails and the 6-order/day cap** (those live in
+ * `RiskSettings` / the charter and are NOT tunable here). A null number means
+ * "use the charter `DISCOVERY_LIMITS` default"; the overlay clamps every value
+ * to the charter ceilings (e.g. the idea cap can never exceed `maxIdeaCap`), so
+ * the agent can never widen the funnel past its bound. See
+ * `src/lib/server/discovery-settings.ts` + `.agents/data-format.md`.
+ * ------------------------------------------------------------------------ */
+export const DiscoverySettingsSchema = z
+  .object({
+    /** Proposals per discovery run (`DISCOVERY_IDEA_CAP`). Null → charter
+     *  default; clamped to [1, charter `maxIdeaCap`]. */
+    ideaCap: z.number().int().positive().nullable().default(null),
+    /** Best-in-sector cap: max proposals from any one sector. Null → charter
+     *  default; clamped to ≥ 1. */
+    maxProposalsPerSector: z.number().int().positive().nullable().default(null),
+    /** Sector-spread target: aim to represent at least this many sectors. Null
+     *  → charter default; clamped to ≥ 0. */
+    minSectorsTarget: z.number().int().nonnegative().nullable().default(null),
+    /** Minimum conviction tier the proposals queue surfaces by default
+     *  (`watch` = show everything — the M1 default). A *view* preference; it
+     *  filters the display, it never deletes a proposal. */
+    minConvictionTier: ConvictionTier.default("watch"),
+    updatedAt: isoDateTime.nullable().default(null),
+  })
+  .strict();

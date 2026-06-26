@@ -66,6 +66,17 @@ clearly-labelled, separate sections. `data/control/risk-settings.json` (`RiskSet
 is the human's per-rail overrides of the charter `RISK_LIMITS` — likewise an
 internal state file (written directly, not a `data/` artifact contract), layered
 in at per-trade approval (`src/lib/server/risk-settings.ts`; see `.agents/infra.md`).
+`data/control/discovery-settings.json` (`DiscoverySettingsSchema`, M3) is the
+human's tuning of the discovery **review funnel** — `ideaCap`,
+`maxProposalsPerSector`, `minSectorsTarget`, and `minConvictionTier` (the queue's
+default display filter). **Preferences, NOT safety rails** — explicitly separate
+from the risk rails and the 6-order/day cap. `effectiveDiscoveryLimits`
+(`src/lib/server/discovery-settings.ts`) overlays them over the charter
+`DISCOVERY_LIMITS` and **clamps to the charter ceilings** (the idea cap can never
+exceed `maxIdeaCap`), so the agent can never widen the funnel past its bound.
+The pre-market routine reads it for the effective caps; the proposals queue reads
+`minConvictionTier` for its default filter. Another internal state file (written
+directly, not a `data/` artifact contract).
 `data/control/order-counter.json` (`{ date, count }`, ET calendar day) is the
 **persisted per-ET-day order counter** — incremented at each placement (the
 paper batch + every human approval) and read back as `RiskContext.ordersToday`
