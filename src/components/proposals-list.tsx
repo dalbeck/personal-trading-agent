@@ -6,20 +6,16 @@ import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/page-shell";
-import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
+import { ProposalDetailModal } from "@/components/proposal-detail-modal";
 import { RedTeamRerunButton } from "@/components/red-team-rerun-button";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
 import { Term } from "@/components/term";
-import { ChevronDownIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { confidenceBucket } from "@/lib/confidence";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
-import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
-import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
-import { formatRelativeVolume } from "@/lib/volume";
 import {
   ADVISORY_TAG,
   LIVE_APPROVE_TAG,
@@ -92,6 +88,7 @@ export function ProposalsList({
     Record<string, AdvisoryDecision>
   >({});
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [precheck, setPrecheck] = useState<{
     loading: boolean;
@@ -176,6 +173,7 @@ export function ProposalsList({
   }
 
   const confirmProposal = proposals.find((p) => p.id === confirmId) ?? null;
+  const detailProposal = proposals.find((p) => p.id === detailId) ?? null;
   const confirmRr = confirmProposal
     ? computeRiskReward({
         action: confirmProposal.action,
@@ -288,66 +286,19 @@ export function ProposalsList({
                 {/* Zone 5 — red-team verdict, a distinct semantic callout */}
                 {p.redTeam ? <RedTeamVerdict verdict={p.redTeam} /> : null}
 
-                {/* Zone 6 — full reasoning / metrics / research behind a Details
-                    expander (progressive disclosure; native <details> is
-                    keyboard-accessible and reduced-motion-safe). */}
-                <details className="group rounded-card border border-line bg-surface [&_summary::-webkit-details-marker]:hidden">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-fg-muted transition-colors hover:text-fg">
-                    <span>Details — reasoning, metrics &amp; research</span>
-                    <ChevronDownIcon
-                      className="size-4 shrink-0 transition-transform group-open:rotate-180"
-                      aria-hidden
-                    />
-                  </summary>
-                  <div className="flex flex-col gap-4 border-t border-line px-4 pb-4 pt-3">
-                    <p className="text-pretty text-sm leading-relaxed text-fg-muted">
-                      {p.reasoning}
-                    </p>
-
-                    <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-3 lg:grid-cols-5">
-                      <MetricCell
-                        label="Est. cost"
-                        value={formatCurrency(estCost)}
-                      />
-                      <MetricCell
-                        label="Risk"
-                        value={formatPercent(p.riskPct, { signed: false })}
-                      />
-                      <MetricCell
-                        label="Target"
-                        value={`${targetTypeLabel(p.targetType)}${
-                          isWeakTarget(p.targetType) ? " · weak" : ""
-                        }`}
-                        tone={isWeakTarget(p.targetType) ? "warning" : "default"}
-                      />
-                      <MetricCell
-                        label="Rel. vol"
-                        value={
-                          p.relativeVolume == null
-                            ? "—"
-                            : formatRelativeVolume(p.relativeVolume)
-                        }
-                      />
-                      <MetricCell
-                        label="Catalyst"
-                        value={`${catalystTypeLabel(p.catalystType)}${
-                          isWeakCatalyst(p.catalystType) ? " · weak" : ""
-                        }`}
-                        tone={
-                          isWeakCatalyst(p.catalystType) ? "warning" : "default"
-                        }
-                      />
-                    </dl>
-                    {p.catalyst ? (
-                      <p className="text-pretty text-xs text-fg-muted">
-                        <span className="font-medium text-fg">Catalyst:</span>{" "}
-                        {p.catalyst}
-                      </p>
-                    ) : null}
-
-                    <ProposalResearchFreshness symbol={p.symbol} />
-                  </div>
-                </details>
+                {/* Zone 6 — full context (reasoning, pre-trade checklist,
+                    sizing math, research, full red-team) in a formatted modal,
+                    keeping the card itself scannable. */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setDetailId(p.id)}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-link transition-colors hover:text-link-hover"
+                  >
+                    Read more — checklist, sizing &amp; research
+                    <span aria-hidden>→</span>
+                  </button>
+                </div>
 
                 {/* Zone 7 — actions */}
                 {advisory ? (
@@ -609,6 +560,12 @@ export function ProposalsList({
           </div>
         ) : null}
       </AlertDialog>
+
+      <ProposalDetailModal
+        proposal={detailProposal}
+        open={detailProposal !== null}
+        onDismiss={() => setDetailId(null)}
+      />
     </>
   );
 }
@@ -639,32 +596,5 @@ function StatChip({
         {value}
       </span>
     </span>
-  );
-}
-
-/** One labelled figure inside the proposal metrics grid. `warning` tone flags a
- *  weak target/catalyst without shouting. */
-function MetricCell({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "warning";
-}) {
-  return (
-    <div className="bg-surface-raised px-3 py-2.5">
-      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-fg-muted">
-        {label}
-      </dt>
-      <dd
-        className={`mt-0.5 text-sm font-semibold tabular-nums ${
-          tone === "warning" ? "text-warning" : "text-fg"
-        }`}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }
