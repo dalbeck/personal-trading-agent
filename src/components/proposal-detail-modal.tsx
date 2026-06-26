@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
+import { Badge } from "@/components/ui/badge";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
@@ -10,19 +11,10 @@ import { CheckIcon, FlagIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { confidenceBucket } from "@/lib/confidence";
-import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
-import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
-import { formatRelativeVolume, REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
-import { RISK_LIMITS } from "@strategy/charter.config";
+import { buildChecklist, type CheckStatus } from "@/lib/checklist";
+import { strategyStyle } from "@/lib/strategy-style";
+import { STRATEGY_DESCRIPTION } from "@/lib/strategy";
 import type { TradeProposal } from "@/lib/types";
-
-type CheckStatus = "pass" | "flag" | "na";
-
-interface CheckItem {
-  label: string;
-  status: CheckStatus;
-  detail: string;
-}
 
 /**
  * Full proposal context in a formatted, sectioned modal (M5) — the "Read more"
@@ -61,60 +53,8 @@ export function ProposalDetailModal({
     p.stopPrice === null ? null : Math.abs(p.limitPrice - p.stopPrice);
   const totalRisk = riskPerShare === null ? null : riskPerShare * p.qty;
 
-  const checklist: CheckItem[] = [
-    {
-      label: "Reward : risk ≥ 2 : 1",
-      status: rr ? (rr.ratio >= 2 ? "pass" : "flag") : "na",
-      detail: rr ? formatRatio(rr.ratio) : "no defined target",
-    },
-    {
-      label: `Risk ≤ ${formatPercent(RISK_LIMITS.perPositionRiskPct, {
-        signed: false,
-      })} of equity`,
-      status:
-        p.riskPct <= RISK_LIMITS.perPositionRiskPct ? "pass" : "flag",
-      detail: formatPercent(p.riskPct, { signed: false }),
-    },
-    {
-      label: "Protective stop defined",
-      status: p.stopPrice === null ? "flag" : "pass",
-      detail: p.stopPrice === null ? "none" : formatCurrency(p.stopPrice),
-    },
-    {
-      label: "Profit target anchored",
-      status:
-        p.takeProfit === null || isWeakTarget(p.targetType) ? "flag" : "pass",
-      detail: targetTypeLabel(p.targetType),
-    },
-    {
-      label: "Catalyst — why now",
-      status:
-        p.catalyst === null || isWeakCatalyst(p.catalystType) ? "flag" : "pass",
-      detail: catalystTypeLabel(p.catalystType),
-    },
-    {
-      label: "Volume confirms",
-      status:
-        p.relativeVolume == null
-          ? "na"
-          : p.relativeVolume >= REL_VOLUME_BREAKOUT_MIN
-            ? "pass"
-            : "flag",
-      detail:
-        p.relativeVolume == null
-          ? "—"
-          : formatRelativeVolume(p.relativeVolume),
-    },
-    {
-      label: "Red-team not a reject",
-      status: !p.redTeam
-        ? "na"
-        : p.redTeam.verdict === "reject"
-          ? "flag"
-          : "pass",
-      detail: p.redTeam ? p.redTeam.verdict : "not run",
-    },
-  ];
+  const checklist = buildChecklist(p);
+  const strat = strategyStyle[p.strategy];
 
   return (
     <Modal
@@ -125,6 +65,12 @@ export function ProposalDetailModal({
     >
       <div className="flex flex-col gap-6">
         <DetailSection title="Thesis">
+          <div className="mb-1 flex items-center gap-2">
+            <Badge tone={strat.tone}>{strat.label} mandate</Badge>
+            <span className="text-xs text-fg-muted">
+              {STRATEGY_DESCRIPTION[p.strategy]}
+            </span>
+          </div>
           <p className="text-pretty text-sm leading-relaxed text-fg">
             {p.thesis}
           </p>

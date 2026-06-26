@@ -34,6 +34,10 @@ export interface ExecutableProposal {
   symbol: string;
   action: "buy" | "sell";
   side: "long" | "short";
+  /** Which mandate to brief the red-team under (value-sleeve M1); absent → the
+   *  trend lens. The paper batch is trend-only today, but carry it through so a
+   *  value proposal is judged by the matching lens. */
+  strategy?: "trend" | "value";
   qty: number;
   limitPrice: number;
   stopPrice: number | null;
@@ -129,6 +133,7 @@ export async function executeProposal(
       symbol: proposal.symbol,
       action: proposal.action,
       side: proposal.side,
+      strategy: proposal.strategy,
       qty: proposal.qty,
       limitPrice: proposal.limitPrice,
       stopPrice: proposal.stopPrice,

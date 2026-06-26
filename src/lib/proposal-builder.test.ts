@@ -128,4 +128,45 @@ describe("buildManualProposalDraft", () => {
       buildManualProposalDraft({ symbol: "X", bars: ramp(60, 50, 1), equity: 0 }),
     ).toBeNull();
   });
+
+  it("defaults to the trend strategy and stamps it on the draft", () => {
+    const draft = buildManualProposalDraft({
+      symbol: "TREND",
+      bars: ramp(60, 50, 1),
+      equity: 10_000,
+    });
+    expect(draft?.strategy).toBe("trend");
+  });
+
+  describe("value / mean-reversion lens (M1)", () => {
+    // A long DOWNTREND — price well below its moving averages. Under the trend
+    // lens this is a weak, counter-trend pick; under value it is the *discount*.
+    const downtrend = ramp(220, 160, -0.5); // falling series, last close ~50
+
+    it("stamps strategy: value and frames counter-trend as expected, not a caution", () => {
+      const draft = buildManualProposalDraft({
+        symbol: "KR",
+        bars: downtrend,
+        equity: 10_000,
+        strategy: "value",
+        catalyst: "Dividend hike + insider buying",
+        catalystType: "guidance",
+      });
+      expect(draft).not.toBeNull();
+      expect(draft?.strategy).toBe("value");
+      expect(draft?.thesis).toMatch(/value \/ mean-reversion/i);
+      expect(draft?.thesis).not.toMatch(/counter-trend — caution/);
+    });
+
+    it("does NOT tank conviction for being below the moving averages (value scores higher than trend here)", () => {
+      const common = { symbol: "KR", bars: downtrend, equity: 10_000 } as const;
+      const trend = buildManualProposalDraft({ ...common, strategy: "trend" });
+      const value = buildManualProposalDraft({ ...common, strategy: "value" });
+      expect(trend).not.toBeNull();
+      expect(value).not.toBeNull();
+      // Same below-MA setup: the trend lens penalizes it, the value lens rewards
+      // the discount — so value's conviction is strictly higher here.
+      expect(value!.convictionScore).toBeGreaterThan(trend!.convictionScore);
+    });
+  });
 });

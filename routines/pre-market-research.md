@@ -92,6 +92,17 @@ more real setups are there.
      proposals from any single sector, so the queue is a diversified mix.
    - **Sector spread:** aim for the effective `minSectorsTarget` (default 3)
      sectors when the setups exist.
+   - **Value sleeve (`valueSleeveEnabled`, default `false`):** when this is
+     **true**, you MAY *also* surface a few **value / mean-reversion** candidates
+     — cheap, quality businesses near a multi-year / 52-week low with a real
+     catalyst or floor (dividend support/hike, insider buying, fundamental
+     stabilization, an analyst-target floor, or a technical mean-reversion signal
+     like oversold RSI / long-term support / basing). These are a **separate
+     mandate**, not a loosening of the trend rules: set **`strategy: "value"`** on
+     them (vs the default `"trend"`), counter-trend is *expected* (below the
+     moving averages is normal here — do NOT skip a value name for that), and the
+     desk's value red-team will judge them under the value lens. When the setting
+     is **false** (the default), surface **trend names only** (`strategy: "trend"`).
    These bound the *review queue*; the hard **6-order/day** cap is separate and
    unchanged. A larger funnel never loosens execution.
 4. For each genuine candidate, size it stop-first per the charter (≤2% risk,
@@ -118,8 +129,11 @@ more real setups are there.
 5. Write each candidate as a **proposal** JSON file in `data/proposals/`
    (e.g. `data/proposals/<date>-<ticker>-buy.json`) conforming to
    `TradeProposalSchema` (`src/lib/schemas.ts`), with `account: "live"`,
-   `advisory: false`, `status: "pending"` (see `.agents/data-format.md`). Each
-   proposal must name a **catalyst** — set `catalyst` (one line: *why now?*) and
+   `advisory: false`, `status: "pending"` (see `.agents/data-format.md`). Set
+   **`strategy`** — `"trend"` (the default) for a trend-following name, or
+   `"value"` for a value / mean-reversion pick (only when the value sleeve is
+   enabled; see step 3). Each proposal must name a **catalyst** — set `catalyst`
+   (one line: *why now?*) and
    `catalystType` (`earnings_momentum`, `product_news`, `sector_rotation`,
    `guidance`, or `other`); a `none` / trend-alone entry is flagged weak by the
    red-team, so prefer names with a real catalyst. Also set **`sector`** (the

@@ -102,6 +102,63 @@ describe("analyzeSymbol", () => {
     expect(res.proposal.redTeam?.verdict).toBe("reject");
   });
 
+  it("defaults to the trend lens, briefing the red-team with the trend mandate", async () => {
+    let prompt = "";
+    const res = await analyzeSymbol("NVDA", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(60, 50, 1),
+      readSnapshot: snapshotSeam,
+      fetchResearch: researchSeam,
+      redTeamExec: async (p) => {
+        prompt = p;
+        return approveExec();
+      },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.proposal.strategy).toBe("trend");
+    expect(prompt).toMatch(/TREND mandate/);
+  });
+
+  it("analyzes under the VALUE lens: strategy: value persisted + value red-team briefing", async () => {
+    let prompt = "";
+    const res = await analyzeSymbol("KR", {
+      account: "live",
+      strategy: "value",
+      dataDir: dir,
+      fetchBars: async () => ramp(220, 160, -0.5), // a deep downtrend = the discount
+      readSnapshot: snapshotSeam,
+      fetchResearch: () =>
+        Promise.resolve({
+          sector: "Consumer Staples",
+          catalyst: "Dividend support + insider buying near a multi-year low",
+          catalystType: "guidance" as const,
+          usedPerplexity: false,
+        }),
+      redTeamExec: async (p) => {
+        prompt = p;
+        return approveExec();
+      },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // The proposal carries the value mandate end-to-end.
+    expect(res.proposal.strategy).toBe("value");
+    // The red-team was briefed with the value lens, NOT the trend one — so a
+    // below-MA counter-trend pick gets a fair hearing.
+    expect(prompt).toMatch(/VALUE \/ MEAN-REVERSION/);
+    expect(prompt).toMatch(/COUNTER-TREND IS EXPECTED/);
+    expect(prompt).not.toMatch(/out of mandate/i);
+
+    // Persisted to disk with strategy: value (validates against the contract).
+    const files = await readdir(path.join(dir, "proposals"));
+    const p = TradeProposalSchema.parse(
+      JSON.parse(await readFile(path.join(dir, "proposals", files[0]), "utf8")),
+    );
+    expect(p.strategy).toBe("value");
+  });
+
   it("rejects an invalid ticker before doing any work", async () => {
     const res = await analyzeSymbol("not a ticker!", { dataDir: dir });
     expect(res.ok).toBe(false);

@@ -1,6 +1,7 @@
 import { convictionTierFromScore, type ConvictionTier } from "./conviction";
 import { atr, sma, type Ohlc } from "./indicators";
 import { resolveStopPrice } from "./risk/validators";
+import type { Strategy } from "./strategy";
 import { computeRelativeVolume } from "./volume";
 
 /**
@@ -38,6 +39,12 @@ export interface BuildManualProposalInput {
   bars: Ohlc[];
   /** Active book equity the position is sized against. */
   equity: number;
+  /** Which mandate the human is analyzing under (value-sleeve M1). `trend`
+   *  (default) scores the playbook's trend signals; `value` scores a value /
+   *  mean-reversion lens where being below the moving averages is the *discount*,
+   *  not a penalty. Drives the conviction score + the thesis wording; the
+   *  stop-first sizing + hard caps are shared and unchanged. */
+  strategy?: Strategy;
   sector?: string | null;
   catalyst?: string | null;
   catalystType?: BuilderCatalystType | null;
@@ -52,6 +59,7 @@ export interface ManualProposalDraft {
   symbol: string;
   action: "buy";
   side: "long";
+  strategy: Strategy;
   qty: number;
   limitPrice: number;
   stopPrice: number;
@@ -117,29 +125,42 @@ export function buildManualProposalDraft(
 
   const relVol = computeRelativeVolume(bars.map((b) => b.v))?.ratio ?? null;
 
-  const score = scoreConviction({
-    entry,
-    sma20,
-    sma50,
-    sma200,
-    rewardRisk,
-    relVol,
-    hasCatalyst:
-      !!input.catalyst &&
-      input.catalystType != null &&
-      input.catalystType !== "none",
-  });
+  const strategy: Strategy = input.strategy ?? "trend";
+  const hasCatalyst =
+    !!input.catalyst &&
+    input.catalystType != null &&
+    input.catalystType !== "none";
+  const score =
+    strategy === "value"
+      ? scoreValueConviction({
+          entry,
+          sma200,
+          high52w: priorHigh,
+          rewardRisk,
+          hasCatalyst,
+        })
+      : scoreConviction({
+          entry,
+          sma20,
+          sma50,
+          sma200,
+          rewardRisk,
+          relVol,
+          hasCatalyst,
+        });
   const tier = convictionTierFromScore(score);
 
   const sector = input.sector ?? null;
   const catalyst = input.catalyst ?? null;
   const catalystType = input.catalystType ?? null;
 
-  const trendWord =
-    sma50 != null && entry > sma50
-      ? sma200 != null && sma50 > sma200
-        ? "above a rising 50- and 200-day"
-        : "above its 50-day"
+  const aboveFifty = sma50 != null && entry > sma50;
+  const trendWord = aboveFifty
+    ? sma200 != null && sma50 > sma200
+      ? "above a rising 50- and 200-day"
+      : "above its 50-day"
+    : strategy === "value"
+      ? "below its 50-day — a value / mean-reversion entry where counter-trend is expected"
       : "below its 50-day (counter-trend — caution)";
   const volWord =
     relVol == null
@@ -151,7 +172,9 @@ export function buildManualProposalDraft(
           : `average volume (${relVol.toFixed(2)}×)`;
   const catalystWord = catalyst
     ? `Catalyst: ${catalyst}.`
-    : "No named catalyst (trend-only — the red-team flags this weak).";
+    : strategy === "value"
+      ? "No named catalyst or floor (the value red-team flags this weak — 'cheap' alone is a value trap)."
+      : "No named catalyst (trend-only — the red-team flags this weak).";
 
   const thesis =
     `${input.symbol} long at ${entry.toFixed(2)}: price ${trendWord}, ${volWord}. ` +
@@ -171,6 +194,7 @@ export function buildManualProposalDraft(
     symbol: input.symbol,
     action: "buy",
     side: "long",
+    strategy,
     qty,
     limitPrice: entry,
     stopPrice,
@@ -222,6 +246,44 @@ function scoreConviction(s: {
 
   const score =
     0.35 * trend + 0.2 * momentum + 0.15 * volume + 0.2 * rr + 0.1 * catalyst;
+  return clamp01(score);
+}
+
+/**
+ * Composite 0–1 conviction under the **value / mean-reversion** lens (M1). The
+ * key difference from the trend score: being **below** the long-term moving
+ * average is the *discount* (the whole point), NOT a penalty. Weighted blend of
+ * discount, reward/risk, and a real catalyst or floor — counter-trend is never a
+ * strike. (Quality vs the value-trap is the value red-team's job, not a price
+ * heuristic; this only ranks the queue.)
+ */
+function scoreValueConviction(s: {
+  entry: number;
+  sma200: number | null;
+  high52w: number;
+  rewardRisk: number;
+  hasCatalyst: boolean;
+}): number {
+  // Discount (0.4): cheap relative to the long-term trend is the value zone.
+  // Below the 200-day scores full; modestly above is neutral; well above is poor
+  // value (it isn't a discount). Below-MA is rewarded, never punished.
+  let discount: number;
+  if (s.sma200 == null) discount = 0.6;
+  else if (s.entry <= s.sma200) discount = 1;
+  else if (s.entry <= s.sma200 * 1.05) discount = 0.6;
+  else discount = 0.3;
+
+  // Off-the-high (0.2): nearer a 52-week/multi-year low is a deeper discount.
+  const drawdown = s.high52w > 0 ? (s.high52w - s.entry) / s.high52w : 0;
+  const offHigh = clamp01(drawdown / 0.4); // ≥40% off the high → full
+
+  // Reward/risk (0.3): 1:1 → 0, 2:1 → 0.5, ≥3:1 → 1.
+  const rr = clamp01((s.rewardRisk - 1) / 2);
+
+  // Catalyst or floor (0.1).
+  const catalyst = s.hasCatalyst ? 1 : 0.3;
+
+  const score = 0.4 * discount + 0.2 * offHigh + 0.3 * rr + 0.1 * catalyst;
   return clamp01(score);
 }
 

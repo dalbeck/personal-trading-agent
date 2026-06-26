@@ -17,6 +17,7 @@ import {
 import type { Ohlc } from "@/lib/indicators";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 import { TradeProposalSchema } from "@/lib/schemas";
+import type { Strategy } from "@/lib/strategy";
 import type { RedTeamVerdict, TradeProposal } from "@/lib/types";
 
 /**
@@ -45,6 +46,11 @@ export interface ResearchContext {
 
 export interface AnalyzeSymbolOpts {
   account?: "paper" | "live";
+  /** Which mandate the human chose to analyze under (value-sleeve M1). `trend`
+   *  (default) runs the technical lens; `value` runs the value / mean-reversion
+   *  lens — the proposal carries `strategy: "value"` and the red-team is briefed
+   *  with the value mandate (counter-trend expected, value-trap hunted). */
+  strategy?: Strategy;
   now?: () => Date;
   dataDir?: string;
   // Seams (default to the real fetchers).
@@ -142,6 +148,7 @@ export async function analyzeSymbol(
   }
 
   const account = opts.account ?? "live";
+  const strategy: Strategy = opts.strategy ?? "trend";
   const now = opts.now?.() ?? new Date();
   const dataDir = opts.dataDir;
 
@@ -171,6 +178,7 @@ export async function analyzeSymbol(
     symbol,
     bars,
     equity: snapshot.equity,
+    strategy,
     sector: research.sector,
     catalyst: research.catalyst,
     catalystType: research.catalystType,
@@ -217,6 +225,7 @@ export async function analyzeSymbol(
       symbol: proposal.symbol,
       action: proposal.action,
       side: proposal.side,
+      strategy: proposal.strategy,
       qty: proposal.qty,
       limitPrice: proposal.limitPrice,
       stopPrice: proposal.stopPrice,
@@ -239,6 +248,7 @@ export async function analyzeSymbol(
       symbol: proposal.symbol,
       action: proposal.action,
       side: proposal.side,
+      strategy: proposal.strategy,
       qty: proposal.qty,
       limitPrice: proposal.limitPrice,
       stopPrice: proposal.stopPrice,

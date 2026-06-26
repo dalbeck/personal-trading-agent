@@ -65,6 +65,7 @@ export function DiscoverySettingsEditor({
           maxProposalsPerSector: settings.maxProposalsPerSector,
           minSectorsTarget: settings.minSectorsTarget,
           minConvictionTier: settings.minConvictionTier,
+          valueSleeveEnabled: settings.valueSleeveEnabled,
         }),
       });
       if (res.ok) {
@@ -84,6 +85,7 @@ export function DiscoverySettingsEditor({
       maxProposalsPerSector: null,
       minSectorsTarget: null,
       minConvictionTier: "watch",
+      valueSleeveEnabled: false,
     });
   }
 
@@ -157,6 +159,40 @@ export function DiscoverySettingsEditor({
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium text-fg">Value / mean-reversion sleeve</p>
+          <p className="mb-2 text-xs text-fg-muted">
+            When on, a discovery run may also surface{" "}
+            <span className="font-medium text-fg">value</span> candidates — cheap
+            quality names near multi-year lows with a real catalyst or floor —
+            separate from the trend universe and judged by the value red-team
+            lens. Off by default; the desk&apos;s primary mandate is trend. A
+            discovery preference, not a rail — value picks still clear the same
+            shared hard rails and the 6-order/day cap.
+          </p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.valueSleeveEnabled}
+            onClick={() =>
+              patch({ valueSleeveEnabled: !settings.valueSleeveEnabled })
+            }
+            className={`inline-flex items-center gap-2 rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
+              settings.valueSleeveEnabled
+                ? "border-accent bg-accent/15 text-fg"
+                : "border-line text-fg-muted hover:bg-surface-overlay hover:text-fg"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`size-2 rounded-pill ${
+                settings.valueSleeveEnabled ? "bg-accent" : "bg-fg-muted/50"
+              }`}
+            />
+            {settings.valueSleeveEnabled ? "Enabled" : "Disabled"}
+          </button>
         </div>
       </div>
 

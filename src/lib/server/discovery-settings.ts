@@ -26,6 +26,8 @@ export interface EffectiveDiscoveryLimits {
   maxProposalsPerSector: number;
   minSectorsTarget: number;
   minConvictionTier: ConvictionTier;
+  /** Whether the value / mean-reversion sleeve is opted in for discovery (M1). */
+  valueSleeveEnabled: boolean;
 }
 
 function settingsFile(dataDir?: string): string {
@@ -100,6 +102,7 @@ export function effectiveDiscoveryLimits(
     maxProposalsPerSector,
     minSectorsTarget,
     minConvictionTier: settings.minConvictionTier,
+    valueSleeveEnabled: settings.valueSleeveEnabled,
   };
 }
 

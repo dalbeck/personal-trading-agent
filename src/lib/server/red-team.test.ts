@@ -63,6 +63,37 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).toContain("Q3 beat-and-raise");
     expect(prompt).toContain("earnings_momentum");
   });
+
+  it("defaults to the TREND lens and penalizes a fundamental-primary thesis", () => {
+    // No `strategy` → trend mandate (back-compat with older records).
+    const prompt = buildProsecutorPrompt(proposal);
+    expect(prompt).toMatch(/TREND mandate/);
+    expect(prompt).toMatch(/out of mandate/i);
+    expect(prompt).not.toMatch(/COUNTER-TREND IS EXPECTED/);
+  });
+
+  it("briefs the VALUE lens differently: counter-trend expected, hunt the value trap", () => {
+    const prompt = buildProsecutorPrompt({ ...proposal, strategy: "value" });
+    expect(prompt).toMatch(/VALUE \/ MEAN-REVERSION/);
+    expect(prompt).toMatch(/COUNTER-TREND IS EXPECTED/);
+    // Below the moving averages must NOT be framed as a reject reason here.
+    expect(prompt).toMatch(/NOT by itself a reason to reject/i);
+    expect(prompt).toMatch(/value trap/i);
+    expect(prompt).toMatch(/FUNDAMENTALS LEAD/);
+    // A fundamental target is appropriate for value (not weak).
+    expect(prompt).toMatch(/FUNDAMENTAL value is APPROPRIATE/i);
+    // It must NOT carry the trend mandate's "out of mandate" valuation penalty.
+    expect(prompt).not.toMatch(/out of mandate/i);
+  });
+
+  it("keeps the shared hard rails in BOTH lenses", () => {
+    for (const strategy of ["trend", "value"] as const) {
+      const prompt = buildProsecutorPrompt({ ...proposal, strategy });
+      expect(prompt).toMatch(/SHARED HARD RAILS/);
+      expect(prompt).toMatch(/reward\/risk ≥ 2:1/i);
+      expect(prompt).toMatch(/protective stop/i);
+    }
+  });
 });
 
 describe("parseVerdict", () => {

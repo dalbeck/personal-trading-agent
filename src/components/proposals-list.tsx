@@ -15,6 +15,7 @@ import { formatCurrency, formatPercent } from "@/lib/format";
 import { confidenceBucket } from "@/lib/confidence";
 import { CONVICTION_TIERS, compareByConviction } from "@/lib/conviction";
 import { convictionTierStyle } from "@/lib/conviction-style";
+import { strategyStyle } from "@/lib/strategy-style";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { redTeamVerdictStyle } from "@/lib/red-team-style";
 import { groupProposalsByDay } from "@/lib/proposal-grouping";
@@ -629,6 +630,9 @@ function ProposalRow({
         <span className="font-serif text-base font-semibold text-fg">
           {p.symbol}
         </span>
+        <Badge tone={strategyStyle[p.strategy].tone}>
+          {strategyStyle[p.strategy].label}
+        </Badge>
         {p.convictionTier ? (
           <Badge tone={convictionTierStyle[p.convictionTier].tone}>
             {convictionTierStyle[p.convictionTier].label}

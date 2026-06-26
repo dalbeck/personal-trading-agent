@@ -17,6 +17,7 @@ describe("effectiveDiscoveryLimits — overlay over the charter defaults", () =>
     expect(eff.maxProposalsPerSector).toBe(DISCOVERY_LIMITS.maxProposalsPerSector);
     expect(eff.minSectorsTarget).toBe(DISCOVERY_LIMITS.minSectorsTarget);
     expect(eff.minConvictionTier).toBe("watch"); // show everything
+    expect(eff.valueSleeveEnabled).toBe(false); // value sleeve opt-in, off by default
   });
 
   it("applies a human-tuned idea cap", () => {
@@ -70,6 +71,8 @@ describe("read/write discovery settings", () => {
     const s = await readDiscoverySettings({ dataDir: dir });
     expect(s.ideaCap).toBeNull();
     expect(s.minConvictionTier).toBe("watch");
+    // The value sleeve is OFF by default — the desk's primary mandate is trend.
+    expect(s.valueSleeveEnabled).toBe(false);
   });
 
   it("persists and reads back a tuned funnel", async () => {
@@ -82,6 +85,13 @@ describe("read/write discovery settings", () => {
     expect(s.maxProposalsPerSector).toBe(2);
     expect(s.minConvictionTier).toBe("high");
     expect(s.updatedAt).not.toBeNull();
+  });
+
+  it("opts the value sleeve in and surfaces it in the effective limits", async () => {
+    await writeDiscoverySettings({ valueSleeveEnabled: true }, { dataDir: dir });
+    const s = await readDiscoverySettings({ dataDir: dir });
+    expect(s.valueSleeveEnabled).toBe(true);
+    expect(effectiveDiscoveryLimits(s).valueSleeveEnabled).toBe(true);
   });
 
   it("rejects an out-of-shape payload", async () => {
