@@ -19,13 +19,17 @@ const numberTone: Record<Tone, string> = {
 export function HeroCard({
   children,
   className = "",
+  surface = "surface-hero",
 }: {
   children: ReactNode;
   className?: string;
+  /** Hero surface utility — `surface-hero` (default) or the more vivid
+   *  `surface-hero-accent` for the page's primary equity hero. */
+  surface?: "surface-hero" | "surface-hero-accent";
 }) {
   return (
     <div
-      className={`surface-hero relative overflow-hidden rounded-card border border-line p-6 md:p-7 ${className}`}
+      className={`${surface} relative overflow-hidden rounded-card border border-line p-6 md:p-7 ${className}`}
     >
       <div
         aria-hidden

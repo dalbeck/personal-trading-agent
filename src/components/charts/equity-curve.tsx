@@ -1,6 +1,14 @@
 "use client";
 
 import { type PointerEvent, useState } from "react";
+import {
+  CHART_H as H,
+  CHART_PAD as PAD,
+  CHART_W as W,
+  areaPath as closeArea,
+  linePath,
+  pointPosition as pointPos,
+} from "@/lib/chart-path";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { EquityPoint } from "@/lib/types";
 
@@ -10,25 +18,10 @@ import type { EquityPoint } from "@/lib/types";
  * benchmark return, so it renders straight from the starting equity). The
  * portfolio series uses the blue accent (a neutral series; gain/loss is reserved
  * for P&L). Interactive to match the symbol price chart: restrained gridlines, a
- * persistent last-point dot, and a hover crosshair + tooltip.
+ * persistent last-point dot, and a hover crosshair + tooltip. Shares its path
+ * math with the hero equity chart via `@/lib/chart-path`.
  */
-const W = 640;
-const H = 200;
-const PAD = 12;
 const GRID_LINES = 4;
-
-function linePath(values: number[], min: number, max: number): string {
-  const n = values.length;
-  if (n < 2) return "";
-  const span = max - min || 1;
-  return values
-    .map((v, i) => {
-      const x = PAD + (i / (n - 1)) * (W - 2 * PAD);
-      const y = H - PAD - ((v - min) / span) * (H - 2 * PAD);
-      return `${i === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ");
-}
 
 export function EquityCurve({
   points,
@@ -60,17 +53,13 @@ export function EquityCurve({
   const all = benchmark ? [...portfolio, ...benchmark] : portfolio;
   const min = Math.min(...all);
   const max = Math.max(...all);
-  const span = max - min || 1;
 
   const portfolioPath = linePath(portfolio, min, max);
   const benchmarkPath = benchmark ? linePath(benchmark, min, max) : "";
-  const areaPath = `${portfolioPath} L${W - PAD} ${H - PAD} L${PAD} ${H - PAD} Z`;
+  const areaPath = closeArea(portfolioPath);
 
-  function pointPosition(i: number, value: number) {
-    const xVb = PAD + (i / (n - 1)) * (W - 2 * PAD);
-    const yVb = H - PAD - ((value - min) / span) * (H - 2 * PAD);
-    return { xPct: (xVb / W) * 100, yPct: (yVb / H) * 100 };
-  }
+  const pointPosition = (i: number, value: number) =>
+    pointPos(i, value, n, min, max);
   function handlePointer(e: PointerEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width === 0) return;
