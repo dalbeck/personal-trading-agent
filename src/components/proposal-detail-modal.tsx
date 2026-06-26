@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
+import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
 import { CheckIcon, FlagIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -34,10 +35,14 @@ export function ProposalDetailModal({
   proposal,
   open,
   onDismiss,
+  actions,
 }: {
   proposal: TradeProposal | null;
   open: boolean;
   onDismiss: () => void;
+  /** Pinned action bar (approve/reject/review) — the table is slim, so the
+   *  decisions live here on the full-context modal (M8). */
+  actions?: ReactNode;
 }) {
   const p = proposal;
   if (!p) {
@@ -116,6 +121,7 @@ export function ProposalDetailModal({
       open={open}
       title={`${p.action.toUpperCase()} ${p.symbol} — full context`}
       onDismiss={onDismiss}
+      footer={actions}
     >
       <div className="flex flex-col gap-6">
         <DetailSection title="Thesis">
@@ -145,6 +151,14 @@ export function ProposalDetailModal({
         </DetailSection>
 
         <DetailSection title="Sizing math">
+          <RiskRewardBar
+            action={p.action}
+            entry={p.limitPrice}
+            stop={p.stopPrice}
+            target={p.takeProfit}
+            confidence={p.confidence}
+            className="mb-1"
+          />
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <MathRow
               label="Quantity × limit"

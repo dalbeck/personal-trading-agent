@@ -1,21 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/page-shell";
 import { ProposalDetailModal } from "@/components/proposal-detail-modal";
 import { RedTeamRerunButton } from "@/components/red-team-rerun-button";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
-import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
-import { TickerLink } from "@/components/ticker-link";
 import { Term } from "@/components/term";
+import { ChevronRightIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { confidenceBucket } from "@/lib/confidence";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
+import { redTeamVerdictStyle } from "@/lib/red-team-style";
+import { groupProposalsByDay } from "@/lib/proposal-grouping";
 import {
   ADVISORY_TAG,
   LIVE_APPROVE_TAG,
@@ -95,6 +95,14 @@ export function ProposalsList({
     result: PrecheckResult | null;
   }>({ loading: false, result: null });
   const [overrideComment, setOverrideComment] = useState("");
+
+  // The "Today"/"Yesterday" boundary is captured once per mount so date headers
+  // stay stable through re-renders (router.refresh, status updates).
+  const [nowMs] = useState(() => Date.now());
+  const groups = useMemo(
+    () => groupProposalsByDay(proposals, nowMs),
+    [proposals, nowMs],
+  );
 
   const statusOf = (p: TradeProposal): Status => {
     const adv = advResults[p.id];
@@ -194,202 +202,128 @@ export function ProposalsList({
   const confirmBlocked =
     busyId !== null || precheck.loading || (blocked && !overrideReady);
 
+  // The decisions live on the full-context modal now that the list is a slim
+  // table (M8). Built here so all the approval/advisory logic stays in one
+  // place; "Approve…" hands off to the existing confirm + precheck dialog.
+  function actionsFor(p: TradeProposal): ReactNode {
+    const status = statusOf(p);
+    const pending = status === "pending";
+    const advisory = isAdvisoryProposal(p);
+    const result = results[p.id];
+
+    if (!pending) {
+      return (
+        <p className="text-right text-xs text-fg-muted">
+          {advisory ? (
+            (advisoryStatusLabel[status] ?? status)
+          ) : result ? (
+            <>
+              {outcomeLabel[result.outcome]}
+              {result.outcome === "approved" ? (
+                <>
+                  {" "}
+                  · routed to{" "}
+                  <span className="font-medium text-fg">
+                    {result.destination}
+                  </span>
+                  {result.dryRun ? " (dry-run sink)" : " (LIVE)"}
+                  {result.brokerOrderId ? <> · {result.brokerOrderId}</> : null}
+                </>
+              ) : null}
+            </>
+          ) : status === "approved" ? (
+            "Approved"
+          ) : (
+            "Rejected"
+          )}
+        </p>
+      );
+    }
+
+    if (advisory) {
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-auto text-pretty text-xs text-fg-muted">
+            Advisory only — no automated execution. Place this trade yourself in
+            Robinhood if you agree.
+          </span>
+          <RedTeamRerunButton proposalId={p.id} />
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={busyId === p.id}
+            onClick={() => review(p.id, "dismissed")}
+          >
+            Dismiss
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={busyId === p.id}
+            onClick={() => review(p.id, "reviewed")}
+          >
+            Mark reviewed
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="mr-auto">
+          <RedTeamRerunButton proposalId={p.id} />
+        </div>
+        <Button
+          variant="danger"
+          size="sm"
+          disabled={busyId === p.id}
+          onClick={() => decide(p.id, "deny")}
+        >
+          Reject
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={busyId === p.id}
+          onClick={() => {
+            // Hand off to the confirm + precheck dialog; the slim modal closes
+            // so the two dialogs never stack.
+            setDetailId(null);
+            void openConfirm(p.id);
+          }}
+        >
+          Approve…
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className="flex flex-col gap-5">
-        {proposals.map((p) => {
-          const status = statusOf(p);
-          const pending = status === "pending";
-          const result = results[p.id];
-          const advisory = isAdvisoryProposal(p);
-          const liveApprovable = p.account === "live" && !advisory;
-          const estCost = p.qty * p.limitPrice;
-          const rr = computeRiskReward({
-            action: p.action,
-            entry: p.limitPrice,
-            stop: p.stopPrice,
-            target: p.takeProfit,
-          });
-          const conf =
-            p.confidence === null ? null : confidenceBucket(p.confidence);
-          return (
-            <Card
-              key={p.id}
-              interactive
-              className={`overflow-hidden p-0 ${advisory ? "border-accent/50" : ""}`}
-            >
-              {/* Zone 1 — tinted header strip: side pill, serif ticker, status */}
-              <div className="tint-strip flex flex-wrap items-center justify-between gap-3 border-b border-line/60 px-5 py-3.5">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <Badge tone={p.action === "buy" ? "gain" : "loss"} solid>
-                    {p.action.toUpperCase()}
-                  </Badge>
-                  <TickerLink
-                    symbol={p.symbol}
-                    className="font-serif text-lg font-semibold text-fg"
-                  />
-                  <span className="text-sm tabular-nums text-fg-muted">
-                    {p.qty} @ {formatCurrency(p.limitPrice)} limit
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {advisory ? (
-                    <span className="inline-flex items-center rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide text-fg">
-                      {ADVISORY_TAG}
-                    </span>
-                  ) : null}
-                  {liveApprovable ? (
-                    <span className="inline-flex items-center rounded-pill border border-accent bg-surface px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide text-fg">
-                      {LIVE_APPROVE_TAG}
-                    </span>
-                  ) : null}
-                  {p.sample ? <SampleDataBadge /> : null}
-                  <Badge tone={statusTone[status]} dot>
-                    {status.toUpperCase()}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-4 p-5">
-                {/* Zone 2 — thesis as a readable lead line */}
-                <p className="text-pretty text-[0.95rem] leading-relaxed text-fg">
-                  {p.thesis}
-                </p>
-
-                {/* Zone 3 — key stats chip row */}
-                <div className="flex flex-wrap gap-2">
-                  <StatChip label="Est. cost" value={formatCurrency(estCost)} />
-                  <StatChip
-                    label="Risk"
-                    value={formatPercent(p.riskPct, { signed: false })}
-                  />
-                  <StatChip
-                    label="R:R"
-                    value={rr ? formatRatio(rr.ratio) : "—"}
-                    tone={rr ? (rr.ratio >= 2 ? "gain" : "warning") : "default"}
-                  />
-                  <StatChip
-                    label="Confidence"
-                    value={conf ? `${conf.level} · ${conf.pct}%` : "—"}
-                  />
-                </div>
-
-                {/* Zone 4 — R:R bar, the card's hero visual */}
-                <RiskRewardBar
-                  action={p.action}
-                  entry={p.limitPrice}
-                  stop={p.stopPrice}
-                  target={p.takeProfit}
-                  confidence={p.confidence}
-                  className=""
+      <div className="flex flex-col gap-7">
+        {groups.map((group) => (
+          <section key={group.key}>
+            <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
+              <h3 className="font-serif text-sm font-semibold text-fg">
+                {group.label}
+              </h3>
+              <span className="text-xs tabular-nums text-fg-muted">
+                {group.items.length}
+                {group.items.length === 1 ? " proposal" : " proposals"}
+              </span>
+            </div>
+            <div className="divide-y divide-line/70 overflow-hidden rounded-card border border-line bg-surface">
+              {group.items.map((p) => (
+                <ProposalRow
+                  key={p.id}
+                  proposal={p}
+                  status={statusOf(p)}
+                  onOpen={() => setDetailId(p.id)}
                 />
-
-                {/* Zone 5 — red-team verdict, a distinct semantic callout */}
-                {p.redTeam ? <RedTeamVerdict verdict={p.redTeam} /> : null}
-
-                {/* Zone 6 — full context (reasoning, pre-trade checklist,
-                    sizing math, research, full red-team) in a formatted modal,
-                    keeping the card itself scannable. */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setDetailId(p.id)}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-link transition-colors hover:text-link-hover"
-                  >
-                    Read more — checklist, sizing &amp; research
-                    <span aria-hidden>→</span>
-                  </button>
-                </div>
-
-                {/* Zone 7 — actions */}
-                {advisory ? (
-                  <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-                    {pending ? (
-                      <>
-                        <span className="mr-auto text-pretty text-xs text-fg-muted">
-                          Advisory only — no automated execution. Place this
-                          trade yourself in Robinhood if you agree.
-                        </span>
-                        <RedTeamRerunButton proposalId={p.id} />
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={busyId === p.id}
-                          onClick={() => review(p.id, "dismissed")}
-                        >
-                          Dismiss
-                        </Button>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          disabled={busyId === p.id}
-                          onClick={() => review(p.id, "reviewed")}
-                        >
-                          Mark reviewed
-                        </Button>
-                      </>
-                    ) : (
-                      <span className="ml-auto text-xs text-fg-muted">
-                        {advisoryStatusLabel[status] ?? status}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-                    {pending ? (
-                      <>
-                        <div className="mr-auto">
-                          <RedTeamRerunButton proposalId={p.id} />
-                        </div>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          disabled={busyId === p.id}
-                          onClick={() => decide(p.id, "deny")}
-                        >
-                          Reject
-                        </Button>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          disabled={busyId === p.id}
-                          onClick={() => openConfirm(p.id)}
-                        >
-                          Approve…
-                        </Button>
-                      </>
-                    ) : (
-                      <span className="ml-auto text-xs text-fg-muted">
-                        {result ? (
-                          <>
-                            {outcomeLabel[result.outcome]}
-                            {result.outcome === "approved" ? (
-                              <>
-                                {" "}
-                                · routed to{" "}
-                                <span className="font-medium text-fg">
-                                  {result.destination}
-                                </span>
-                                {result.dryRun ? " (dry-run sink)" : " (LIVE)"}
-                                {result.brokerOrderId ? (
-                                  <> · {result.brokerOrderId}</>
-                                ) : null}
-                              </>
-                            ) : null}
-                          </>
-                        ) : status === "approved" ? (
-                          "Approved"
-                        ) : (
-                          "Rejected"
-                        )}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Card>
-          );
-        })}
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
 
       <AlertDialog
@@ -566,13 +500,119 @@ export function ProposalsList({
         proposal={detailProposal}
         open={detailProposal !== null}
         onDismiss={() => setDetailId(null)}
+        actions={detailProposal ? actionsFor(detailProposal) : undefined}
       />
     </>
   );
 }
 
-/** A compact key-stat pill for the proposal's chip row (zone 3): a muted label
- *  + a tabular value. `gain`/`warning` tones flag the R:R against the 2:1 rail. */
+/**
+ * A slim, scannable proposal row (M8) — a real <button> that opens the
+ * full-context modal. A primary line (side pill · serif ticker · tags ·
+ * status · chevron) over a muted meta line (sector · R:R · red-team verdict ·
+ * confidence), so the feed stays dense yet readable at any width.
+ */
+function ProposalRow({
+  proposal: p,
+  status,
+  onOpen,
+}: {
+  proposal: TradeProposal;
+  status: Status;
+  onOpen: () => void;
+}) {
+  const advisory = isAdvisoryProposal(p);
+  const liveApprovable = p.account === "live" && !advisory;
+  const rr = computeRiskReward({
+    action: p.action,
+    entry: p.limitPrice,
+    stop: p.stopPrice,
+    target: p.takeProfit,
+  });
+  const conf = p.confidence === null ? null : confidenceBucket(p.confidence);
+  const verdict = p.redTeam ? redTeamVerdictStyle[p.redTeam.verdict] : null;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${p.action.toUpperCase()} ${p.symbol} — open full context`}
+      className="group flex w-full flex-col gap-1.5 px-4 py-3 text-left transition-colors hover:bg-surface-overlay focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+    >
+      {/* Primary line */}
+      <div className="flex items-center gap-2.5">
+        <Badge tone={p.action === "buy" ? "gain" : "loss"} solid>
+          {p.action.toUpperCase()}
+        </Badge>
+        <span className="font-serif text-base font-semibold text-fg">
+          {p.symbol}
+        </span>
+        {advisory ? (
+          <span className="hidden items-center rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-fg sm:inline-flex">
+            {ADVISORY_TAG}
+          </span>
+        ) : null}
+        {liveApprovable ? (
+          <span className="hidden items-center rounded-pill border border-accent bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-fg sm:inline-flex">
+            {LIVE_APPROVE_TAG}
+          </span>
+        ) : null}
+        {p.sample ? <SampleDataBadge /> : null}
+        <div className="ml-auto flex items-center gap-2.5">
+          <Badge tone={statusTone[status]} dot>
+            {status.toUpperCase()}
+          </Badge>
+          <ChevronRightIcon
+            className="size-4 text-fg-muted transition-colors group-hover:text-fg"
+            aria-hidden
+          />
+        </div>
+      </div>
+
+      {/* Meta line — sector · R:R · verdict · confidence */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-0.5 text-xs text-fg-muted">
+        {p.sector ? <span className="truncate">{p.sector}</span> : null}
+        {p.sector ? <Dot /> : null}
+        <span>
+          <span className="text-fg-muted">R:R </span>
+          <span
+            className={`font-medium tabular-nums ${
+              rr ? (rr.ratio >= 2 ? "text-gain" : "text-warning") : "text-fg"
+            }`}
+          >
+            {rr ? formatRatio(rr.ratio) : "—"}
+          </span>
+        </span>
+        <Dot />
+        {verdict ? (
+          <span
+            className={`rounded-pill border px-2 py-0.5 text-[0.65rem] font-semibold ${verdict.className}`}
+          >
+            {verdict.label}
+          </span>
+        ) : (
+          <span className="text-fg-muted">No red-team</span>
+        )}
+        <Dot />
+        <span className="tabular-nums">
+          {conf ? `${conf.level} · ${conf.pct}%` : "Conf —"}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+/** A faint separator dot between meta items. */
+function Dot() {
+  return (
+    <span aria-hidden className="text-fg-muted/40">
+      ·
+    </span>
+  );
+}
+
+/** A compact key-stat pill for the approve dialog: a muted label + a tabular
+ *  value. `gain`/`warning` tones flag the R:R against the 2:1 rail. */
 function StatChip({
   label,
   value,
