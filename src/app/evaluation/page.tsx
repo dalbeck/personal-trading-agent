@@ -1,11 +1,12 @@
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
-import { formatPercent, toneForValue } from "@/lib/format";
-import { getEvaluationScorecard } from "@/lib/server/eval";
+import { formatCurrency, formatPercent, toneForValue } from "@/lib/format";
+import { getEvaluationScorecard, getLiveBookPerformance } from "@/lib/server/eval";
 import { getGovernanceScorecard } from "@/lib/server/governance";
 import { getViewMode } from "@/lib/server/mode";
 import { verdictStyle } from "@/lib/eval/verdict-style";
 import type { Scorecard } from "@/lib/eval/scorecard";
 import type { GovernanceScorecard } from "@/lib/eval/governance";
+import type { LiveBookPerformance } from "@/lib/eval/live-performance";
 
 export const dynamic = "force-dynamic";
 
@@ -181,33 +182,111 @@ function GovernanceScorecardCard({
   );
 }
 
+function LiveBookCard({ perf }: { perf: LiveBookPerformance | null }) {
+  if (!perf) {
+    return (
+      <Card className="border-dashed">
+        <p className="text-sm text-fg-muted">
+          No live snapshot yet — connect the Robinhood Agentic account and
+          Refresh (or wait for the scheduled live refresh) to populate live-book
+          performance.
+        </p>
+      </Card>
+    );
+  }
+  const plTone =
+    perf.unrealizedPlUsd > 0 ? "gain" : perf.unrealizedPlUsd < 0 ? "loss" : "neutral";
+  return (
+    <Card className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Open positions" value={String(perf.positions)} />
+        <StatCard label="Cost basis" value={formatCurrency(perf.costBasisUsd)} />
+        <StatCard label="Market value" value={formatCurrency(perf.marketValueUsd)} />
+        <StatCard
+          label="Exits taken"
+          value={String(perf.exitsTaken)}
+        />
+      </div>
+      <div>
+        <Row
+          label="Unrealized P&L (vs cost basis)"
+          value={`${perf.unrealizedPlUsd >= 0 ? "+" : ""}${formatCurrency(
+            perf.unrealizedPlUsd,
+          )}${perf.unrealizedPlPct === null ? "" : ` · ${pct(perf.unrealizedPlPct)}`}`}
+          tone={plTone}
+        />
+        {perf.benchmark ? (
+          <>
+            <Row
+              label="Live return"
+              value={pct(perf.benchmark.portfolioReturnPct)}
+              tone={toneForValue(perf.benchmark.portfolioReturnPct)}
+            />
+            <Row
+              label={`${perf.benchmark.symbol} return`}
+              value={pct(perf.benchmark.benchmarkReturnPct)}
+              tone={toneForValue(perf.benchmark.benchmarkReturnPct)}
+            />
+            <Row
+              label={`Excess vs ${perf.benchmark.symbol} (alpha)`}
+              value={pct(perf.benchmark.excessReturnPct)}
+              tone={toneForValue(perf.benchmark.excessReturnPct)}
+            />
+          </>
+        ) : (
+          <Row label="Vs SPY" value={`${DASH} (benchmark not on snapshot)`} />
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default async function EvaluationPage() {
   const mode = await getViewMode();
 
-  // The scorecard grades the PAPER desk — the autonomous engine being proven.
-  // In the live view, showing the paper score would be misleading, so render a
-  // read-only / advisory paper-only-gate note instead (per the M1 spec).
+  // LIVE view (M3): the live book is first-class here too — its own performance
+  // (vs cost basis, vs SPY where observable) and its own governance, clearly
+  // labelled and never mixed with the paper proving-ground scorecard below.
   if (mode === "live") {
+    const [livePerf, liveGovernance] = await Promise.all([
+      getLiveBookPerformance(),
+      getGovernanceScorecard({ account: "live" }),
+    ]);
     return (
       <div className="flex flex-col gap-8">
         <PageTitle
           title="Evaluation"
-          subtitle="The paper proving-ground scorecard — secondary to the live desk."
+          subtitle="The live book's own performance and governance. The paper go/no-go scorecard is secondary — switch to the Paper view for the full rubric."
         />
+
+        <Section
+          title="Live book — performance"
+          note="Human-approved per trade (not graded by the go/no-go gate). Unrealized P&L vs cost basis, and vs SPY where the live snapshot carries a benchmark."
+        >
+          <LiveBookCard perf={livePerf} />
+        </Section>
+
+        <Section
+          title="Live governance"
+          note="The red-team + risk rails on LIVE proposals and rejections, scoped to the live book (no paper bleed). Advisory; small samples read as a signal, not a verdict."
+        >
+          <GovernanceScorecardCard governance={liveGovernance} />
+        </Section>
+
         <Card className="border-dashed">
-          <h2 className="text-sm font-semibold text-fg">Paper proving-ground</h2>
+          <h2 className="text-sm font-semibold text-fg">
+            Paper proving-ground (secondary)
+          </h2>
           <p className="mt-2 text-pretty text-sm text-fg-muted">
             The go/no-go scorecard grades the{" "}
             <span className="font-medium text-fg">paper desk</span> — a secondary
             proving-ground for the engine. Your <span className="font-medium text-fg">live</span>{" "}
-            trades are human-approved per trade (not auto-scored here). This gate
+            trades are human-approved per trade (not auto-scored there). That gate
             only governs whether <span className="font-medium text-fg">hands-off
             automation</span> (no human in the loop) may ever be enabled — it does
-            not gate your own approvals.
-          </p>
-          <p className="mt-3 text-sm text-fg-muted">
-            Switch to the <span className="font-medium text-fg">Paper</span> view
-            (header toggle) to see the full rubric.
+            not gate your own approvals. Switch to the{" "}
+            <span className="font-medium text-fg">Paper</span> view for the full
+            rubric.
           </p>
         </Card>
       </div>
