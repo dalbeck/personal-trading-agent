@@ -1,7 +1,6 @@
 import { RoutinesList } from "@/components/routines-list";
-import { Card, PageTitle } from "@/components/page-shell";
-import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/format";
+import { RoutinesHero } from "@/components/routines/routines-hero";
+import { PageTitle, SectionTitle } from "@/components/page-shell";
 import {
   ROUTINE_CATALOG,
   type RoutineRun,
@@ -36,30 +35,31 @@ export default async function RoutinesPage() {
         ? ({ tone: "gain", label: "HEALTHY" } as const)
         : ({ tone: "loss", label: "STALLED" } as const);
 
+  // At-a-glance fleet health for the hero stat chips — pure presentation
+  // aggregation over the routines list (no logic / data change).
+  const health = {
+    ok: routines.filter((r) => r.lastStatus === "ok").length,
+    error: routines.filter((r) => r.lastStatus === "error").length,
+    never: routines.filter((r) => r.lastStatus === "never").length,
+    locked: routines.filter((r) => r.lastStatus === "locked").length,
+  };
+
   return (
-    <div>
+    <div className="flex flex-col gap-8">
       <PageTitle
         title="Routines"
         subtitle="Scheduled engine jobs (launchd). Use “Run now” to trigger one manually. Status reflects the latest run logs."
       />
 
-      <Card className="mb-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Badge tone={deadman.tone} dot>
-              {deadman.label}
-            </Badge>
-            <span className="text-sm font-medium text-fg">Dead-man switch</span>
-          </div>
-          <span className="text-xs text-fg-muted">
-            {lastBeat
-              ? `Last run ${formatDateTime(lastBeat)}`
-              : "No runs yet — the desk is idle until a routine runs."}
-          </span>
-        </div>
-      </Card>
+      <RoutinesHero deadman={deadman} lastBeat={lastBeat} health={health} />
 
-      <RoutinesList routines={routines} />
+      <section className="flex flex-col gap-4">
+        <SectionTitle
+          title="Scheduled routines"
+          note="Each job’s cadence and latest run status. Needs-attention routines surface first."
+        />
+        <RoutinesList routines={routines} />
+      </section>
     </div>
   );
 }
