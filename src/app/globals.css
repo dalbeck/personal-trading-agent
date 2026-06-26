@@ -188,6 +188,50 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Visual richness (M2 — see .agents/design-system.md "tone"). Structured
+   richness, not decoration: a gradient HERO surface for the one focal card per
+   page, subtle accent-tinted header STRIPS to break up the grid, and a faint
+   dot grid used only behind a hero. All theme-aware (built from the tokens via
+   color-mix) so light + dark both stay tasteful — never whole-page backgrounds.
+--------------------------------------------------------------------------- */
+
+/* Hero focal surface: a soft accent glow (top-right) over a gentle vertical
+   gradient on the raised surface. The anchor of a page — used sparingly. */
+@utility surface-hero {
+  background-color: var(--surface-raised);
+  background-image:
+    radial-gradient(
+      130% 120% at 85% -15%,
+      color-mix(in oklab, var(--accent) 20%, transparent),
+      transparent 52%
+    ),
+    linear-gradient(
+      162deg,
+      color-mix(in oklab, var(--accent) 7%, var(--surface-raised)),
+      var(--surface-raised) 58%
+    );
+}
+
+/* Accent-tinted header strip: a subtle left-to-right accent wash that fades to
+   nothing — for a section/card header band, to break up a uniform grid. */
+@utility tint-strip {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--accent) 10%, transparent),
+    transparent 62%
+  );
+}
+
+/* Faint dot grid — texture behind a hero ONLY (never a full background). */
+@utility bg-dot-grid {
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--text-primary) 8%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 18px 18px;
+}
+
+/* ---------------------------------------------------------------------------
    Syntax highlighting (rehype-highlight emits hljs-* classes). Mapped to the
    design tokens so fenced code in chat/journal/coaching reads correctly in
    both themes — no third-party highlight.js theme, no hardcoded palette.

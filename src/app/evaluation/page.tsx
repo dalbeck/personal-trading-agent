@@ -1,3 +1,4 @@
+import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { ProgressBar } from "@/components/ui/progress";
 import { formatCurrency, formatPercent, toneForValue } from "@/lib/format";
@@ -259,6 +260,43 @@ export default async function EvaluationPage() {
           title="Evaluation"
           subtitle="The live book's own performance and governance. The paper go/no-go scorecard is secondary — switch to the Paper view for the full rubric."
         />
+
+        {livePerf ? (
+          <HeroCard>
+            <div className="mb-6 flex items-center gap-2">
+              <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
+                Live book
+              </h2>
+              <span className="ml-auto text-xs text-fg-muted">
+                {livePerf.positions} open · read-only
+              </span>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_1.5fr] lg:items-center">
+              <HeroMetric
+                label="Market value"
+                value={formatCurrency(livePerf.marketValueUsd)}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <HeroStat
+                  label="Unrealized P&L"
+                  value={formatCurrency(livePerf.unrealizedPlUsd, {
+                    signed: true,
+                  })}
+                  tone={toneForValue(livePerf.unrealizedPlUsd)}
+                  delta={
+                    livePerf.unrealizedPlPct === null
+                      ? undefined
+                      : formatPercent(livePerf.unrealizedPlPct)
+                  }
+                />
+                <HeroStat
+                  label="Cost basis"
+                  value={formatCurrency(livePerf.costBasisUsd)}
+                />
+              </div>
+            </div>
+          </HeroCard>
+        ) : null}
 
         <Section
           title="Live book — performance"

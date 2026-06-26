@@ -1,9 +1,10 @@
 import { DataSourceNotice } from "@/components/data-source-notice";
+import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
 import { LiveRefreshButton } from "@/components/live-refresh-button";
 import { ViewingBadge } from "@/components/mode-scope";
 import { PositionsTable } from "@/components/positions-table";
 import { Card, PageTitle } from "@/components/page-shell";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, toneForValue } from "@/lib/format";
 import { MODE_LABEL, otherMode } from "@/lib/mode";
 import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
 import { getViewMode } from "@/lib/server/mode";
@@ -22,8 +23,18 @@ export default async function PositionsPage() {
   ]);
   const isLive = mode === "live";
   const otherLabel = MODE_LABEL[otherMode(mode)];
+  const activeSnap = isLive ? live.snapshot : paper.snapshot;
+  const activePositions = activeSnap?.positions ?? [];
   const otherPositions =
     (isLive ? paper.snapshot : live.snapshot)?.positions ?? [];
+  const totalMarketValue = activePositions.reduce(
+    (s, p) => s + p.marketValue,
+    0,
+  );
+  const totalUnrealized = activePositions.reduce(
+    (s, p) => s + p.unrealizedPl,
+    0,
+  );
 
   return (
     <div className="space-y-8">
@@ -35,6 +46,37 @@ export default async function PositionsPage() {
             : "Open positions in the paper account, with cost basis and unrealized P&L."
         }
       />
+
+      {activePositions.length > 0 ? (
+        <HeroCard>
+          <div className="mb-6 flex items-center gap-2">
+            <ViewingBadge mode={mode} />
+            <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
+              {isLive ? "Live positions" : "Paper positions"}
+            </h2>
+            <span className="ml-auto text-xs text-fg-muted">
+              {activePositions.length} open
+            </span>
+          </div>
+          <div className="grid gap-6 lg:grid-cols-[1.05fr_1.5fr] lg:items-center">
+            <HeroMetric
+              label="Market value"
+              value={formatCurrency(totalMarketValue)}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <HeroStat
+                label="Unrealized P&L"
+                value={formatCurrency(totalUnrealized, { signed: true })}
+                tone={toneForValue(totalUnrealized)}
+              />
+              <HeroStat
+                label="Open positions"
+                value={String(activePositions.length)}
+              />
+            </div>
+          </div>
+        </HeroCard>
+      ) : null}
 
       {isLive ? (
         <section>

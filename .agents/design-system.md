@@ -4,12 +4,14 @@ Plaid-style system (source skill `ihlamury/design-skills/skills/plaid`), with th
 
 **Dark is the primary, reference theme.** Light mode is kept and inherits the same tokens, but dark is the showcase the design is judged against.
 
-## Design tone — Mercury-grade restraint (governs everything)
-The target is *premium, calm, "nonsense-free" clarity* — not a busy dashboard. Whitespace and typography do the heavy lifting; decoration is the exception.
-- **When in doubt, remove.** A screen should feel like it has *less* on it than the data warrants.
-- **One sophisticated accent** (the Plaid blue), used as precision — for the one thing that matters on a screen, not everywhere. Gain/loss semantics + neutrals otherwise.
-- **Quiet, confident type.** Hierarchy through size/weight/color, never competing styles or loud color.
-- **Understated data-viz.** Thin axes, restrained gridlines, calm. No flashy chrome.
+## Design tone — structured richness, not austerity (governs everything)
+The target is *premium, calm clarity* — beauty from **structured visual richness + clear hierarchy**, not from stripping color away. **Restraint means avoiding clutter, NOT avoiding color, gradients, or a serif face.** (Recalibration from the first pass, which over-indexed on austerity and read as flat/mundane.)
+- **Density is fixed by hierarchy + whitespace, not by removing elements:** one clear focal point per page, big gaps between sections, fewer things per zone, progressive disclosure of detail.
+- **One focal point per page — a gradient HERO** (subtle accent gradient + soft glow + faint dot-grid + the big number) anchors each main page (`HeroCard` / `surface-hero` / `bg-dot-grid`). Build the rhythm hero → flatter secondary cards; **avoid the uniform grid** that reads as mundane.
+- **Richness is allowed, used with structure:** accent-tinted header **strips** on section/card headers (`tint-strip`) to break up the grid; subtle patterns/textures **only** behind a hero or as a highlighted-bar fill — **never a whole-page background**.
+- **One sophisticated accent** (the Plaid blue) carries the gradients, glow, and tints; gain/loss semantics + neutrals otherwise. Color with intent, not everywhere.
+- **A serif headline voice + sans content** (see Foundations) does the hierarchy work — quiet, confident, premium; never competing styles or loud color.
+- **Composed data-viz.** Thin axes, restrained gridlines, calm — intentional, not flashy.
 
 ## Foundations
 - **Type — a serif/sans pairing (`font-serif` + `font-sans`).** A **serif display face (Fraunces, variable)** carries titles and headlines; **Inter** carries everything else. Both are wired through `next/font` in the root layout and exposed as the `--font-serif` / `--font-sans` Tailwind tokens (use the `font-serif` / `font-sans` utilities — never import a font ad hoc).
