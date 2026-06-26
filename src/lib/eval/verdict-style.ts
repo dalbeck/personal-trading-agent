@@ -5,7 +5,7 @@ import type { VerdictKind } from "@/lib/eval/scorecard";
  * gate" module and the full `/evaluation` scorecard so the two never drift.
  *
  * Colors are **semantic status tones** (see `.agents/design-system.md` →
- * "Status & verdict colors"), never the lime accent: Go-candidate → success,
+ * "Status & verdict colors"), never the blue accent: Go-candidate → success,
  * Iterate → warning, No-go → danger, Incomplete → neutral/muted. Each renders
  * readable text on a light tint of the same hue at ≥4.5:1 in both themes.
  */
