@@ -82,7 +82,7 @@ function FactorBars({ factors }: { factors: PostureFactor[] }) {
           </div>
           <div className="mt-1 h-1.5 w-full overflow-hidden rounded-pill bg-line">
             <div
-              className="h-full rounded-pill bg-fg-muted"
+              className="h-full rounded-pill bg-fg-muted/55"
               style={{ width: `${Math.round(Math.max(0, Math.min(100, f.value)))}%` }}
             />
           </div>
