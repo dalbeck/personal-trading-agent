@@ -7,7 +7,7 @@ import { EvalSnapshotModule } from "@/components/overview/eval-snapshot";
 import { GuardrailHeadroom } from "@/components/overview/guardrail-headroom";
 import { RegimeContextStrip } from "@/components/overview/regime-context";
 import { RoutinesHealthModule } from "@/components/overview/routines-health";
-import { Card, PageTitle } from "@/components/page-shell";
+import { Card, PageTitle, SectionTitle } from "@/components/page-shell";
 import { ProgressBar } from "@/components/ui/progress";
 import { CompositionRing } from "@/components/charts/composition-ring";
 import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
@@ -85,7 +85,7 @@ export default async function OverviewPage() {
     : null;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div>
         <PageTitle
           title="Overview"
@@ -216,6 +216,11 @@ export default async function OverviewPage() {
         pendingTotal={modules.attention.pendingReview}
       />
 
+      <SectionTitle
+        title="Desk health"
+        note="The guardrails the desk runs inside, its evaluation standing, recent activity, and routine status."
+      />
+
       <section className="grid gap-4 lg:grid-cols-2">
         <GuardrailHeadroom guardrails={modules.guardrails} />
         <EvalSnapshotModule evaluation={modules.evaluation} mode={mode} />
@@ -225,6 +230,11 @@ export default async function OverviewPage() {
         <ActivityFeed activity={modules.activity} universe={universe} />
         <RoutinesHealthModule health={modules.routinesHealth} />
       </section>
+
+      <SectionTitle
+        title="Accounts"
+        note="Both books at a glance — paper (the dry-run sink) and the live Robinhood account with its pilot caps and gate state."
+      />
 
       <section className="grid gap-4 lg:grid-cols-2">
         <Card>
