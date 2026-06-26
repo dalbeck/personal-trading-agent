@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateOrder } from "./index";
+import { evaluateOrder, resolveStopPrice } from "./index";
 import type { ProposedOrder, RiskContext } from "./types";
 
 /**
@@ -21,6 +21,7 @@ function baseOrder(over: Partial<ProposedOrder> = {}): ProposedOrder {
     limitPrice: 150,
     orderType: "marketable_limit",
     stopPrice: 147,
+    takeProfit: 170,
     assetClass: "equity",
     ...over,
   };
@@ -45,6 +46,103 @@ describe("evaluateOrder — a compliant order", () => {
   it("passes every rail", () => {
     const decision = evaluateOrder(baseOrder(), baseCtx());
     expect(decision).toEqual({ ok: true, violations: [] });
+  });
+});
+
+describe("winner-exit discipline (M3)", () => {
+  it("blocks an entry with no profit target or trailing-stop rule", () => {
+    expect(rules(baseOrder({ takeProfit: null }), baseCtx())).toContain(
+      "winner-exit",
+    );
+  });
+
+  it("passes when a trailing-stop rule stands in for a fixed target", () => {
+    expect(
+      rules(baseOrder({ takeProfit: null, trailingStopPct: 0.08 }), baseCtx()),
+    ).not.toContain("winner-exit");
+  });
+
+  it("never blocks an exit (sell) for lacking a target", () => {
+    expect(
+      rules(baseOrder({ action: "sell", stopPrice: null, takeProfit: null }), baseCtx()),
+    ).not.toContain("winner-exit");
+  });
+});
+
+describe("sector concentration rail (M3)", () => {
+  // A $40k entry (40% of $100k) is exactly at the cap; held same-sector value
+  // tips it over.
+  it("blocks when the new order tips a sector over 40% of equity", () => {
+    const order = baseOrder({
+      symbol: "NVDA",
+      qty: 200,
+      limitPrice: 150, // $30k
+      sector: "Technology",
+    });
+    const ctx = baseCtx({
+      openPositions: [
+        { symbol: "MSFT", marketValue: 15_000, sector: "Technology" },
+      ],
+    });
+    // $30k + $15k = $45k > $40k cap.
+    expect(rules(order, ctx)).toContain("sector-concentration");
+  });
+
+  it("does not fire when the combined sector exposure is within the cap", () => {
+    const order = baseOrder({ symbol: "NVDA", qty: 100, limitPrice: 150, sector: "Technology" });
+    const ctx = baseCtx({
+      openPositions: [
+        { symbol: "MSFT", marketValue: 15_000, sector: "Technology" },
+      ],
+    });
+    // $15k + $15k = $30k < $40k cap.
+    expect(rules(order, ctx)).not.toContain("sector-concentration");
+  });
+
+  it("fails OPEN when the order's sector is unknown (never a false block)", () => {
+    const order = baseOrder({ qty: 200, limitPrice: 150, sector: null });
+    const ctx = baseCtx({
+      openPositions: [
+        { symbol: "MSFT", marketValue: 30_000, sector: "Technology" },
+      ],
+    });
+    expect(rules(order, ctx)).not.toContain("sector-concentration");
+  });
+
+  it("counts only same-sector holdings, not the whole book", () => {
+    const order = baseOrder({ symbol: "NVDA", qty: 200, limitPrice: 150, sector: "Technology" });
+    const ctx = baseCtx({
+      openPositions: [
+        { symbol: "XOM", marketValue: 30_000, sector: "Energy" },
+      ],
+    });
+    // $30k Tech entry + $0 same-sector held = under cap (Energy doesn't count).
+    expect(rules(order, ctx)).not.toContain("sector-concentration");
+  });
+});
+
+describe("resolveStopPrice — deterministic 8%-vs-ATR priority (M3)", () => {
+  it("uses the fixed 8% stop when no ATR is available", () => {
+    expect(resolveStopPrice({ entry: 100, side: "long" })).toBeCloseTo(92);
+    expect(resolveStopPrice({ entry: 100, side: "short" })).toBeCloseTo(108);
+  });
+
+  it("picks the TIGHTER of fixed-% and ATR for a long (higher stop wins)", () => {
+    // ATR 2 × 2 = $4 → ATR stop $96, tighter than the 8% stop ($92).
+    expect(
+      resolveStopPrice({ entry: 100, side: "long", atr: 2, atrMultiple: 2 }),
+    ).toBeCloseTo(96);
+    // Wide ATR ($10 × 2 = $20 → $80) is looser than 8% ($92) → 8% wins.
+    expect(
+      resolveStopPrice({ entry: 100, side: "long", atr: 10, atrMultiple: 2 }),
+    ).toBeCloseTo(92);
+  });
+
+  it("picks the TIGHTER of fixed-% and ATR for a short (lower stop wins)", () => {
+    // ATR stop $104 is tighter than the 8% stop ($108).
+    expect(
+      resolveStopPrice({ entry: 100, side: "short", atr: 2, atrMultiple: 2 }),
+    ).toBeCloseTo(104);
   });
 });
 

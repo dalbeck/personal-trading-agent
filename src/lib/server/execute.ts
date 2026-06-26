@@ -44,6 +44,10 @@ export interface ExecutableProposal {
   reasoning?: string;
   research?: string;
   tags?: string[];
+  /** GICS sector for the concentration rail; null/absent when unknown. */
+  sector?: string | null;
+  /** How the profit target is anchored (M3); the red-team flags a weak one. */
+  targetType?: string | null;
 }
 
 export type PlaceOrder = (
@@ -80,6 +84,10 @@ function toOrder(p: ExecutableProposal, qty: number): ProposedOrder {
     orderType: "marketable_limit",
     stopPrice: p.stopPrice,
     assetClass: "equity",
+    // Winner-exit + concentration rails read these; a proposal without a profit
+    // target now fails the winner-exit rail in code.
+    takeProfit: p.takeProfit,
+    sector: p.sector ?? null,
   };
 }
 
@@ -119,6 +127,7 @@ export async function executeProposal(
       limitPrice: proposal.limitPrice,
       stopPrice: proposal.stopPrice,
       takeProfit: proposal.takeProfit,
+      targetType: proposal.targetType ?? null,
       thesis: proposal.thesis,
       reasoning: proposal.reasoning,
       research: proposal.research,
@@ -276,6 +285,8 @@ export async function executePendingProposals(opts: {
         reviewDate: reviewDateFrom(p, fallbackReview),
         thesis: p.thesis,
         reasoning: p.reasoning,
+        sector: p.sector,
+        targetType: p.targetType,
       },
       context,
       {

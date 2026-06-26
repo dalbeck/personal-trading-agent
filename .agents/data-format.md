@@ -94,6 +94,16 @@ directly, not a `data/` artifact contract, malformed = treated as "not placed".
   routes by the order gate — closed → dry-run sink, open → Robinhood. The gate,
   not the account, is the real-money boundary (see `.agents/infra.md`).
 
+**Proposal `targetType` / `sector` (M3 governance).** A `TradeProposal` also
+carries `targetType` (`prior_high | measured_move | atr_multiple | fundamental |
+analyst_price`, nullable for back-compat) and `sector` (GICS string, nullable).
+`targetType` records how the profit target is anchored — a well-formed proposal
+sets it, and an `analyst_price` (sell-side) target or a missing one is **flagged
+weak** by the checklist/red-team, not hard-blocked. `sector` feeds the
+**concentration rail** (≤ 40% of equity per sector); when null the rail can't
+fire for that name (fails open). Both default to `null` so older records still
+validate.
+
 **Red-team verdict (structured rationale).** The prosecutor's verdict on a
 proposal is **structured, not one text blob** (`RedTeamVerdictSchema` in
 `src/lib/schemas.ts`):

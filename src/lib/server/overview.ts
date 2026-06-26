@@ -7,6 +7,7 @@ import {
   readRunLogs,
 } from "./data";
 import { getEvaluationScorecard } from "./eval";
+import { getCachedSector } from "./symbol-research";
 import { RISK_LIMITS } from "@strategy/charter.config";
 import {
   ROUTINE_CATALOG,
@@ -55,6 +56,10 @@ export interface Guardrails {
   ordersToday: GuardrailRail;
   /** Drawdown is special: `used`/`limit` are percentages (magnitudes). */
   drawdown: GuardrailRail & { breached: boolean };
+  /** Dominant-sector concentration vs the per-sector cap (M3). `used`/`limit`
+   *  are fractions of equity; `name` is the heaviest sector. Omitted when no
+   *  position's sector is known (cache-only classification, no spend). */
+  sector?: GuardrailRail & { name: string };
 }
 
 export type ActivityKind = "trade" | "rejection";
@@ -211,6 +216,30 @@ export async function getOverviewModules(
     .filter((l) => easternDate(l.startedAt) === todayET)
     .reduce((sum, l) => sum + l.ordersPlaced, 0);
   const dd = currentDrawdown(paperSnapshot?.equityCurve ?? []);
+
+  // Dominant-sector concentration (M3) — cache-only classification (no spend);
+  // omitted when no held name's sector is known.
+  const sectorTotals = new Map<string, number>();
+  for (const pos of paperSnapshot?.positions ?? []) {
+    const sec = await getCachedSector(pos.symbol);
+    if (!sec) continue;
+    sectorTotals.set(sec, (sectorTotals.get(sec) ?? 0) + pos.marketValue);
+  }
+  const equity = paperSnapshot?.equity ?? 0;
+  let sectorRail: Guardrails["sector"];
+  if (sectorTotals.size > 0 && equity > 0) {
+    let name = "";
+    let used = 0;
+    for (const [sec, val] of sectorTotals) {
+      const frac = val / equity;
+      if (frac > used) {
+        used = frac;
+        name = sec;
+      }
+    }
+    sectorRail = { ...rail(used, RISK_LIMITS.maxSectorWeightPct), name };
+  }
+
   const guardrails: Guardrails = {
     openPositions: rail(openPositions, RISK_LIMITS.maxConcurrentPositions),
     ordersToday: rail(ordersToday, RISK_LIMITS.maxOrdersPerDay),
@@ -218,6 +247,7 @@ export async function getOverviewModules(
       ...rail(dd, RISK_LIMITS.drawdownHaltPct),
       breached: dd >= RISK_LIMITS.drawdownHaltPct,
     },
+    ...(sectorRail ? { sector: sectorRail } : {}),
   };
 
   // — Activity — newest first (readJournal already sorts desc).

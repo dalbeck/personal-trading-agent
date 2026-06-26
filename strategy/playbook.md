@@ -20,12 +20,19 @@ on any single item is a reason to pass or to downsize.
    universe cap); the stop distance is sane relative to ATR.
 6. **Catalyst & timing** — note any earnings/event risk inside the holding
    window; avoid binary events unless the thesis explicitly accounts for them.
-7. **Sizing** — define the protective stop **first**, then size so the stop
-   costs **≤2%** of equity and the position is **≤20%** of equity. Reward/risk
-   must be **≥2:1**.
-8. **Correlation** — does this overlap existing book exposure? Trim size if so;
-   respect the 5-position cap.
-9. **Red-team** — the prosecutor defaults to "no"; the thesis must survive it.
+7. **Sizing** — define the protective stop **first** (the **tighter** of a fixed
+   −8% and an ATR-based level — deterministic, never discretionary), then size so
+   the stop costs **≤2%** of equity and the position is **≤20%** of equity.
+   Reward/risk must be **≥2:1**.
+8. **Target** — the profit target must be **technically or fundamentally
+   anchored** (`prior_high`, `measured_move`, `atr_multiple`, or `fundamental`),
+   **not a sell-side `analyst_price`** — an analyst target is the desk taking
+   someone else's number, and the red-team flags it weak.
+9. **Winner-exit** — define how the trade *exits a winner* at entry: a profit
+   target **or** a trailing-stop rule. Govern the upside, not just the stop.
+10. **Correlation / sector** — does this overlap existing book exposure? Respect
+    the **40%** per-sector cap and the 5-position cap; trim size on overlap.
+11. **Red-team** — the prosecutor defaults to "no"; the thesis must survive it.
 
 ## Banked lessons
 

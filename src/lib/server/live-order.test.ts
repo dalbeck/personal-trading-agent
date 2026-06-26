@@ -545,6 +545,48 @@ describe("M1 — real risk context at approval (daily cap + emergency stop)", ()
     expect(res.outcome).toBe("blocked-risk");
   });
 
+  it("blocks an over-concentrated sector at approval (M3 concentration rail)", async () => {
+    const gate = await closedGate();
+    // The book already holds a Tech name worth $30k of a $100k account; a fresh
+    // $15k Tech entry pushes the sector to $45k > the 40% ($40k) cap.
+    const snapshot = {
+      ...BIG_SNAPSHOT,
+      positions: [
+        {
+          symbol: "MSFT",
+          side: "long",
+          qty: 100,
+          avgCost: 300,
+          lastPrice: 300,
+          marketValue: 30_000,
+          costBasis: 30_000,
+          unrealizedPl: 0,
+          unrealizedPlPct: 0,
+          stopPrice: null,
+          openedAt: "2026-06-01",
+        },
+      ],
+    } as PortfolioSnapshot;
+    const res = await submitTradeApproval(
+      {
+        // 150 shares @ $100 = $15k Tech entry.
+        order: { ...ORDER, symbol: "NVDA", qty: 150, sector: "Technology" },
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+        idempotencyKey: "sector-1",
+      },
+      {
+        ...gate,
+        snapshot,
+        market: CALM,
+        // Classify the held MSFT as Technology too (cache-only seam).
+        sectorOf: async () => "Technology",
+      },
+    );
+    expect(res.outcome).toBe("blocked-risk");
+  });
+
   it("a calm-market in-cap order still approves (rails fire only on real danger)", async () => {
     const gate = await closedGate();
     const res = await submitTradeApproval(

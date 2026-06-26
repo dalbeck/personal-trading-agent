@@ -36,7 +36,7 @@ export function evaluateOrder(
 }
 
 export { RISK_LIMITS } from "@strategy/charter.config";
-export { RULES } from "./validators";
+export { RULES, resolveStopPrice } from "./validators";
 export type {
   AssetClass,
   HeldPosition,

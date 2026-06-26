@@ -11,6 +11,9 @@ export const RISK_LIMITS: RiskLimits = {
   perPositionRiskPct: 0.02,
   // Per-position size — ≤ 20% of equity in any single name.
   perPositionSizePct: 0.2,
+  // Per-sector concentration — ≤ 40% of equity in any single sector, so a
+  // 5-position book can't be three correlated names (3 × 20% = 60% > 40%).
+  maxSectorWeightPct: 0.4,
   // At most 5 concurrent open positions.
   maxConcurrentPositions: 5,
   // At most 6 orders per day.

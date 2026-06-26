@@ -15,6 +15,7 @@ describe("RISK_LIMITS mirrors strategy/charter.md", () => {
     expect(RISK_LIMITS).toEqual({
       perPositionRiskPct: 0.02, // ≤ 2% risk to stop
       perPositionSizePct: 0.2, // ≤ 20% of equity per name
+      maxSectorWeightPct: 0.4, // ≤ 40% of equity per sector
       maxConcurrentPositions: 5,
       maxOrdersPerDay: 6,
       drawdownHaltPct: 0.1, // −10% from high-water

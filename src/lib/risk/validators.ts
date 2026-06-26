@@ -2,6 +2,7 @@ import type {
   ProposedOrder,
   RiskContext,
   RiskLimits,
+  Side,
   Violation,
 } from "./types";
 
@@ -103,6 +104,56 @@ export const perPositionSize: Rule = (o, ctx, limits) => {
     : null;
 };
 
+/** Held market value already in `sector` (excluding the order's own symbol — its
+ *  exposure is added separately so adding to a held name isn't double-counted). */
+const sectorHeldValue = (
+  ctx: RiskContext,
+  sector: string,
+  symbol: string,
+): number =>
+  ctx.openPositions
+    .filter((p) => p.sector === sector && p.symbol !== symbol)
+    .reduce((sum, p) => sum + p.marketValue, 0);
+
+/**
+ * Concentration rail — at most `maxSectorWeightPct` of equity in any one sector,
+ * so a 5-position book can't quietly become three correlated names. **Fails
+ * open** when the order's sector is unknown (null/absent): the desk never blocks
+ * on missing classification data, it only blocks a *known* over-concentration.
+ */
+export const sectorConcentration: Rule = (o, ctx, limits) => {
+  if (!isEntry(o)) return null;
+  const sector = o.sector ?? null;
+  if (!sector) return null; // unknown sector → cannot fire
+  const exposure =
+    sectorHeldValue(ctx, sector, o.symbol) + o.qty * o.limitPrice;
+  const cap = limits.maxSectorWeightPct * ctx.equity;
+  return exposure > cap
+    ? {
+        rule: "sector-concentration",
+        message: `${sector} exposure ${usd(exposure)} exceeds ${pct(
+          limits.maxSectorWeightPct,
+        )} of equity (${usd(cap)})`,
+      }
+    : null;
+};
+
+/**
+ * Winner-exit discipline — every entry must define how it takes profit: a fixed
+ * `takeProfit` OR a `trailingStopPct` rule, set at decision time. Mirrors
+ * `stopAttached` on the downside so the desk governs winners, not just losers.
+ */
+export const winnerExit: Rule = (o) => {
+  if (!isEntry(o)) return null;
+  const hasTarget = o.takeProfit != null && o.takeProfit > 0;
+  const hasTrailing = o.trailingStopPct != null && o.trailingStopPct > 0;
+  if (hasTarget || hasTrailing) return null;
+  return {
+    rule: "winner-exit",
+    message: "entry has no profit target or trailing-stop rule",
+  };
+};
+
 export const positionCount: Rule = (o, ctx, limits) => {
   if (!isEntry(o)) return null;
   const alreadyHeld = ctx.openPositions.some((p) => p.symbol === o.symbol);
@@ -160,10 +211,45 @@ export const RULES: Rule[] = [
   universe,
   allowedOrderType,
   stopAttached,
+  winnerExit,
   perPositionRisk,
   perPositionSize,
+  sectorConcentration,
   positionCount,
   dailyOrderCap,
   drawdownHalt,
   emergencyStop,
 ];
+
+/**
+ * Deterministic stop-price resolution — the charter says every entry carries a
+ * predefined stop at "−8% OR an ATR-based level". To make sizing math
+ * **deterministic** (not "whichever the LLM felt like"), the **tighter** of the
+ * two wins: the fixed-percent stop and the ATR-multiple stop are both computed
+ * from the entry, and the one closer to the entry is used (it risks less per
+ * share). For a long the higher stop is tighter; for a short the lower stop is.
+ * Returns the fixed stop alone when no ATR is available.
+ */
+export function resolveStopPrice(args: {
+  entry: number;
+  side: Side;
+  fixedPct?: number; // default 8%
+  atr?: number | null;
+  atrMultiple?: number; // default 2× ATR
+}): number {
+  const fixedPct = args.fixedPct ?? 0.08;
+  const atrMultiple = args.atrMultiple ?? 2;
+  const { entry, side, atr } = args;
+
+  const fixedStop =
+    side === "long" ? entry * (1 - fixedPct) : entry * (1 + fixedPct);
+  if (atr == null || atr <= 0) return fixedStop;
+
+  const atrStop =
+    side === "long" ? entry - atrMultiple * atr : entry + atrMultiple * atr;
+
+  // The tighter stop is the one nearer the entry (smaller per-share risk).
+  return side === "long"
+    ? Math.max(fixedStop, atrStop)
+    : Math.min(fixedStop, atrStop);
+}

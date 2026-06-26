@@ -31,14 +31,22 @@ cannot override them.
 
 - **Per-position risk:** at most **2%** of equity at risk to the protective stop.
 - **Per-position size:** at most **20%** of paper equity in any single name.
+- **Sector concentration:** at most **40%** of equity in any single sector, so a
+  5-position book can't quietly become three correlated names. Enforced when the
+  sector is known; an unknown sector never causes a false block (fails open).
 - **Concurrent positions:** at most **5** open positions at once.
 - **Daily order cap:** at most **6** orders per day.
 - **Drawdown halt:** at a **−10%** drawdown from the account high-water mark,
   halt all new risk (no new buys) until a human reviews.
 - **Emergency stop (no new buys):** if **SPY is down −2% intraday** or **VIX > 30**,
   open no new positions for the session. Existing stops still stand.
-- **Stop on every swing:** every entry carries a predefined protective stop
-  (e.g. **−8%** or an ATR-based level), set at decision time.
+- **Stop on every swing:** every entry carries a predefined protective stop, set
+  at decision time. The stop is the **tighter of a fixed −8% and an ATR-based
+  level** (the one nearer the entry wins), so the sizing math is deterministic —
+  not left to discretion (`resolveStopPrice`, `lib/risk`).
+- **Winner-exit discipline:** every entry also defines how it takes profit — a
+  **profit target OR a trailing-stop rule**, set at decision time. The desk
+  governs winners, not just losses.
 
 ## Live pilot caps (Phase 3 — real money)
 
@@ -101,6 +109,19 @@ order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-06-25** — **Target & sector governance (pre-live polish M3).** Added a
+  **sector-concentration rail** (≤ **40%** of equity per sector, mirrored in
+  `charter.config.ts` `maxSectorWeightPct`, tripwired by `charter-config.test.ts`)
+  so a 5-position book can't be three correlated names; it fails open on an
+  unknown sector. Added **winner-exit discipline** (every entry defines a profit
+  target or a trailing-stop rule) as a hard rail. Codified the **stop-priority
+  rule**: the protective stop is the *tighter* of a fixed −8% and an ATR-based
+  level, so sizing is deterministic (`resolveStopPrice`). Proposals now carry a
+  required `targetType` (`prior_high | measured_move | atr_multiple | fundamental
+  | analyst_price`); an `analyst_price` (sell-side) target is flagged weak by the
+  checklist/red-team. Rationale: the GE proposal review exposed loose targets and
+  hidden correlation; bound them in code + the playbook. Other rail numbers
+  unchanged.
 - **2026-06-25** — **Live-first reorientation.** Made the **live Robinhood
   account the desk's primary mandate** and demoted the Alpaca paper desk to the
   secondary proving ground + gate-closed dry-run sink (plumbing, not the focus).
