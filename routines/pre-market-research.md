@@ -17,10 +17,19 @@ or wait for input — there is no one to answer. Just **execute the steps below 
 end with the one-line summary.** If something is ambiguous, make the conservative
 choice and proceed.
 
-**Your single job: generate LIVE approvable proposals.** Produce 1–3
-`account: "live"`, `advisory: false` proposals against the live Robinhood
+**Your single job: generate a LARGER, sector-diversified, ranked set of LIVE
+approvable proposals.** Produce **up to the idea cap** (`DISCOVERY_LIMITS.ideaCap`,
+~20) `account: "live"`, `advisory: false` proposals against the live Robinhood
 account, sized against the **live** snapshot's equity, for the human to
 approve → place. (Ignore the paper book entirely.)
+
+**Cast a wide net, then rank — do NOT pre-filter to a handful.** The idea cap is
+a **review funnel**, deliberately decoupled from the 6-order/day hard rail: these
+are *review candidates*, and only ≤6 can ever be acted on in a day, so it is fine
+— preferred — to surface many ranked ideas and let the human choose. Bias toward
+**more opportunities across all sectors**, sorted strongest-first; never
+fabricate filler when a genuine setup doesn't exist, but do not stop at 2–3 if
+more real setups are there.
 
 ## Read first
 - `strategy/charter.md` — the binding constitution (universe + hard risk rails;
@@ -47,20 +56,37 @@ approve → place. (Ignore the paper book entirely.)
    ```bash
    curl -fsS "http://127.0.0.1:${PORT:-3000}/api/regime" | tail -c 600
    ```
-1. **Scan for ideas across sources**, not just current holdings:
+1. **Scan a BROAD, multi-sector universe** — not just current holdings and not a
+   tech-heavy shortlist. Deliberately pull candidates from **across all GICS
+   sectors** (Information Technology, Financials, Health Care, Energy,
+   Industrials, Consumer Discretionary, Consumer Staples, Communication Services,
+   Materials, Utilities, Real Estate) so non-tech names actually enter
+   consideration. Good sources:
+   - sector leaders / market movers **per sector** (e.g. the top holdings of each
+     sector ETF, or each sector's strongest trending names),
    - `data/news/` (the scout's material headlines for the tracked universe),
    - per-symbol Alpaca news for names of interest (the symbol view's free feed),
-   - your own **web search** tools, if available in this session, for catalysts
-     and market regime,
+   - your own **web search** tools, if available, for catalysts and rotation,
    - and the optional capped Perplexity enrichment below.
-   Then scan the broader market for swing candidates that fit the playbook
-   (trend, momentum, relative strength, a catalyst, sane volatility). Watchlist
-   names are explicit human interest — always give them a look.
-2. **Respect the discovery cap, per book.** `DISCOVERY_LIMITS.maxNewProposalsPerRun`
-   (6, see `strategy/charter.md` → Discovery caps) is the per-run ceiling on NEW
-   proposals **for each book**; emit at most `6 − (pending proposals already in
-   data/proposals/ for that account)`. Prefer a few high-conviction ideas over many.
-3. For each genuine candidate, size it stop-first per the charter (≤2% risk,
+   Keep only swing candidates that fit the playbook (trend, momentum, relative
+   strength, a catalyst, sane volatility). Watchlist names are explicit human
+   interest — always give them a look.
+2. **Rank best-in-sector, then spread.** This is a **technical / relative-strength
+   desk**, so diversification means the **strongest setup _within_ each sector**,
+   NOT buying laggards. Bucket your candidates by sector; within each sector rank
+   by the playbook signals (trend, momentum, relative strength, volume, R:R,
+   catalyst); then build the queue by taking the **best of each sector first**
+   before going deeper into any one sector. Aim for **≥ `DISCOVERY_LIMITS.minSectorsTarget`
+   (3) sectors represented**, but **skip a sector with no decent setup** rather
+   than forcing one.
+3. **Respect the discovery caps (review-funnel preferences, NOT safety rails).**
+   - **Idea cap:** emit at most `DISCOVERY_LIMITS.ideaCap` (~20) NEW proposals,
+     minus what is already pending in `data/proposals/` for the live account.
+   - **Per-sector cap:** at most `DISCOVERY_LIMITS.maxProposalsPerSector` (3)
+     proposals from any single sector, so the queue is a diversified mix.
+   These bound the *review queue*; the hard **6-order/day** cap is separate and
+   unchanged. A larger funnel never loosens execution.
+4. For each genuine candidate, size it stop-first per the charter (≤2% risk,
    ≤20% size, reward/risk ≥2:1) with a **marketable-limit** entry and a
    protective stop. **Size against the relevant book's equity** — use the paper
    snapshot's equity for paper ideas and the **live** snapshot's equity for live
@@ -81,21 +107,33 @@ approve → place. (Ignore the paper book entirely.)
 
    If you can't price a candidate this way, **skip it** — don't report a
    permissions block; just propose the names you could price.
-4. Write each candidate as a **proposal** JSON file in `data/proposals/`
+5. Write each candidate as a **proposal** JSON file in `data/proposals/`
    (e.g. `data/proposals/<date>-<ticker>-buy.json`) conforming to
    `TradeProposalSchema` (`src/lib/schemas.ts`), with `account: "live"`,
    `advisory: false`, `status: "pending"` (see `.agents/data-format.md`). Each
    proposal must name a **catalyst** — set `catalyst` (one line: *why now?*) and
    `catalystType` (`earnings_momentum`, `product_news`, `sector_rotation`,
    `guidance`, or `other`); a `none` / trend-alone entry is flagged weak by the
-   red-team, so prefer names with a real catalyst. These are **review candidates
-   only** — the human approves every trade; you never place an order, and an
-   approved live order routes to the dry-run sink until the human opens the gates.
-5. **Leave `redTeam` as `null`** — do NOT run any red-team yourself. After you
+   red-team, so prefer names with a real catalyst. Also set **`sector`** (the
+   GICS sector string) so the queue can bucket and diversify, and **rank each
+   idea by conviction**:
+   - `convictionScore` — a **0–1 composite** of the playbook signals (trend,
+     momentum, relative strength, volume confirmation, R:R, catalyst strength):
+     strongest setups near 1.0, marginal ones near 0.
+   - `convictionTier` — the labelled bucket, set consistently with the score:
+     **`high` (≥0.7) · `moderate` (0.4–0.69) · `watch` (<0.4)**. Surface **all**
+     tiers (don't drop the `watch` ones) — the queue sorts strongest-first and
+     the human filters if they want; your job is the wide, ranked net.
+   These are **review candidates only** — the human approves every trade; you
+   never place an order, and an approved live order routes to the dry-run sink
+   until the human opens the gates.
+6. **Leave `redTeam` as `null`** — do NOT run any red-team yourself. After you
    finish, the desk automatically runs the cross-model red-team on each new
    proposal **in code** and attaches the verdict (visible to the human at
-   review). Your job is just to write good, well-priced proposals.
-6. **Auto-track what you researched.** Add the genuine candidates you surfaced
+   review). **Every candidate — every tier — still clears the hard risk rails +
+   the red-team** before it can be acted on; the larger, tiered funnel relaxes
+   neither gate. Your job is to write good, well-priced, ranked proposals.
+7. **Auto-track what you researched.** Add the genuine candidates you surfaced
    (held or not) to the watchlist so the scout/research keep following them —
    POST the tickers to the discover endpoint (bounded in code at
    `DISCOVERY_LIMITS.maxWatchlistSymbols`; it dedupes, caps, and never evicts the
@@ -140,8 +178,13 @@ entry so we can later assess whether it helped.
   live caps ($100/wk funding, $500 exposure). Don't propose a live order the
   account can't carry.
 - Equities only. SPY is the benchmark, never a holding.
-- Be concise and honest. Prefer fewer high-quality proposals over many weak ones.
+- **Cast a wide, ranked net — but never fabricate.** Surface every genuine setup
+  up to the idea cap, across sectors, tiered by conviction (the human filters if
+  it's too much). The daily count is a **target, not a quota**: do not invent
+  filler when real setups don't exist, but do not stop short of the funnel when
+  they do. Each proposal must still be honest and well-priced.
 
 End with a one-line summary: the **market-regime** line (from `/api/regime`),
-then how many **paper** and **live** proposals you wrote and how many tickers you
-added to the watchlist.
+then how many **live** proposals you wrote (and a quick tier breakdown, e.g.
+"3 high / 5 moderate / 4 watch across 6 sectors") and how many tickers you added
+to the watchlist.

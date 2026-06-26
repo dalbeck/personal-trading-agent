@@ -187,6 +187,16 @@ export const CatalystType = z.enum([
   "none",
 ]);
 
+/**
+ * Conviction tier for the diversified-discovery funnel (M1). A discovery run
+ * surfaces a larger, ranked candidate set than the daily order cap; the tier
+ * buckets a proposal's composite conviction so the queue can sort strongest
+ * first. It is a **review-funnel preference**, not a safety rail — every tier
+ * is shown by default and every proposal still clears the rails + red-team.
+ * Nullable for back-compat (older records, and any path that doesn't score).
+ */
+export const ConvictionTier = z.enum(["high", "moderate", "watch"]);
+
 export const TradeProposalSchema = z
   .object({
     id: z.string().min(1),
@@ -215,6 +225,14 @@ export const TradeProposalSchema = z
     // null so older records still validate.
     catalyst: z.string().nullable().default(null),
     catalystType: CatalystType.nullable().default(null),
+    // Diversified-discovery ranking (M1). `convictionScore` is the 0–1 composite
+    // of the playbook signals the discovery analyst assigns; `convictionTier`
+    // (`high | moderate | watch`) is its labelled bucket, used to sort the queue
+    // (strongest first) and drive an optional filter. A review-funnel preference,
+    // never a rail — all tiers show by default, all still clear rails + red-team.
+    // Both default to null so older records (and unscored paths) still validate.
+    convictionScore: z.number().min(0).max(1).nullable().default(null),
+    convictionTier: ConvictionTier.nullable().default(null),
     riskPct: ratio,
     confidence: z.number().min(0).max(1).nullable().default(null),
     thesis: z.string().min(1),

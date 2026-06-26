@@ -59,25 +59,50 @@ export const LIVE_LIMITS: LiveLimits = {
 };
 
 /**
- * Phase 3 **autonomous-discovery** caps — bounds on what one research/discovery
- * run may produce, so the scan can never flood the queue or the tracked
- * universe. Mirror of the "Discovery caps" section in `strategy/charter.md`;
- * keep in lockstep (the `charter-config.test.ts` tripwire enforces it). The
- * agent can never raise these. Discovery proposals are review candidates, never
- * auto-acted; auto-added watchlist symbols are tracking-only (no trade).
+ * Phase 3 **autonomous-discovery** caps — bounds on one research/discovery run.
+ * Mirror of the "Discovery caps" section in `strategy/charter.md`; keep in
+ * lockstep (the `charter-config.test.ts` tripwire enforces it).
+ *
+ * **These are a review-funnel PREFERENCE, not a safety rail (M1).** The idea
+ * cap and the per-sector spread shape the size and mix of the *review queue*;
+ * they are decoupled from — and far more generous than — the hard `maxOrdersPerDay`
+ * rail (6, unchanged in `RISK_LIMITS`). A larger funnel of *candidates* never
+ * loosens execution: every proposal still clears the rails + red-team, only ≤6
+ * orders a day can ever be placed, and discovery output is review-only (never
+ * auto-acted; auto-added watchlist symbols are tracking-only). The agent can
+ * never raise `maxIdeaCap` or `maxWatchlistSymbols` — those bound the funnel;
+ * the human tunes `ideaCap` / `maxProposalsPerSector` / `minSectorsTarget`
+ * within them from the Risk-settings discovery panel (M3).
  */
 export interface DiscoveryLimits {
-  /** Max NEW trade proposals a single discovery run may emit (tracks the daily
-   *  order cap so it can't queue more than a day could ever act on). */
-  maxNewProposalsPerRun: number;
+  /** Default NEW proposals a single discovery run may emit — the **idea cap**
+   *  (`DISCOVERY_IDEA_CAP`), a generous review-funnel preference decoupled from
+   *  the daily ORDER cap. The human can tune it (M3), bounded by `maxIdeaCap`. */
+  ideaCap: number;
+  /** Hard ceiling the tunable `ideaCap` may be raised to — the funnel can grow
+   *  but never without bound. The agent can never raise this. */
+  maxIdeaCap: number;
+  /** Best-in-sector cap: max proposals from any one sector per run, so the
+   *  queue is a sector-diversified mix, not all one hot sector. Tunable (M3). */
+  maxProposalsPerSector: number;
+  /** Spread target: aim to represent at least this many sectors when setups
+   *  exist (skip a sector with no decent setup rather than force one). */
+  minSectorsTarget: number;
   /** Max total symbols the watchlist may hold — bounds auto-added discovery
    *  candidates so the tracked universe stays curated. */
   maxWatchlistSymbols: number;
 }
 
 export const DISCOVERY_LIMITS: DiscoveryLimits = {
-  // Never queue more new ideas per run than a day could act on (= daily order cap).
-  maxNewProposalsPerRun: 6,
+  // Generous default funnel — surface many ranked candidates, not just the few a
+  // day could act on. Decoupled from the 6-order/day hard rail (review ≠ order).
+  ideaCap: 20,
+  // The funnel can be cranked up to here, never beyond.
+  maxIdeaCap: 40,
+  // Best-in-sector: at most 3 names per sector keeps the queue a diversified mix.
+  maxProposalsPerSector: 3,
+  // Aim for breadth — at least 3 sectors represented when the setups exist.
+  minSectorsTarget: 3,
   // Keep the tracked universe bounded; discovery auto-adds stop at this ceiling.
   maxWatchlistSymbols: 20,
 };
