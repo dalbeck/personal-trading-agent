@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/format";
 import { RESEARCH_PROVIDER_LABEL } from "@/lib/research-display";
 import {
@@ -49,10 +50,7 @@ export function AnalystConsensus() {
           Analyst consensus
         </h2>
         {loading ? (
-          <span
-            className="inline-block h-5 w-20 animate-pulse rounded-pill bg-surface-overlay"
-            aria-hidden
-          />
+          <Skeleton className="inline-block h-5 w-20 rounded-pill" />
         ) : c?.rating ? (
           <span className="rounded-pill border border-line bg-surface-overlay px-2.5 py-0.5 text-xs font-semibold text-fg">
             {c.rating}

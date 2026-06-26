@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { InfoIcon } from "@/components/icons";
 
 export function PageTitle({
   title,
@@ -50,17 +51,25 @@ export function SectionTitle({
   );
 }
 
-/** Bordered card surface used across views. */
+/** Bordered card surface used across views. `interactive` adds a subtle hover
+ *  lift + border tint (transform/border only, ≤200ms, reduced-motion-safe) for
+ *  cards that carry actions. */
 export function Card({
   children,
   className = "",
+  interactive = false,
 }: {
   children: ReactNode;
   className?: string;
+  interactive?: boolean;
 }) {
   return (
     <div
-      className={`rounded-card border border-line bg-surface-raised p-5 ${className}`}
+      className={`rounded-card border border-line bg-surface-raised p-5 ${
+        interactive
+          ? "transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 hover:border-fg-subtle/40"
+          : ""
+      } ${className}`}
     >
       {children}
     </div>
@@ -104,7 +113,15 @@ export function StatCard({
 export function Placeholder({ note }: { note: string }) {
   return (
     <Card className="border-dashed">
-      <p className="text-sm text-fg-muted">{note}</p>
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden
+          className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-accent/10 text-accent"
+        >
+          <InfoIcon className="size-[18px]" />
+        </span>
+        <p className="text-pretty text-sm text-fg-muted">{note}</p>
+      </div>
     </Card>
   );
 }

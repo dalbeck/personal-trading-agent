@@ -22,7 +22,7 @@ The target is *premium, calm clarity* — beauty from **structured visual richne
 - **Spacing — the density fix:** 4px grid, but **generous**. Card padding 20–24px, section gaps 20–24px, real whitespace between groups. Err toward roomy. No arbitrary spacing values.
 - **Radius (Plaid-generous):** cards 18–20px (`rounded-card` = 18px), pills/badges 26px+ (`rounded-pill` = 26px), inputs ~14px (`rounded-input` = 14px). No tight corners, no arbitrary radii.
 - **Focus:** 2px accent outline with 2px offset. Never remove focus indicators.
-- **Motion:** ≤200ms, `transform`/`opacity` only, `ease-out` entrances, respect `prefers-reduced-motion`. No animation unless requested.
+- **Motion:** ≤200ms, `transform`/`opacity` only, `ease-out`, respect `prefers-reduced-motion`. Subtle hover **micro-interactions** are allowed — the `interactive` Card prop adds a hover lift + border tint (transform/border only, ~150ms); keep it restrained, never busy.
 - Use `h-dvh` (never `h-screen`); use `size-*` for square elements.
 
 ## Color tokens
@@ -101,4 +101,5 @@ The target is *premium, calm clarity* — beauty from **structured visual richne
 - **Proposal card — scannable zones** (`ProposalsList`, the approve dialog): a tinted header strip (`tint-strip`: side pill + **serif** ticker + status) → thesis lead line → key-stat **chip row** (est. cost, risk, R:R, confidence) → the **R:R bar** as the hero visual → the **red-team callout** → a **"Read more"** trigger → actions. Never a text dump; the card stays scannable and full context is one modal away.
 - **Formatted detail modal (`Modal` + `ProposalDetailModal`):** "Read more" opens a sectioned modal (NOT a text dump) — thesis, a derived **pre-trade checklist** (pass/flag chips; thresholds from `RISK_LIMITS` + documented signal floors, never hardcoded), **sizing math**, **research** highlights + link-out, and the **full red-team reasoning**. `Modal` is the reusable content-dialog primitive (native `<dialog>`: focus-trap, Esc, backdrop-dismiss, returns focus to the trigger, `aria-modal`, no motion) — distinct from `AlertDialog` (confirm actions).
 - **Red-team verdict callout (`RedTeamVerdict`):** a verdict-**tinted** block with a colored **left rail** (success/warning/danger via `redTeamVerdictStyle.callout`), a semantic verdict badge, the basis line, and stance-coloured factors — visually distinct from the thesis, never the brand accent.
-- Show errors next to the action that caused them. Use structural skeletons for loading where the layout is known, not spinners.
+- **Empty states** carry a small calm icon moment (a tinted rounded-square + `InfoIcon`), not bare text — see `ModuleEmpty` / `Placeholder`. Honest, never fake/sample data dressed up as real.
+- Show errors next to the action that caused them. Use the shared **`Skeleton`** primitive (`ui/skeleton.tsx`) for loading where the layout is known, not spinners.
