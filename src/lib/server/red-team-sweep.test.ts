@@ -17,6 +17,7 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     symbol: "GE",
     action: "buy",
     side: "long",
+    strategy: "trend",
     qty: 0.05,
     limitPrice: 374.5,
     stopPrice: 355,

@@ -19,6 +19,12 @@ export interface RedTeamProposal {
   symbol: string;
   action: "buy" | "sell";
   side: "long" | "short";
+  /** Which mandate to brief the prosecutor under (value-sleeve M1). `trend`
+   *  (default) → the technical trend-following lens (counter-trend is a strike);
+   *  `value` → the value / mean-reversion lens (counter-trend is EXPECTED, the
+   *  prosecutor hunts value-trap signals instead). The two lenses are never
+   *  merged — each proposal is judged under the one it carries. */
+  strategy?: "trend" | "value";
   qty: number;
   limitPrice: number;
   stopPrice: number | null;
@@ -42,14 +48,18 @@ export type RedTeamExec = (prompt: string) => Promise<string>;
 export type RedTeamOutcome = "allow" | "downsize" | "block";
 
 export function buildProsecutorPrompt(p: RedTeamProposal): string {
+  const isValue = p.strategy === "value";
   const lines = [
-    "You are a HOSTILE RED-TEAM PROSECUTOR reviewing a proposed PAPER swing trade.",
+    `You are a HOSTILE RED-TEAM PROSECUTOR reviewing a proposed PAPER swing trade, judged under the desk's ${isValue ? "VALUE / MEAN-REVERSION" : "TREND"} mandate.`,
     "You are a different model family from the one that proposed it. Your job is to REFUTE the thesis, not to agree.",
     "DEFAULT TO NO. Only return approve if the thesis is genuinely robust against your strongest objections.",
-    "Attack the weakest link: crowded positioning, valuation, event/earnings risk, a stop that is too wide for the catalyst, weak relative strength, or a thin reward/risk.",
+    isValue
+      ? "Attack the weakest link: a deteriorating / broken business under a bid, the absence of a real catalyst or floor, a falling-knife with no support, an unrealistic target, or a thin reward/risk."
+      : "Attack the weakest link: crowded positioning, valuation, event/earnings risk, a stop that is too wide for the catalyst, weak relative strength, or a thin reward/risk.",
     "",
     "Proposed order:",
     `- Ticker: ${p.symbol}`,
+    `- Mandate: ${isValue ? "value / mean-reversion" : "trend"}`,
     `- Side/Action: ${p.action} ${p.side}`,
     `- Qty: ${p.qty} @ limit ${p.limitPrice}`,
     `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"} (${p.targetType ?? "unspecified"})`,
@@ -57,11 +67,24 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     `- Catalyst: ${p.catalyst ? p.catalyst : "none stated"} (${p.catalystType ?? "unspecified"})`,
     `- Thesis: ${p.thesis}`,
   ];
+  if (isValue) {
+    lines.push(
+      "VALUE / MEAN-REVERSION MANDATE — judge under the RIGHT criteria, not the trend rules:",
+      "COUNTER-TREND IS EXPECTED. This is a value / mean-reversion entry, NOT a trend trade. Being BELOW the 50-/200-day moving averages, in a downtrend, or making lower lows is NORMAL here and is NOT by itself a reason to reject. Do NOT penalize the thesis merely for being below its moving averages, 'fighting the trend', or lacking upside momentum — that would be applying the wrong mandate.",
+      "FUNDAMENTALS LEAD. Judge QUALITY first: is this a profitable, durable business with a sound balance sheet, trading at a genuine discount (cheap vs its own history / peers, near a multi-year or 52-week low)? A fundamental / valuation rationale is IN MANDATE for this sleeve.",
+      "HUNT THE VALUE TRAP — this is your real job. REJECT (or at least flag concern) for: deteriorating fundamentals (falling revenue / margins, cut guidance, slashed analyst targets), NO real catalyst or floor, a falling-knife / structurally broken business, or an unrealistic target. A valid why-now is a dividend support or hike, an analyst-target floor, insider buying, fundamental stabilization, OR a technical mean-reversion signal (oversold RSI, long-term support, capitulation volume, basing). 'It's just cheap' with no catalyst or floor is WEAK — flag it in the Edge factor.",
+      "A target anchored to FUNDAMENTAL value is APPROPRIATE for this sleeve (do NOT call it weak). A sell-side analyst_price target is still weak (borrowed conviction); an unspecified target is weak. Note this in the Target factor.",
+    );
+  } else {
+    lines.push(
+      "CATALYST (why NOW): a sound entry names a catalyst — earnings momentum, product news, sector rotation, guidance, etc. A proposal with NO named catalyst (catalyst_type 'none' / trend alone) is a momentum chase with nothing behind it — WEAK. Flag a missing or 'none' catalyst in the Edge factor and lean toward concern.",
+      "VOLUME CONFIRMATION (soft signal — weigh it, do not treat as a hard rail): a breakout/momentum entry should come on ABOVE-AVERAGE relative volume (~1.3x or more); a pullback/reset entry should come on DECLINING / below-average volume. Relative volume well below 1x on a breakout, or a volume spike on a pullback, is a weakness — call it out in the Entry factor. Unknown volume is not itself a strike, but a breakout claim with no volume confirmation is weaker.",
+      "This is a TECHNICAL trend-following desk. The thesis must be PRIMARILY technical (trend, momentum, relative strength, volume, price structure). If the primary rationale is fundamental or valuation ('cheap', 'undervalued', 'earnings growth', 'analyst upgrade') rather than price/trend evidence, it is OUT OF MANDATE — penalize it in the Edge factor and lean toward reject or concern. Fundamentals are only a catalyst-check / disqualifier, never the primary reason to enter.",
+      "A target anchored to a sell-side analyst_price — or left unspecified — is WEAK (the desk is borrowing someone else's number, not its own thesis); call it out in the Target factor.",
+    );
+  }
   lines.push(
-    "CATALYST (why NOW): a sound entry names a catalyst — earnings momentum, product news, sector rotation, guidance, etc. A proposal with NO named catalyst (catalyst_type 'none' / trend alone) is a momentum chase with nothing behind it — WEAK. Flag a missing or 'none' catalyst in the Edge factor and lean toward concern.",
-    "VOLUME CONFIRMATION (soft signal — weigh it, do not treat as a hard rail): a breakout/momentum entry should come on ABOVE-AVERAGE relative volume (~1.3x or more); a pullback/reset entry should come on DECLINING / below-average volume. Relative volume well below 1x on a breakout, or a volume spike on a pullback, is a weakness — call it out in the Entry factor. Unknown volume is not itself a strike, but a breakout claim with no volume confirmation is weaker.",
-    "This is a TECHNICAL trend-following desk. The thesis must be PRIMARILY technical (trend, momentum, relative strength, volume, price structure). If the primary rationale is fundamental or valuation ('cheap', 'undervalued', 'earnings growth', 'analyst upgrade') rather than price/trend evidence, it is OUT OF MANDATE — penalize it in the Edge factor and lean toward reject or concern. Fundamentals are only a catalyst-check / disqualifier, never the primary reason to enter.",
-    "A target anchored to a sell-side analyst_price — or left unspecified — is WEAK (the desk is borrowing someone else's number, not its own thesis); call it out in the Target factor.",
+    "SHARED HARD RAILS (both mandates, unchanged): the entry needs a protective stop, reward/risk ≥ 2:1, and risk sized within the charter caps. A missing/too-wide stop or a thin reward/risk is a strike regardless of mandate.",
   );
   if (p.reasoning) lines.push(`- Reasoning: ${p.reasoning}`);
   if (p.research) lines.push(`- Research: ${p.research}`);

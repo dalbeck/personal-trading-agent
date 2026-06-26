@@ -197,6 +197,19 @@ export const CatalystType = z.enum([
  */
 export const ConvictionTier = z.enum(["high", "moderate", "watch"]);
 
+/**
+ * Which mandate a proposal is judged under (value-sleeve M1). `trend` is the
+ * desk's primary **technical trend-following** strategy — the default and every
+ * older record. `value` is a deliberately **separate second mandate**: a
+ * value / mean-reversion sleeve where **fundamentals lead**, counter-trend is
+ * *expected* (below the moving averages is normal, not a strike), and the
+ * red-team is briefed with the matching lens. The two are **never merged** —
+ * each proposal carries the strategy it is judged under, and the **hard risk
+ * rails are shared and unchanged** for both. Defaults to `trend` so older
+ * records still validate. See `strategy/playbook.md` (Value sleeve section).
+ */
+export const Strategy = z.enum(["trend", "value"]);
+
 export const TradeProposalSchema = z
   .object({
     id: z.string().min(1),
@@ -204,6 +217,12 @@ export const TradeProposalSchema = z
     symbol,
     action: z.enum(["buy", "sell"]),
     side: z.enum(["long", "short"]).default("long"),
+    // Which mandate this proposal is judged under (M1). `trend` (default) =
+    // the technical trend-following desk; `value` = the separate value /
+    // mean-reversion sleeve (fundamentals lead, counter-trend expected). Drives
+    // the strategy-aware checklist + red-team lens; the hard risk rails are
+    // shared and unchanged. Defaults to `trend` so older records still validate.
+    strategy: Strategy.default("trend"),
     qty: z.number().positive(),
     limitPrice: money, // marketable-limit only (charter)
     stopPrice: money.nullable().default(null),
@@ -446,6 +465,14 @@ export const DiscoverySettingsSchema = z
      *  (`watch` = show everything — the M1 default). A *view* preference; it
      *  filters the display, it never deletes a proposal. */
     minConvictionTier: ConvictionTier.default("watch"),
+    /** Whether the discovery run may ALSO surface **value / mean-reversion**
+     *  candidates (value-sleeve M1), separate from the trend universe. Off by
+     *  default — the desk's primary mandate is trend; the human opts the value
+     *  sleeve in here. A discovery preference (it widens the *kind* of idea
+     *  surfaced), NOT a safety rail: every value candidate still carries
+     *  `strategy: "value"`, is judged by the value red-team lens, and clears the
+     *  same shared hard rails + 6-order/day cap. */
+    valueSleeveEnabled: z.boolean().default(false),
     updatedAt: isoDateTime.nullable().default(null),
   })
   .strict();

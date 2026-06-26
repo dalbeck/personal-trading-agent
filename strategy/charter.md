@@ -37,6 +37,30 @@ disqualifying** — the desk sets its own technical target, it does not borrow a
 analyst's number (reinforced under Execution quality and the playbook Target
 rule).
 
+### Strategy mandates — trend (primary) and a value sleeve (opt-in)
+
+Every proposal carries a **`strategy`** it is judged under, and the red-team is
+briefed with the **matching** mandate. The two are **never merged into one
+red-team** — then neither would be enforced.
+
+- **`trend` (primary, default).** Everything above: technical evidence leads;
+  fundamentals are a catalyst-check / disqualifier only.
+- **`value` (a deliberate, separate sleeve).** A value / mean-reversion mandate
+  for cheap, quality businesses near multi-year lows with a real catalyst or
+  floor. It is the **one deliberate exception** to "technical-primary":
+  **fundamentals LEAD** here, and **counter-trend is expected** — being below
+  the moving averages is *normal*, not a strike. Its red-team **expects**
+  counter-trend and instead hunts **value-trap** signals (deteriorating
+  fundamentals, no real catalyst/floor, a falling-knife/broken business, an
+  unrealistic target). It is **opt-in** — the trend desk remains primary; the
+  value sleeve is enabled deliberately (a discovery setting / a manual
+  analyze-a-symbol lens), not the default.
+
+**The hard risk rails below are shared and unchanged across both mandates** (per-
+position risk, size, sector, concurrency, daily-order cap, drawdown halt,
+stop-on-every-entry, marketable-limit). Only the *entry-thesis criteria* and the
+*red-team lens* differ — never a rail.
+
 ## Universe
 
 - Listed **US equities only**. **No options, no crypto, no futures, no margin.**
@@ -150,6 +174,26 @@ watchlist symbols are **tracking-only** (no order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-06-26** — **Value / mean-reversion sleeve (value-sleeve M1).** Authorized
+  a **second strategy mandate**. Every proposal now carries a **`strategy`**
+  (`trend` | `value`) and is judged under the matching red-team lens. **`trend`
+  stays primary and the default**; **`value`** is a deliberate, **opt-in** value /
+  mean-reversion sleeve — the **one exception** to "technical-primary," where
+  **fundamentals lead** and **counter-trend is expected** (below the moving
+  averages is normal, not a reject reason). The value red-team **expects**
+  counter-trend and hunts **value-trap** signals instead (deteriorating
+  fundamentals, no real catalyst/floor, a falling-knife/broken business, an
+  unrealistic target); the two red-teams are **never merged**. The sleeve is
+  enabled deliberately — a discovery setting (`valueSleeveEnabled`, off by
+  default) and a manual analyze-a-symbol **lens** picker. Added the **Strategy
+  mandates** subsection above. **No hard rail or cap changed** (`charter.config.ts`
+  risk rails untouched): the per-position/size/sector/concurrency rails, the
+  **6-order/day** cap, the drawdown halt, stop-on-every-entry, and marketable-limit
+  are **shared and unchanged** across both mandates — only the entry-thesis
+  criteria and red-team lens differ. Rationale: names that are correctly rejected
+  *as trend trades* (counter-trend, below declining MAs) deserve a fair hearing
+  under value criteria, instead of forcing the trend red-team to loosen. See
+  `planning/value-sleeve-and-catalyst-spec.md`.
 - **2026-06-26** — **Diversified-discovery funnel (proposal-gen M1).** Decoupled
   the discovery **idea cap** from the daily ORDER cap and made it a generous,
   human-tunable **review-funnel preference** rather than a safety rail: a single

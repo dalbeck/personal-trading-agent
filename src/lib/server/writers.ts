@@ -449,6 +449,10 @@ export interface AdvisoryProposalInput {
   symbol: string;
   action: "buy" | "sell";
   side?: "long" | "short";
+  /** Which mandate the proposal is judged under (value-sleeve M1). Optional —
+   *  the schema defaults to `trend`, so a caller may carry `value` through or
+   *  omit it for the trend desk. */
+  strategy?: TradeProposal["strategy"];
   qty: number;
   limitPrice: number;
   stopPrice?: number | null;

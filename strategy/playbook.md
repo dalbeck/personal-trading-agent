@@ -14,6 +14,13 @@ veto a setup (a value trap, an imminent earnings binary), but a thesis that
 leads with valuation or fundamentals ("cheap," "undervalued") is out of mandate
 and the red-team penalizes it. (See the charter's Analytical identity section.)
 
+Every proposal carries a **`strategy`** (`trend` | `value`). The checklist below
+is the **trend** mandate (the default). The desk also runs a deliberately
+**separate, opt-in `value` sleeve** — see the **Value / mean-reversion sleeve**
+section below — where fundamentals lead and counter-trend is expected. The two
+mandates are never merged; each proposal is judged under the one it carries, and
+the **hard risk rails are shared and unchanged** for both.
+
 ## Pre-trade checklist
 
 Every proposal should clear these before it reaches the red-team. A weak answer
@@ -58,6 +65,43 @@ on any single item is a reason to pass or to downsize.
     the **40%** per-sector cap and the 5-position cap; trim size on overlap.
 12. **Red-team** — the prosecutor defaults to "no"; the thesis must survive it.
 
+## Value / mean-reversion sleeve
+
+A deliberately **separate, opt-in** second mandate (`strategy: "value"`). It is
+**not** a loosening of the trend rules — it is a different game with its own
+criteria, judged by its own red-team lens. The **hard risk rails are shared and
+unchanged** (≤ 2% risk, ≤ 20% size, the sector + concurrency caps, the
+6-order/day cap, a stop on every entry, marketable-limit, reward/risk ≥ 2:1).
+
+**Fundamentals LEAD here** — the one deliberate exception to "technical-primary."
+A value proposal should clear these:
+
+1. **Quality** — a profitable, durable business with a sound balance sheet. Not a
+   broken company under a bid. This is the **primary** driver — fundamentals
+   (Perplexity, capped) carry the thesis here, not price/trend.
+2. **Discount** — genuinely cheap vs its own history / peers (P/E, etc.) and/or
+   near a multi-year or 52-week low. The discount is the edge.
+3. **Catalyst or floor — why now** — a real reason the bleeding stops: a dividend
+   support / hike, an analyst-target floor, insider buying, fundamental
+   stabilization, **or** a technical mean-reversion signal (oversold RSI,
+   long-term support, capitulation volume, basing). **"It's just cheap" with no
+   catalyst or floor is a value trap** — flagged weak.
+4. **Mean-reversion stop** — below a defined support / recent low; sized so the
+   stop costs ≤ 2% of equity, reward/risk ≥ 2:1 (the shared rails).
+
+**Counter-trend is expected.** Being below the 50-/200-day moving averages, in a
+downtrend, or making lower lows is **normal** for a value entry and is **NOT** a
+reason to reject — that would be applying the wrong mandate. The **value
+red-team** therefore *expects* counter-trend and instead hunts **value-trap**
+signals: deteriorating fundamentals (falling revenue / margins, cut guidance,
+slashed targets), no real catalyst or floor, a falling-knife / broken business,
+or an unrealistic target. A `fundamental` profit target is **appropriate** for
+this sleeve (not weak); a sell-side `analyst_price` target is still weak.
+
+**Where value proposals come from:** the discovery run when the human enables the
+value sleeve (a discovery setting, off by default), and the manual
+**analyze-a-symbol** tool when the human picks the **Value** lens.
+
 ## Banked lessons
 
 Durable lessons promoted from the coaching log. Newest first.
@@ -75,6 +119,15 @@ Durable lessons promoted from the coaching log. Newest first.
 Structural edits to this playbook (distinct from the banked lessons above).
 Newest first.
 
+- **2026-06-26** — **Value / mean-reversion sleeve (value-sleeve M1).** Added the
+  **Value / mean-reversion sleeve** section — a deliberately separate, opt-in
+  second mandate (`strategy: "value"`) with its own entry checklist (Quality,
+  Discount, Catalyst-or-floor, Mean-reversion stop) where **fundamentals lead**
+  and **counter-trend is expected**. Noted under Strategy identity that every
+  proposal carries a `strategy` and the trend checklist above is the default
+  (`trend`) mandate. The two mandates are never merged; the **hard risk rails are
+  shared and unchanged**. The detail-modal checklist + the red-team lens now adapt
+  to the proposal's strategy. See `planning/value-sleeve-and-catalyst-spec.md`.
 - **2026-06-25** — **Catalyst requirement (strategy coherence M3).** Promoted
   the **Catalyst & timing** checklist item from "avoid binary events" to a
   positive **requirement**: every proposal must name a catalyst (`catalyst` +

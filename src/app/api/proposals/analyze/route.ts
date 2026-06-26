@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
-  let body: { symbol?: string };
+  let body: { symbol?: string; strategy?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -25,9 +25,12 @@ export async function POST(req: Request): Promise<Response> {
   if (!symbol) {
     return Response.json({ error: "symbol is required" }, { status: 400 });
   }
+  // The lens the human picked (value-sleeve M1). Anything but "value" is the
+  // default trend mandate — never trust the client to widen scope.
+  const strategy = body.strategy === "value" ? "value" : "trend";
 
   const account = await getViewMode(); // "paper" | "live"
-  const result = await analyzeSymbol(symbol, { account });
+  const result = await analyzeSymbol(symbol, { account, strategy });
 
   if (!result.ok) {
     const status =
@@ -47,6 +50,7 @@ export async function POST(req: Request): Promise<Response> {
     proposalId: result.proposal.id,
     symbol: result.proposal.symbol,
     account: result.proposal.account,
+    strategy: result.proposal.strategy,
     convictionTier: result.proposal.convictionTier,
     verdict: result.redTeam.verdict,
     railsOk: result.risk.ok,
