@@ -10,15 +10,7 @@ import { RoutinesHealthModule } from "@/components/overview/routines-health";
 import { Card, PageTitle } from "@/components/page-shell";
 import { ProgressBar } from "@/components/ui/progress";
 import { CompositionRing } from "@/components/charts/composition-ring";
-import { KpiCard } from "@/components/overview/kpi-card";
-import {
-  BanknotesIcon,
-  ScaleIcon,
-  TrendingDownIcon,
-  TrendingUpIcon,
-  WalletIcon,
-  ZapIcon,
-} from "@/components/icons";
+import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
 import { Badge } from "@/components/ui/badge";
 import { DeskScopeNote } from "@/components/mode-scope";
 import { LiveRefreshButton } from "@/components/live-refresh-button";
@@ -114,75 +106,62 @@ export default async function OverviewPage() {
 
       {heroSnap ? (
         <>
-          <section
-            aria-label={`${MODE_LABEL[mode]} account summary`}
-            className="flex flex-col gap-3"
-          >
-            <div className="flex items-center gap-2">
-              <Badge tone={isLive ? "muted" : "accent"} dot>
-                {MODE_LABEL[mode].toUpperCase()}
-              </Badge>
-              <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
-                {isLive ? "Live account" : "Paper account"}
-              </h2>
-              {hero.readOnly ? (
-                <span className="text-xs text-fg-muted">read-only</span>
-              ) : null}
-              <span className="ml-auto text-xs text-fg-muted">
-                {hero.sourceLabel}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-              <KpiCard
-                label="Equity"
-                value={formatCurrency(heroSnap.equity)}
-                icon={WalletIcon}
-                sparkline={
-                  heroSnap.equityCurve.length > 1
-                    ? heroSnap.equityCurve.map((p) => p.equity)
-                    : undefined
-                }
-              />
-              <KpiCard
-                label="Total P&L"
-                value={formatCurrency(heroSnap.totalPl, { signed: true })}
-                icon={heroSnap.totalPl < 0 ? TrendingDownIcon : TrendingUpIcon}
-                tone={toneForValue(heroSnap.totalPl)}
-                delta={formatPercent(heroSnap.totalPlPct)}
-              />
-              <KpiCard
-                label="Day P&L"
-                value={formatCurrency(heroSnap.dayPl, { signed: true })}
-                icon={heroSnap.dayPl < 0 ? TrendingDownIcon : TrendingUpIcon}
-                tone={toneForValue(heroSnap.dayPl)}
-                delta={formatPercent(heroSnap.dayPlPct)}
-              />
-              {heroSnap.benchmark ? (
-                <KpiCard
-                  label="vs SPY (excess)"
-                  value={excess !== null ? formatPercent(excess) : "—"}
-                  icon={ScaleIcon}
-                  tone={excess !== null ? toneForValue(excess) : "neutral"}
-                />
-              ) : (
-                <KpiCard
-                  label="Cash"
-                  value={formatCurrency(heroSnap.cash)}
-                  icon={BanknotesIcon}
-                />
-              )}
-              <KpiCard
-                label="Buying power"
-                value={formatCurrency(heroSnap.buyingPower)}
-                icon={ZapIcon}
-              />
-            </div>
+          <section aria-label={`${MODE_LABEL[mode]} account summary`}>
+            <HeroCard>
+              <div className="mb-6 flex items-center gap-2">
+                <Badge tone={isLive ? "muted" : "accent"} dot>
+                  {MODE_LABEL[mode].toUpperCase()}
+                </Badge>
+                <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
+                  {isLive ? "Live account" : "Paper account"}
+                </h2>
+                {hero.readOnly ? (
+                  <span className="text-xs text-fg-muted">read-only</span>
+                ) : null}
+                <span className="ml-auto text-xs text-fg-muted">
+                  {hero.sourceLabel}
+                </span>
+              </div>
+              <div className="grid gap-6 lg:grid-cols-[1.05fr_1.5fr] lg:items-center">
+                <HeroMetric label="Equity" value={formatCurrency(heroSnap.equity)} />
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                  <HeroStat
+                    label="Total P&L"
+                    value={formatCurrency(heroSnap.totalPl, { signed: true })}
+                    tone={toneForValue(heroSnap.totalPl)}
+                    delta={formatPercent(heroSnap.totalPlPct)}
+                  />
+                  <HeroStat
+                    label="Day P&L"
+                    value={formatCurrency(heroSnap.dayPl, { signed: true })}
+                    tone={toneForValue(heroSnap.dayPl)}
+                    delta={formatPercent(heroSnap.dayPlPct)}
+                  />
+                  {heroSnap.benchmark ? (
+                    <HeroStat
+                      label="vs SPY"
+                      value={excess !== null ? formatPercent(excess) : "—"}
+                      tone={excess !== null ? toneForValue(excess) : "neutral"}
+                    />
+                  ) : (
+                    <HeroStat
+                      label="Cash"
+                      value={formatCurrency(heroSnap.cash)}
+                    />
+                  )}
+                  <HeroStat
+                    label="Buying power"
+                    value={formatCurrency(heroSnap.buyingPower)}
+                  />
+                </div>
+              </div>
+            </HeroCard>
           </section>
 
           {heroSnap.equityCurve.length > 1 ? (
             <section>
-              <Card>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <Card className="overflow-hidden">
+                <div className="tint-strip -mx-5 -mt-5 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line/60 px-5 pb-3 pt-4">
                   <div>
                     <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
                       Equity curve

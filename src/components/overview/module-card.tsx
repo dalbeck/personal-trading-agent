@@ -23,8 +23,8 @@ export function ModuleCard({
   className?: string;
 }) {
   return (
-    <Card className={className}>
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+    <Card className={`overflow-hidden ${className}`}>
+      <div className="tint-strip -mx-5 -mt-5 mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line/60 px-5 pb-3 pt-4">
         <div>
           <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
             {title}
