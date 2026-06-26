@@ -275,7 +275,7 @@ export default async function EvaluationPage() {
         </Section>
 
         <Card className="border-dashed">
-          <h2 className="text-sm font-semibold text-fg">
+          <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
             Paper proving-ground (secondary)
           </h2>
           <p className="mt-2 text-pretty text-sm text-fg-muted">

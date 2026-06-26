@@ -9,7 +9,7 @@ export function PageTitle({
 }) {
   return (
     <div className="mb-6">
-      <h1 className="text-balance text-2xl font-semibold tracking-tight text-fg">
+      <h1 className="text-balance font-serif text-[1.75rem] font-semibold leading-tight text-fg">
         {title}
       </h1>
       {subtitle ? (

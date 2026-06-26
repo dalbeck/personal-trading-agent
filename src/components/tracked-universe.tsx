@@ -23,7 +23,9 @@ export function TrackedUniverseCard({
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-semibold text-fg">Tracked universe</h2>
+        <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
+          Tracked universe
+        </h2>
         <span className="text-xs text-fg-muted">
           feeds the news scout &amp; research routine
         </span>

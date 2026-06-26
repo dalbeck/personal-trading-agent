@@ -122,7 +122,7 @@ export default async function OverviewPage() {
               <Badge tone={isLive ? "muted" : "accent"} dot>
                 {MODE_LABEL[mode].toUpperCase()}
               </Badge>
-              <h2 className="text-sm font-semibold text-fg">
+              <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
                 {isLive ? "Live account" : "Paper account"}
               </h2>
               {hero.readOnly ? (
@@ -184,7 +184,7 @@ export default async function OverviewPage() {
               <Card>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-fg">
+                    <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
                       Equity curve
                     </h2>
                     <p className="text-xs text-fg-muted">
@@ -253,7 +253,9 @@ export default async function OverviewPage() {
             <Badge tone="accent" dot>
               PAPER
             </Badge>
-            <h2 className="text-sm font-semibold text-fg">Paper account</h2>
+            <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
+              Paper account
+            </h2>
             <span className="ml-auto text-xs text-fg-muted">
               {source === "alpaca" ? "Live · Alpaca" : "Sample data"}
             </span>
@@ -284,7 +286,7 @@ export default async function OverviewPage() {
               LIVE
             </Badge>
             <h2
-              className={`text-sm font-semibold ${
+              className={`font-serif text-[0.95rem] font-semibold ${
                 gate.liveEnabled ? "text-fg" : "text-fg-muted"
               }`}
             >

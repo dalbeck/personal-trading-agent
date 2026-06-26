@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/header";
 import { LiveBanner } from "@/components/live-banner";
@@ -9,6 +9,17 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+});
+
+// Serif display face for titles / headlines / editorial moments (never numbers
+// or labels — see .agents/design-system.md). Fraunces is a variable serif with
+// an optical-size axis so it reads as a premium display face at title sizes
+// while staying legible on small card titles.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  display: "swap",
+  axes: ["opsz"],
 });
 
 export const metadata: Metadata = {
@@ -28,7 +39,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} antialiased`}
+      className={`${inter.variable} ${fraunces.variable} antialiased`}
       suppressHydrationWarning
     >
       <body className="bg-surface text-fg">

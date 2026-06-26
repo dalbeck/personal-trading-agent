@@ -41,7 +41,7 @@ export default async function PositionsPage() {
           <div className="mb-3 flex items-center gap-2">
             <ViewingBadge mode="live" />
             <h2
-              className={`text-sm font-semibold ${
+              className={`font-serif text-[0.95rem] font-semibold ${
                 live.connected ? "text-fg" : "text-fg-muted"
               }`}
             >
@@ -83,7 +83,9 @@ export default async function PositionsPage() {
         <section>
           <div className="mb-3 flex items-center gap-2">
             <ViewingBadge mode="paper" />
-            <h2 className="text-sm font-semibold text-fg">Paper account</h2>
+            <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
+              Paper account
+            </h2>
             <span className="ml-auto text-xs text-fg-muted">
               {paper.source === "alpaca" ? "Live · Alpaca" : "Sample data"}
             </span>

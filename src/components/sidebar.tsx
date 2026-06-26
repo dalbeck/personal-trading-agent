@@ -35,7 +35,7 @@ export function Sidebar() {
             <path d="M4 18 L10 11 L14 15 L20 6" />
           </svg>
         </span>
-        <span className="hidden text-sm font-semibold tracking-tight text-fg md:inline">
+        <span className="hidden font-serif text-base font-semibold tracking-tight text-fg md:inline">
           Trading Cockpit
         </span>
       </div>

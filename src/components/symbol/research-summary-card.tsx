@@ -60,7 +60,10 @@ export function ResearchSummaryCard({
       className="rounded-card border border-line bg-surface-raised p-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="ai-research-heading" className="text-sm font-semibold text-fg">
+        <h2
+          id="ai-research-heading"
+          className="font-serif text-[0.95rem] font-semibold text-fg"
+        >
           AI research highlights
         </h2>
         <div className="flex items-center gap-2.5">

@@ -212,7 +212,7 @@ export function PriceChart({
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-sm font-semibold text-fg">Price</h2>
+          <h2 className="font-serif text-[0.95rem] font-semibold text-fg">Price</h2>
           {hasChart ? (
             <span
               className={`text-xs font-medium tabular-nums ${

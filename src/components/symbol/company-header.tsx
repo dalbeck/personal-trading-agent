@@ -32,7 +32,7 @@ export function SymbolCompanyHeader({
       <CompanyLogo symbol={symbol} />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="text-balance text-2xl font-semibold tracking-tight text-fg">
+          <h1 className="text-balance font-serif text-[1.75rem] font-semibold leading-tight text-fg">
             {name ?? symbol}
           </h1>
           <OwnershipBadge ownership={ownership} />

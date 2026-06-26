@@ -80,7 +80,9 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
 
       <div className="rounded-card border border-line bg-surface-raised p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-fg">{title}.md</h2>
+          <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
+            {title}.md
+          </h2>
           {editing ? (
             <div className="flex items-center gap-2">
               <Button

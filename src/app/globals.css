@@ -126,6 +126,12 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
+  /* Serif display face — titles, section/card headlines, editorial moments
+     ONLY (never numbers or labels — see .agents/design-system.md). Falls back
+     to a system serif so headings still read as a serif if Fraunces fails. */
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, Cambria,
+    "Times New Roman", Times, serif;
+
   /* Radius scale (design-system, Plaid-generous): cards 18–20px, pills 26px+,
      inputs ~14px. No tight corners. */
   --radius-card: 18px;

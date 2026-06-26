@@ -51,7 +51,10 @@ export function CompanyProfileRail({ symbol }: { symbol: string }) {
       aria-labelledby="profile-heading"
       className="rounded-card border border-line bg-surface-raised p-5"
     >
-      <h2 id="profile-heading" className="text-sm font-semibold text-fg">
+      <h2
+        id="profile-heading"
+        className="font-serif text-[0.95rem] font-semibold text-fg"
+      >
         Company profile
       </h2>
 

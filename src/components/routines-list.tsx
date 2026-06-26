@@ -66,7 +66,7 @@ export function RoutinesList({ routines }: { routines: RoutineRun[] }) {
                     aria-hidden
                     className={`size-2 rounded-pill ${meta.dot}`}
                   />
-                  <h2 className="font-semibold text-fg">{r.name}</h2>
+                  <h2 className="font-serif font-semibold text-fg">{r.name}</h2>
                 </div>
                 <p className="mt-1 text-pretty text-sm text-fg-muted">
                   {r.description}

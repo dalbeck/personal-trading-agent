@@ -42,7 +42,10 @@ export function AnalystConsensus() {
       className="rounded-card border border-line bg-surface-raised p-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="consensus-heading" className="text-sm font-semibold text-fg">
+        <h2
+          id="consensus-heading"
+          className="font-serif text-[0.95rem] font-semibold text-fg"
+        >
           Analyst consensus
         </h2>
         {loading ? (
