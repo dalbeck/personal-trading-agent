@@ -168,6 +168,84 @@ export function RiskIcon(props: IconProps) {
   );
 }
 
+/* --- Finance / KPI icons (enriched KPI cards, delta pills) ------------------ */
+
+export function WalletIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="M3 9h18" />
+      <circle cx="16" cy="14" r="1" />
+    </svg>
+  );
+}
+
+export function BanknotesIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M6 9v6M18 9v6" />
+    </svg>
+  );
+}
+
+export function ZapIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
+    </svg>
+  );
+}
+
+export function ScaleIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3v18" />
+      <path d="M7 21h10" />
+      <path d="M5 7h14" />
+      <path d="M8 6 4 13h8z" />
+      <path d="M16 6 12 13h8z" />
+    </svg>
+  );
+}
+
+export function TrendingUpIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 17 9 11l4 4 8-8" />
+      <path d="M16 4h5v5" />
+    </svg>
+  );
+}
+
+export function TrendingDownIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 7 9 13l4-4 8 8" />
+      <path d="M16 20h5v-5" />
+    </svg>
+  );
+}
+
+export function ArrowUpRightIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M7 17 17 7" />
+      <path d="M8 7h9v9" />
+    </svg>
+  );
+}
+
+export function ArrowDownRightIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M7 7 17 17" />
+      <path d="M17 8v9H8" />
+    </svg>
+  );
+}
+
 export function SunIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

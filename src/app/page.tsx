@@ -7,7 +7,16 @@ import { EvalSnapshotModule } from "@/components/overview/eval-snapshot";
 import { GuardrailHeadroom } from "@/components/overview/guardrail-headroom";
 import { RegimeContextStrip } from "@/components/overview/regime-context";
 import { RoutinesHealthModule } from "@/components/overview/routines-health";
-import { Card, PageTitle, StatCard } from "@/components/page-shell";
+import { Card, PageTitle } from "@/components/page-shell";
+import { KpiCard } from "@/components/overview/kpi-card";
+import {
+  BanknotesIcon,
+  ScaleIcon,
+  TrendingDownIcon,
+  TrendingUpIcon,
+  WalletIcon,
+  ZapIcon,
+} from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { DeskScopeNote } from "@/components/mode-scope";
 import { LiveRefreshButton } from "@/components/live-refresh-button";
@@ -122,34 +131,48 @@ export default async function OverviewPage() {
               </span>
             </div>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-              <StatCard label="Equity" value={formatCurrency(heroSnap.equity)} />
-              <StatCard
+              <KpiCard
+                label="Equity"
+                value={formatCurrency(heroSnap.equity)}
+                icon={WalletIcon}
+                sparkline={
+                  heroSnap.equityCurve.length > 1
+                    ? heroSnap.equityCurve.map((p) => p.equity)
+                    : undefined
+                }
+              />
+              <KpiCard
                 label="Total P&L"
                 value={formatCurrency(heroSnap.totalPl, { signed: true })}
-                delta={formatPercent(heroSnap.totalPlPct)}
+                icon={heroSnap.totalPl < 0 ? TrendingDownIcon : TrendingUpIcon}
                 tone={toneForValue(heroSnap.totalPl)}
+                delta={formatPercent(heroSnap.totalPlPct)}
               />
-              <StatCard
+              <KpiCard
                 label="Day P&L"
                 value={formatCurrency(heroSnap.dayPl, { signed: true })}
-                delta={formatPercent(heroSnap.dayPlPct)}
+                icon={heroSnap.dayPl < 0 ? TrendingDownIcon : TrendingUpIcon}
                 tone={toneForValue(heroSnap.dayPl)}
+                delta={formatPercent(heroSnap.dayPlPct)}
               />
               {heroSnap.benchmark ? (
-                <StatCard
+                <KpiCard
                   label="vs SPY (excess)"
                   value={excess !== null ? formatPercent(excess) : "—"}
-                  delta={`you ${formatPercent(
-                    heroSnap.benchmark.portfolioReturnPct,
-                  )} · SPY ${formatPercent(heroSnap.benchmark.benchmarkReturnPct)}`}
+                  icon={ScaleIcon}
                   tone={excess !== null ? toneForValue(excess) : "neutral"}
                 />
               ) : (
-                <StatCard label="Cash" value={formatCurrency(heroSnap.cash)} />
+                <KpiCard
+                  label="Cash"
+                  value={formatCurrency(heroSnap.cash)}
+                  icon={BanknotesIcon}
+                />
               )}
-              <StatCard
+              <KpiCard
                 label="Buying power"
                 value={formatCurrency(heroSnap.buyingPower)}
+                icon={ZapIcon}
               />
             </div>
           </section>

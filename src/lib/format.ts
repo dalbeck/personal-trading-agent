@@ -38,6 +38,22 @@ export function formatPercent(
   return `${sign}${pct}%`;
 }
 
+/**
+ * Split a formatted figure into a primary part and a de-emphasized trailing
+ * part (the decimal/cents), for the two-tone KPI number. "+$30.49" →
+ * { primary: "+$30", secondary: ".49" }. Strings without a decimal return an
+ * empty `secondary`. Pure string-splitting on the last "." so it works for any
+ * already-formatted currency/percent value.
+ */
+export function splitNumberParts(formatted: string): {
+  primary: string;
+  secondary: string;
+} {
+  const dot = formatted.lastIndexOf(".");
+  if (dot === -1) return { primary: formatted, secondary: "" };
+  return { primary: formatted.slice(0, dot), secondary: formatted.slice(dot) };
+}
+
 const compactUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
