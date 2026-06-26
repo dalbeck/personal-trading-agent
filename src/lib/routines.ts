@@ -33,6 +33,13 @@ export function routinePlacesOrders(id: RoutineId): boolean {
 
 export const ROUTINE_CATALOG: RoutineInfo[] = [
   {
+    id: "live-snapshot-refresh",
+    name: "Live snapshot refresh",
+    description:
+      "Read-only pull of the live Robinhood account → fresh live snapshot (no order path).",
+    schedule: "Mon–Fri · 7:55 AM, 12:25 & 3:55 PM ET",
+  },
+  {
     id: "pre-market-research",
     name: "Pre-market research",
     description: "Scan watchlist, news, and regime → candidate proposals.",

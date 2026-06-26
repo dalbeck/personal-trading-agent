@@ -3,8 +3,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ROUTINE_IDS } from "@/lib/schemas";
 import type { RunLog } from "@/lib/types";
+import { refreshLiveAccount, summarizeLiveRefresh } from "@/lib/server/account";
 import { placePaperOrder, hasAlpacaCredentials } from "@/lib/server/alpaca";
 import { executePendingProposals } from "@/lib/server/execute";
+import { hasRobinhoodConnection } from "@/lib/server/robinhood";
 import { isTradingHalted } from "@/lib/server/gate";
 import { withLock } from "@/lib/server/lockfile";
 import { sweepPendingRedTeam } from "@/lib/server/red-team-sweep";
@@ -126,6 +128,23 @@ export async function POST(
           ordersPlaced = run.placed;
           rejections = run.rejected;
           summary = `Considered ${run.considered} proposals → placed ${run.placed}, rejected ${run.rejected}.`;
+        }
+      } else if (id === "live-snapshot-refresh") {
+        // Scheduled READ-ONLY live refresh (M2). Pulls the Robinhood Agentic
+        // account via the read-only `claude` CLI path (`get_portfolio` /
+        // `get_equity_positions`), enriches with the Alpaca mark, and persists a
+        // fresh live snapshot — so the research + management routines and the
+        // dashboard read current holdings. No order tool, no gate change: this
+        // can never place an order. A failed read maps to `error` so the
+        // dead-man / phone alert below fires (a stale live book is surfaced).
+        if (!hasRobinhoodConnection()) {
+          status = "skipped";
+          summary = "Live account not connected — snapshot refresh skipped.";
+        } else {
+          const live = await refreshLiveAccount();
+          const r = summarizeLiveRefresh(live);
+          status = r.status;
+          summary = r.summary;
         }
       } else {
         const promptPath = path.join(process.cwd(), "routines", `${id}.md`);

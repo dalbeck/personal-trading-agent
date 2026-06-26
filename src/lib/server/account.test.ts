@@ -6,7 +6,10 @@ import {
   getLiveAccount,
   getPaperAccount,
   refreshLiveAccount,
+  summarizeLiveRefresh,
+  type LiveAccount,
 } from "./account";
+import type { PortfolioSnapshot } from "@/lib/types";
 
 // No ALPACA_* keys are set in the test environment, so the resolver must fall
 // back to the seed snapshot with a non-blocking notice.
@@ -76,5 +79,61 @@ describe("refreshLiveAccount", () => {
     expect(pos?.lastPrice).toBe(150);
     expect(pos?.marketValue).toBeCloseTo(0.1523 * 150, 4);
     expect(pos?.unrealizedPl).toBeCloseTo(0.1523 * 150 - 30, 4);
+  });
+});
+
+describe("summarizeLiveRefresh", () => {
+  const snapshot = {
+    account: "live",
+    asOf: "2026-06-25T12:25:00-04:00",
+    positions: [{ symbol: "NVDA" }, { symbol: "MSFT" }],
+  } as unknown as PortfolioSnapshot;
+
+  it("reports OK with position count + as-of when the read succeeded", () => {
+    const live: LiveAccount = {
+      snapshot,
+      source: "robinhood",
+      connected: true,
+      notice: null,
+    };
+    const res = summarizeLiveRefresh(live);
+    expect(res.status).toBe("ok");
+    expect(res.summary).toMatch(/2 position/);
+    expect(res.summary).toContain("2026-06-25T12:25:00-04:00");
+  });
+
+  it("reports OK but surfaces a notice (e.g. the kill switch) when present", () => {
+    const live: LiveAccount = {
+      snapshot,
+      source: "robinhood",
+      connected: true,
+      notice: "Live drawdown −12.0% tripped the kill switch — live trading halted.",
+    };
+    const res = summarizeLiveRefresh(live);
+    expect(res.status).toBe("ok");
+    expect(res.summary).toMatch(/kill switch/);
+  });
+
+  it("reports ERROR when the read fell back to the last saved snapshot", () => {
+    const live: LiveAccount = {
+      snapshot,
+      source: "seed",
+      connected: true,
+      notice: "Robinhood live read unavailable (timeout) — showing the last saved live snapshot.",
+    };
+    const res = summarizeLiveRefresh(live);
+    expect(res.status).toBe("error");
+    expect(res.summary).toMatch(/unavailable/);
+  });
+
+  it("reports ERROR when there is no snapshot at all", () => {
+    const live: LiveAccount = {
+      snapshot: null,
+      source: "seed",
+      connected: true,
+      notice: "Robinhood live read unavailable (timeout).",
+    };
+    const res = summarizeLiveRefresh(live);
+    expect(res.status).toBe("error");
   });
 });

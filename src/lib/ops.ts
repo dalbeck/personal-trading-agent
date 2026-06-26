@@ -45,15 +45,23 @@ export interface OpsActionMeta {
   confirm?: OpsConfirm;
 }
 
+/** Tailored descriptions for the read-only LIVE routines — they don't run the
+ *  paper execution pipeline, so the generic "(paper)" copy would mislead. */
+const LIVE_ROUTINE_DESCRIPTIONS: Partial<Record<string, string>> = {
+  "live-snapshot-refresh":
+    "Read-only pull of the LIVE Robinhood account → fresh live snapshot. No order tool, no gate change — it can never place an order.",
+  "live-position-management":
+    "Reviews the LIVE Robinhood book and writes live exit/trim proposals (review-only; every live order stays human-approved per trade).",
+};
+
 /** The scheduled routines, each as its own discrete allowlisted action. */
 const routineActions: OpsActionMeta[] = ROUTINE_IDS.map((id) => ({
   id: `routine:${id}`,
   label: id,
   group: "Routines",
   description:
-    id === "live-position-management"
-      ? `Trigger the ${id} routine now. Reviews the LIVE Robinhood book and writes live exit/trim proposals (review-only; every live order stays human-approved per trade).`
-      : `Trigger the ${id} routine now (paper). Runs the code-gated pipeline: propose → risk rails → red-team → journal.`,
+    LIVE_ROUTINE_DESCRIPTIONS[id] ??
+    `Trigger the ${id} routine now (paper). Runs the code-gated pipeline: propose → risk rails → red-team → journal.`,
   danger: false,
 }));
 

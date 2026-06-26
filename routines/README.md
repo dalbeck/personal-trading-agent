@@ -12,6 +12,7 @@ writes a structured **run log** to `data/logs/`.
 
 | Routine | Id | Cadence (ET) | Kind |
 |---------|----|--------------|------|
+| Live snapshot refresh | `live-snapshot-refresh` | Mon–Fri 07:55, 12:25, 15:55 | **deterministic** read-only live pull (`get_portfolio`) |
 | Pre-market research | `pre-market-research` | Mon–Fri 08:00 | `claude -p` (writes proposals) |
 | Market-open execution | `market-open-execution` | Mon–Fri 09:35 | **deterministic** code pipeline |
 | Midday scan | `midday-scan` | Mon–Fri 12:30 | `claude -p` (manage paper risk) |
@@ -29,6 +30,11 @@ block at either gate is journaled as a rejection. The LLM proposes; it never
 executes. The batch is **paper-only**: `account: "live"` proposals (approvable or
 advisory) are skipped here — every live order is human-approved per trade through
 the approval path, so the autonomous batch never places a live-intent order.
+
+`live-snapshot-refresh` is also **deterministic** (not an LLM prompt): it runs
+the read-only `refreshLiveAccount` path (`get_portfolio` / `get_equity_positions`)
+to persist a fresh `account: "live"` snapshot before the research + management
+routines run. **No order tool, no gate change** — it can never place an order.
 
 The other `.md` files here are the prompts for the five analytical routines. They
 are read-only research/journaling sessions: they never place orders.

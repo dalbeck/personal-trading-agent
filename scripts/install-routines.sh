@@ -8,6 +8,7 @@
 # desk. (Still paper only; no real money anywhere in this phase.)
 #
 # Schedule (ET — assumes the Mac's clock is US/Eastern):
+#   live-snapshot-refresh     Mon–Fri 07:55, 12:25, 15:55  (read-only live pull)
 #   pre-market-research       Mon–Fri 08:00
 #   market-open-execution     Mon–Fri 09:35
 #   midday-scan               Mon–Fri 12:30
@@ -21,34 +22,42 @@ RUNNER="$ROOT/scripts/run-routine.sh"
 AGENTS="$HOME/Library/LaunchAgents"
 mkdir -p "$AGENTS"
 
-# routine|hour|minute|weekdays(space-separated; 0=Sun..6=Sat)
+# routine|times(comma-separated HH:MM)|weekdays(space-separated; 0=Sun..6=Sat)
+# A routine may fire at several times a day (one <dict> per time × weekday).
 JOBS=(
-  "pre-market-research|8|0|1 2 3 4 5"
-  "market-open-execution|9|35|1 2 3 4 5"
-  "midday-scan|12|30|1 2 3 4 5"
-  "live-position-management|12|35|1 2 3 4 5"
-  "end-of-day-summary|16|15|1 2 3 4 5"
-  "weekly-review|17|0|0"
+  "live-snapshot-refresh|07:55,12:25,15:55|1 2 3 4 5"
+  "pre-market-research|08:00|1 2 3 4 5"
+  "market-open-execution|09:35|1 2 3 4 5"
+  "midday-scan|12:30|1 2 3 4 5"
+  "live-position-management|12:35|1 2 3 4 5"
+  "end-of-day-summary|16:15|1 2 3 4 5"
+  "weekly-review|17:00|0"
 )
 
 calendar_intervals() {
-  local hour="$1" minute="$2" weekdays="$3" out=""
-  for wd in $weekdays; do
-    out+="    <dict>
+  local times="$1" weekdays="$2" out="" slot hh mm hour minute
+  IFS=',' read -ra slots <<<"$times"
+  for slot in "${slots[@]}"; do
+    IFS=':' read -r hh mm <<<"$slot"
+    hour=$((10#$hh)) # force base-10 so 07/08 aren't read as octal
+    minute=$((10#$mm))
+    for wd in $weekdays; do
+      out+="    <dict>
       <key>Weekday</key><integer>${wd}</integer>
       <key>Hour</key><integer>${hour}</integer>
       <key>Minute</key><integer>${minute}</integer>
     </dict>
 "
+    done
   done
   printf '%s' "$out"
 }
 
 for job in "${JOBS[@]}"; do
-  IFS='|' read -r id hour minute weekdays <<<"$job"
+  IFS='|' read -r id times weekdays <<<"$job"
   label="com.tradingdesk.${id}"
   plist="$AGENTS/${label}.plist"
-  intervals="$(calendar_intervals "$hour" "$minute" "$weekdays")"
+  intervals="$(calendar_intervals "$times" "$weekdays")"
   cat >"$plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
