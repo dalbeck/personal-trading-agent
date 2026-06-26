@@ -250,9 +250,13 @@ export async function recordRiskRejection(
   decision: RiskDecision,
   opts?: { dataDir?: string },
 ): Promise<WriteResult> {
+  // Tag each violated rule (`rule:<id>`) so the governance scorecard (M4) can
+  // count per-rule rejections without parsing the prose reason.
+  const ruleTags = decision.violations.map((v) => `rule:${v.rule}`);
   return recordRejection(
     {
       ...meta,
+      tags: [...(meta.tags ?? []), ...ruleTags],
       rejectedBy: "rules",
       reason: formatRiskRejectionReason(decision),
     },

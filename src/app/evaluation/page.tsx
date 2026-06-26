@@ -1,9 +1,11 @@
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { formatPercent, toneForValue } from "@/lib/format";
 import { getEvaluationScorecard } from "@/lib/server/eval";
+import { getGovernanceScorecard } from "@/lib/server/governance";
 import { getViewMode } from "@/lib/server/mode";
 import { verdictStyle } from "@/lib/eval/verdict-style";
 import type { Scorecard } from "@/lib/eval/scorecard";
+import type { GovernanceScorecard } from "@/lib/eval/governance";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +102,85 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   );
 }
 
+function GovernanceScorecardCard({
+  governance,
+}: {
+  governance: GovernanceScorecard;
+}) {
+  const { judged, redTeam, rejections, tradesPlaced, sampleSize, lowSample } =
+    governance;
+
+  if (sampleSize === 0) {
+    return (
+      <Card className="border-dashed">
+        <p className="text-sm text-fg-muted">
+          No governance decisions observed yet — once proposals are red-teamed
+          and orders pass (or are blocked by) the rails, this scorecard shows the
+          gate&apos;s selectivity and per-rule rejection counts.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="flex flex-col gap-4">
+      {lowSample ? (
+        <div className="rounded-card border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning">
+          Small sample ({sampleSize} governance decision
+          {sampleSize === 1 ? "" : "s"}) — read as a signal, not a verdict.
+        </div>
+      ) : null}
+
+      <div>
+        <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+          Red-team selectivity ({judged} judged · {tradesPlaced} placed)
+        </h3>
+        <Row
+          label="Approve rate"
+          value={`${pct(redTeam.approveRate, { signed: false })} (${redTeam.approve})`}
+          tone="gain"
+        />
+        <Row
+          label="Concern (downsize)"
+          value={String(redTeam.concern)}
+        />
+        <Row
+          label="Reject rate"
+          value={`${pct(redTeam.rejectRate, { signed: false })} (${redTeam.reject})`}
+          tone="loss"
+        />
+      </div>
+
+      <div>
+        <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+          Rejections by gate ({rejections.total})
+        </h3>
+        <Row label="Red-team" value={String(rejections.byActor.redTeam)} />
+        <Row label="Risk rails" value={String(rejections.byActor.rules)} />
+        <Row label="Human" value={String(rejections.byActor.human)} />
+      </div>
+
+      {rejections.byRule.length > 0 ? (
+        <div>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
+            Per-rule rejections
+          </h3>
+          <ul className="flex flex-wrap gap-1.5">
+            {rejections.byRule.map((r) => (
+              <li
+                key={r.rule}
+                className="rounded-pill border border-line bg-surface-overlay px-2.5 py-0.5 text-xs font-medium text-fg"
+              >
+                {r.rule} · {r.count}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
 export default async function EvaluationPage() {
   const mode = await getViewMode();
 
@@ -133,7 +214,10 @@ export default async function EvaluationPage() {
     );
   }
 
-  const card = await getEvaluationScorecard();
+  const [card, governance] = await Promise.all([
+    getEvaluationScorecard(),
+    getGovernanceScorecard(),
+  ]);
   const { window, returns, benchmark, trades, integrity, reliability } = card;
 
   return (
@@ -329,7 +413,14 @@ export default async function EvaluationPage() {
         </div>
       </Section>
 
-      <Section title="5 · Behavioral / qualitative">
+      <Section
+        title="5 · Governance scorecard"
+        note="Is the red-team + the risk rails doing real work? Advisory only, and caveated on small samples — rejected ideas are never placed, so their counterfactual P&L is unobservable."
+      >
+        <GovernanceScorecardCard governance={governance} />
+      </Section>
+
+      <Section title="6 · Behavioral / qualitative">
         <Card className="border-dashed">
           <p className="text-sm text-fg-muted">
             Recurring-mistake review, lessons promoted to the playbook, journal
