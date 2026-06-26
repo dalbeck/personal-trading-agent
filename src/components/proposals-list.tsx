@@ -13,7 +13,10 @@ import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
 import { Term } from "@/components/term";
+import { ChevronDownIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
+import { confidenceBucket } from "@/lib/confidence";
+import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
 import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
 import { formatRelativeVolume } from "@/lib/volume";
@@ -173,6 +176,18 @@ export function ProposalsList({
   }
 
   const confirmProposal = proposals.find((p) => p.id === confirmId) ?? null;
+  const confirmRr = confirmProposal
+    ? computeRiskReward({
+        action: confirmProposal.action,
+        entry: confirmProposal.limitPrice,
+        stop: confirmProposal.stopPrice,
+        target: confirmProposal.takeProfit,
+      })
+    : null;
+  const confirmConf =
+    confirmProposal && confirmProposal.confidence !== null
+      ? confidenceBucket(confirmProposal.confidence)
+      : null;
   // The precheck (read-only) tells us exactly what is blocking the order, so the
   // dialog can require a typed justification before "Override & approve".
   const blocks = precheck.result;
@@ -191,19 +206,28 @@ export function ProposalsList({
           const advisory = isAdvisoryProposal(p);
           const liveApprovable = p.account === "live" && !advisory;
           const estCost = p.qty * p.limitPrice;
+          const rr = computeRiskReward({
+            action: p.action,
+            entry: p.limitPrice,
+            stop: p.stopPrice,
+            target: p.takeProfit,
+          });
+          const conf =
+            p.confidence === null ? null : confidenceBucket(p.confidence);
           return (
             <Card
               key={p.id}
-              className={advisory ? "border-accent/50" : undefined}
+              className={`overflow-hidden p-0 ${advisory ? "border-accent/50" : ""}`}
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Zone 1 — tinted header strip: side pill, serif ticker, status */}
+              <div className="tint-strip flex flex-wrap items-center justify-between gap-3 border-b border-line/60 px-5 py-3.5">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <Badge tone={p.action === "buy" ? "gain" : "loss"} solid>
                     {p.action.toUpperCase()}
                   </Badge>
                   <TickerLink
                     symbol={p.symbol}
-                    className="font-serif text-base font-semibold text-fg"
+                    className="font-serif text-lg font-semibold text-fg"
                   />
                   <span className="text-sm tabular-nums text-fg-muted">
                     {p.qty} @ {formatCurrency(p.limitPrice)} limit
@@ -227,148 +251,190 @@ export function ProposalsList({
                 </div>
               </div>
 
-              <p className="mt-4 text-pretty text-sm leading-relaxed text-fg">
-                {p.thesis}
-              </p>
-              <p className="mt-2 text-pretty text-sm leading-relaxed text-fg-muted">
-                {p.reasoning}
-              </p>
-
-              <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-3 lg:grid-cols-5">
-                <MetricCell label="Est. cost" value={formatCurrency(estCost)} />
-                <MetricCell
-                  label="Risk"
-                  value={formatPercent(p.riskPct, { signed: false })}
-                />
-                <MetricCell
-                  label="Target"
-                  value={`${targetTypeLabel(p.targetType)}${
-                    isWeakTarget(p.targetType) ? " · weak" : ""
-                  }`}
-                  tone={isWeakTarget(p.targetType) ? "warning" : "default"}
-                />
-                <MetricCell
-                  label="Rel. vol"
-                  value={
-                    p.relativeVolume == null
-                      ? "—"
-                      : formatRelativeVolume(p.relativeVolume)
-                  }
-                />
-                <MetricCell
-                  label="Catalyst"
-                  value={`${catalystTypeLabel(p.catalystType)}${
-                    isWeakCatalyst(p.catalystType) ? " · weak" : ""
-                  }`}
-                  tone={isWeakCatalyst(p.catalystType) ? "warning" : "default"}
-                />
-              </dl>
-              {p.catalyst ? (
-                <p className="mt-2 text-pretty text-xs text-fg-muted">
-                  <span className="font-medium text-fg">Catalyst:</span>{" "}
-                  {p.catalyst}
+              <div className="flex flex-col gap-4 p-5">
+                {/* Zone 2 — thesis as a readable lead line */}
+                <p className="text-pretty text-[0.95rem] leading-relaxed text-fg">
+                  {p.thesis}
                 </p>
-              ) : null}
 
-              <RiskRewardBar
-                action={p.action}
-                entry={p.limitPrice}
-                stop={p.stopPrice}
-                target={p.takeProfit}
-                confidence={p.confidence}
-              />
+                {/* Zone 3 — key stats chip row */}
+                <div className="flex flex-wrap gap-2">
+                  <StatChip label="Est. cost" value={formatCurrency(estCost)} />
+                  <StatChip
+                    label="Risk"
+                    value={formatPercent(p.riskPct, { signed: false })}
+                  />
+                  <StatChip
+                    label="R:R"
+                    value={rr ? formatRatio(rr.ratio) : "—"}
+                    tone={rr ? (rr.ratio >= 2 ? "gain" : "warning") : "default"}
+                  />
+                  <StatChip
+                    label="Confidence"
+                    value={conf ? `${conf.level} · ${conf.pct}%` : "—"}
+                  />
+                </div>
 
-              {p.redTeam ? (
-                <RedTeamVerdict verdict={p.redTeam} className="mt-3" />
-              ) : null}
+                {/* Zone 4 — R:R bar, the card's hero visual */}
+                <RiskRewardBar
+                  action={p.action}
+                  entry={p.limitPrice}
+                  stop={p.stopPrice}
+                  target={p.takeProfit}
+                  confidence={p.confidence}
+                  className=""
+                />
 
-              {/* Linked-symbol research freshness (cache-only read, no spend) +
-                  a confirm-gated red-team re-run for pending proposals. */}
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <ProposalResearchFreshness symbol={p.symbol} />
-                {pending ? <RedTeamRerunButton proposalId={p.id} /> : null}
-              </div>
+                {/* Zone 5 — red-team verdict, a distinct semantic callout */}
+                {p.redTeam ? <RedTeamVerdict verdict={p.redTeam} /> : null}
 
-              {advisory ? (
-                <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
-                  {pending ? (
-                    <>
-                      <span className="mr-auto text-pretty text-xs text-fg-muted">
-                        Advisory only — no automated execution. Place this trade
-                        yourself in Robinhood if you agree.
+                {/* Zone 6 — full reasoning / metrics / research behind a Details
+                    expander (progressive disclosure; native <details> is
+                    keyboard-accessible and reduced-motion-safe). */}
+                <details className="group rounded-card border border-line bg-surface [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-fg-muted transition-colors hover:text-fg">
+                    <span>Details — reasoning, metrics &amp; research</span>
+                    <ChevronDownIcon
+                      className="size-4 shrink-0 transition-transform group-open:rotate-180"
+                      aria-hidden
+                    />
+                  </summary>
+                  <div className="flex flex-col gap-4 border-t border-line px-4 pb-4 pt-3">
+                    <p className="text-pretty text-sm leading-relaxed text-fg-muted">
+                      {p.reasoning}
+                    </p>
+
+                    <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-3 lg:grid-cols-5">
+                      <MetricCell
+                        label="Est. cost"
+                        value={formatCurrency(estCost)}
+                      />
+                      <MetricCell
+                        label="Risk"
+                        value={formatPercent(p.riskPct, { signed: false })}
+                      />
+                      <MetricCell
+                        label="Target"
+                        value={`${targetTypeLabel(p.targetType)}${
+                          isWeakTarget(p.targetType) ? " · weak" : ""
+                        }`}
+                        tone={isWeakTarget(p.targetType) ? "warning" : "default"}
+                      />
+                      <MetricCell
+                        label="Rel. vol"
+                        value={
+                          p.relativeVolume == null
+                            ? "—"
+                            : formatRelativeVolume(p.relativeVolume)
+                        }
+                      />
+                      <MetricCell
+                        label="Catalyst"
+                        value={`${catalystTypeLabel(p.catalystType)}${
+                          isWeakCatalyst(p.catalystType) ? " · weak" : ""
+                        }`}
+                        tone={
+                          isWeakCatalyst(p.catalystType) ? "warning" : "default"
+                        }
+                      />
+                    </dl>
+                    {p.catalyst ? (
+                      <p className="text-pretty text-xs text-fg-muted">
+                        <span className="font-medium text-fg">Catalyst:</span>{" "}
+                        {p.catalyst}
+                      </p>
+                    ) : null}
+
+                    <ProposalResearchFreshness symbol={p.symbol} />
+                  </div>
+                </details>
+
+                {/* Zone 7 — actions */}
+                {advisory ? (
+                  <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
+                    {pending ? (
+                      <>
+                        <span className="mr-auto text-pretty text-xs text-fg-muted">
+                          Advisory only — no automated execution. Place this
+                          trade yourself in Robinhood if you agree.
+                        </span>
+                        <RedTeamRerunButton proposalId={p.id} />
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={busyId === p.id}
+                          onClick={() => review(p.id, "dismissed")}
+                        >
+                          Dismiss
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={busyId === p.id}
+                          onClick={() => review(p.id, "reviewed")}
+                        >
+                          Mark reviewed
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="ml-auto text-xs text-fg-muted">
+                        {advisoryStatusLabel[status] ?? status}
                       </span>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={busyId === p.id}
-                        onClick={() => review(p.id, "dismissed")}
-                      >
-                        Dismiss
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        disabled={busyId === p.id}
-                        onClick={() => review(p.id, "reviewed")}
-                      >
-                        Mark reviewed
-                      </Button>
-                    </>
-                  ) : (
-                    <span className="text-xs text-fg-muted">
-                      {advisoryStatusLabel[status] ?? status}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-4 flex items-center justify-end gap-2 border-t border-line pt-4">
-                  {pending ? (
-                    <>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        disabled={busyId === p.id}
-                        onClick={() => decide(p.id, "deny")}
-                      >
-                        Reject
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        disabled={busyId === p.id}
-                        onClick={() => openConfirm(p.id)}
-                      >
-                        Approve…
-                      </Button>
-                    </>
-                  ) : (
-                    <span className="text-xs text-fg-muted">
-                      {result ? (
-                        <>
-                          {outcomeLabel[result.outcome]}
-                          {result.outcome === "approved" ? (
-                            <>
-                              {" "}
-                              · routed to{" "}
-                              <span className="font-medium text-fg">
-                                {result.destination}
-                              </span>
-                              {result.dryRun ? " (dry-run sink)" : " (LIVE)"}
-                              {result.brokerOrderId ? (
-                                <> · {result.brokerOrderId}</>
-                              ) : null}
-                            </>
-                          ) : null}
-                        </>
-                      ) : status === "approved" ? (
-                        "Approved"
-                      ) : (
-                        "Rejected"
-                      )}
-                    </span>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
+                    {pending ? (
+                      <>
+                        <div className="mr-auto">
+                          <RedTeamRerunButton proposalId={p.id} />
+                        </div>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          disabled={busyId === p.id}
+                          onClick={() => decide(p.id, "deny")}
+                        >
+                          Reject
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={busyId === p.id}
+                          onClick={() => openConfirm(p.id)}
+                        >
+                          Approve…
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="ml-auto text-xs text-fg-muted">
+                        {result ? (
+                          <>
+                            {outcomeLabel[result.outcome]}
+                            {result.outcome === "approved" ? (
+                              <>
+                                {" "}
+                                · routed to{" "}
+                                <span className="font-medium text-fg">
+                                  {result.destination}
+                                </span>
+                                {result.dryRun ? " (dry-run sink)" : " (LIVE)"}
+                                {result.brokerOrderId ? (
+                                  <> · {result.brokerOrderId}</>
+                                ) : null}
+                              </>
+                            ) : null}
+                          </>
+                        ) : status === "approved" ? (
+                          "Approved"
+                        ) : (
+                          "Rejected"
+                        )}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </Card>
           );
         })}
@@ -455,6 +521,38 @@ export function ProposalsList({
               </p>
             </div>
 
+            <div className="flex flex-wrap gap-2">
+              <StatChip
+                label="Est. cost"
+                value={formatCurrency(
+                  confirmProposal.qty * confirmProposal.limitPrice,
+                )}
+              />
+              <StatChip
+                label="Risk"
+                value={formatPercent(confirmProposal.riskPct, {
+                  signed: false,
+                })}
+              />
+              <StatChip
+                label="R:R"
+                value={confirmRr ? formatRatio(confirmRr.ratio) : "—"}
+                tone={
+                  confirmRr
+                    ? confirmRr.ratio >= 2
+                      ? "gain"
+                      : "warning"
+                    : "default"
+                }
+              />
+              <StatChip
+                label="Confidence"
+                value={
+                  confirmConf ? `${confirmConf.level} · ${confirmConf.pct}%` : "—"
+                }
+              />
+            </div>
+
             {confirmProposal.redTeam ? (
               <RedTeamVerdict verdict={confirmProposal.redTeam} />
             ) : null}
@@ -512,6 +610,35 @@ export function ProposalsList({
         ) : null}
       </AlertDialog>
     </>
+  );
+}
+
+/** A compact key-stat pill for the proposal's chip row (zone 3): a muted label
+ *  + a tabular value. `gain`/`warning` tones flag the R:R against the 2:1 rail. */
+function StatChip({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "gain" | "warning";
+}) {
+  const valueCls =
+    tone === "gain"
+      ? "text-gain"
+      : tone === "warning"
+        ? "text-warning"
+        : "text-fg";
+  return (
+    <span className="inline-flex items-baseline gap-1.5 rounded-pill border border-line bg-surface px-3 py-1">
+      <span className="text-[0.7rem] font-medium uppercase tracking-wide text-fg-muted">
+        {label}
+      </span>
+      <span className={`text-sm font-semibold tabular-nums ${valueCls}`}>
+        {value}
+      </span>
+    </span>
   );
 }
 

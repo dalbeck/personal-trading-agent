@@ -26,12 +26,14 @@ export function RiskRewardBar({
   stop,
   target,
   confidence,
+  className = "mt-3",
 }: {
   action: TradeAction;
   entry: number;
   stop: number | null;
   target: number | null;
   confidence: number | null;
+  className?: string;
 }) {
   const rr = computeRiskReward({ action, entry, stop, target });
   if (!rr && confidence === null) return null;
@@ -39,7 +41,7 @@ export function RiskRewardBar({
   const riskPct = rr ? rr.riskFraction * 100 : 0;
 
   return (
-    <div className="mt-3 rounded-card border border-line bg-surface-overlay p-3">
+    <div className={`rounded-card border border-line bg-surface-overlay p-3 ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-baseline gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
