@@ -86,6 +86,50 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).not.toMatch(/out of mandate/i);
   });
 
+  it("briefs cash-flow as floor support vs. value-trap in the VALUE lens", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      strategy: "value",
+      cashFlow: {
+        operatingCashFlow: 2_400_000_000,
+        freeCashFlow: 2_000_000_000,
+        fcfTrend: "stable",
+        fcfYield: 0.05,
+        netDebt: 1_000_000_000,
+        debtToEquity: 0.8,
+        interestCoverage: 12,
+      },
+    });
+    // The figures are surfaced for the prosecutor to weigh.
+    expect(prompt).toMatch(/cash-flow quality/i);
+    expect(prompt).toMatch(/FCF yield/i);
+    // The floor-vs-trap weighting instruction is present.
+    expect(prompt).toMatch(/floor/i);
+    expect(prompt).toMatch(/value.trap/i);
+  });
+
+  it("notes unknown cash flow as a weakness in the VALUE lens", () => {
+    const prompt = buildProsecutorPrompt({ ...proposal, strategy: "value" });
+    expect(prompt).toMatch(/cash-flow quality/i);
+    expect(prompt).toMatch(/unknown|not (provided|available)/i);
+  });
+
+  it("does NOT brief cash-flow in the TREND lens (value-lens only)", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      cashFlow: {
+        operatingCashFlow: 1,
+        freeCashFlow: 1,
+        fcfTrend: "growing",
+        fcfYield: 0.1,
+        netDebt: 0,
+        debtToEquity: 0.1,
+        interestCoverage: 50,
+      },
+    });
+    expect(prompt).not.toMatch(/cash-flow quality/i);
+  });
+
   it("keeps the shared hard rails in BOTH lenses", () => {
     for (const strategy of ["trend", "value"] as const) {
       const prompt = buildProsecutorPrompt({ ...proposal, strategy });

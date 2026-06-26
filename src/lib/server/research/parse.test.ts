@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  coerceCashFlow,
   coerceCatalysts,
   coerceDomain,
   coerceEarnings,
@@ -191,6 +192,61 @@ describe("extractJsonBlock", () => {
   });
 });
 
+describe("coerceCashFlow", () => {
+  it("coerces a full cash-flow block, expanding money suffixes + percent yields", () => {
+    const cf = coerceCashFlow({
+      operatingCashFlow: "1.5B",
+      freeCashFlow: "1.2B",
+      fcfTrend: "Growing",
+      fcfYield: "4.1%",
+      netDebt: "-500M",
+      debtToEquity: "0.3",
+      interestCoverage: "20",
+    });
+    expect(cf).not.toBeNull();
+    expect(cf!.operatingCashFlow).toBeCloseTo(1.5e9);
+    expect(cf!.freeCashFlow).toBeCloseTo(1.2e9);
+    expect(cf!.fcfTrend).toBe("growing");
+    expect(cf!.fcfYield).toBeCloseTo(0.041);
+    expect(cf!.netDebt).toBeCloseTo(-5e8);
+    expect(cf!.debtToEquity).toBeCloseTo(0.3);
+    expect(cf!.interestCoverage).toBeCloseTo(20);
+  });
+
+  it("derives FCF yield from FCF ÷ market cap when the yield is absent", () => {
+    const cf = coerceCashFlow(
+      { freeCashFlow: "2B", fcfTrend: "stable" },
+      { marketCap: 50e9 },
+    );
+    expect(cf!.fcfYield).toBeCloseTo(0.04);
+  });
+
+  it("does not fabricate a yield without a market cap", () => {
+    const cf = coerceCashFlow({ freeCashFlow: "2B" });
+    expect(cf!.fcfYield).toBeNull();
+  });
+
+  it("maps trend synonyms and nulls an unknown trend", () => {
+    expect(coerceCashFlow({ fcfTrend: "rising" })!.fcfTrend).toBe("growing");
+    expect(coerceCashFlow({ fcfTrend: "deteriorating" })!.fcfTrend).toBe(
+      "declining",
+    );
+    expect(coerceCashFlow({ fcfTrend: "flat" })!.fcfTrend).toBe("stable");
+    // An unknown trend nulls (with another usable field keeping the block live).
+    expect(
+      coerceCashFlow({ freeCashFlow: "1B", fcfTrend: "sideways??" })!.fcfTrend,
+    ).toBeNull();
+  });
+
+  it("returns null for a non-object or an all-null/empty block", () => {
+    expect(coerceCashFlow(null)).toBeNull();
+    expect(coerceCashFlow("nope")).toBeNull();
+    expect(
+      coerceCashFlow({ freeCashFlow: "n/a", fcfTrend: "unknown" }),
+    ).toBeNull();
+  });
+});
+
 describe("parseStructuredResearch", () => {
   it("coerces a full structured block into profile/fundamentals/consensus", () => {
     const text = [
@@ -280,14 +336,48 @@ describe("parseStructuredResearch", () => {
     expect(catalysts).toEqual(["Q2 earnings Jul 24", "Data-center capex cycle"]);
   });
 
+  it("lifts the cash-flow block and derives FCF yield from the block's market cap", () => {
+    const text = [
+      "Durable cash generation despite the de-rating.",
+      "```json",
+      JSON.stringify({
+        fundamentals: { marketCap: "40B" },
+        cashFlow: {
+          operatingCashFlow: "2.4B",
+          freeCashFlow: "2B",
+          fcfTrend: "stable",
+          netDebt: "1B",
+          debtToEquity: 0.8,
+          interestCoverage: 12,
+        },
+      }),
+      "```",
+    ].join("\n");
+
+    const { cashFlow } = parseStructuredResearch(text);
+    expect(cashFlow).not.toBeNull();
+    expect(cashFlow!.freeCashFlow).toBeCloseTo(2e9);
+    expect(cashFlow!.fcfTrend).toBe("stable");
+    // 2B FCF ÷ 40B market cap = 5%.
+    expect(cashFlow!.fcfYield).toBeCloseTo(0.05);
+  });
+
   it("returns nulls/empties (never throws) when there is no JSON block", () => {
-    const { profile, fundamentals, consensus, earnings, catalysts, summary } =
-      parseStructuredResearch("Only prose here.");
+    const {
+      profile,
+      fundamentals,
+      consensus,
+      earnings,
+      catalysts,
+      cashFlow,
+      summary,
+    } = parseStructuredResearch("Only prose here.");
     expect(profile).toBeNull();
     expect(fundamentals).toBeNull();
     expect(consensus).toBeNull();
     expect(earnings).toEqual([]);
     expect(catalysts).toEqual([]);
+    expect(cashFlow).toBeNull();
     expect(summary).toBe("Only prose here.");
   });
 

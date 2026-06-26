@@ -477,6 +477,10 @@ export interface AdvisoryProposalInput {
   // Dual-lens breakdowns (dual-lens M1) — a manual analyze carries both the trend
   // and value lens. Empty/omitted = single-lens (the top-level fields are it).
   lenses?: TradeProposal["lenses"];
+  // Cash-flow quality (value-cashflow M1) — value lens only, mirrors the active
+  // lens at the top level. Schema-backed + default null, so a trend proposal may
+  // omit it. See `.agents/data-format.md`.
+  cashFlow?: TradeProposal["cashFlow"];
 }
 
 /**

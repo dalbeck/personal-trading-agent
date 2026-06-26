@@ -26,6 +26,7 @@ const researchSeam = () =>
     sector: "Information Technology",
     catalyst: "New product cycle",
     catalystType: "product_news" as const,
+    cashFlow: null,
     usedPerplexity: false,
   });
 
@@ -90,6 +91,7 @@ describe("analyzeSymbol", () => {
           sector: null,
           catalyst: null,
           catalystType: null,
+          cashFlow: null,
           usedPerplexity: false,
         }),
       redTeamExec: rejectExec,
@@ -156,6 +158,51 @@ describe("analyzeSymbol", () => {
     expect(valuePrompt).toMatch(/COUNTER-TREND IS EXPECTED/);
     expect(valuePrompt).not.toMatch(/out of mandate/i);
     expect(trendPrompt).toMatch(/out of mandate/i);
+  });
+
+  it("attaches cash-flow quality to the VALUE lens only and briefs the value red-team", async () => {
+    const prompts: string[] = [];
+    const cashFlow = {
+      operatingCashFlow: 2_400_000_000,
+      freeCashFlow: 2_000_000_000,
+      fcfTrend: "stable" as const,
+      fcfYield: 0.05,
+      netDebt: 1_000_000_000,
+      debtToEquity: 0.8,
+      interestCoverage: 12,
+    };
+    const res = await analyzeSymbol("KR", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(220, 160, -0.5),
+      readSnapshot: snapshotSeam,
+      fetchResearch: async () => ({
+        sector: "Consumer Staples",
+        catalyst: "Dividend support",
+        catalystType: "other" as const,
+        cashFlow,
+        usedPerplexity: true,
+      }),
+      redTeamExec: async (p) => {
+        prompts.push(p);
+        return approveExec();
+      },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    const trendLens = res.proposal.lenses.find((l) => l.strategy === "trend");
+    const valueLens = res.proposal.lenses.find((l) => l.strategy === "value");
+    // The value lens carries the cash-flow block; the trend lens does not.
+    expect(valueLens?.cashFlow).toEqual(cashFlow);
+    expect(trendLens?.cashFlow).toBeNull();
+
+    // Only the value prosecutor is briefed with the cash-flow figures.
+    const valuePrompt = prompts.find((p) => /VALUE \/ MEAN-REVERSION/.test(p));
+    const trendPrompt = prompts.find((p) => /TREND mandate/.test(p));
+    expect(valuePrompt).toMatch(/Cash-flow quality/i);
+    expect(valuePrompt).toMatch(/FCF yield/i);
+    expect(trendPrompt).not.toMatch(/Cash-flow quality/i);
   });
 
   it("fetches research ONCE for both lenses (respects the Perplexity cap)", async () => {

@@ -4,6 +4,8 @@
  * never order pricing or execution (Alpaca is the source of truth for prices).
  */
 
+import type { CashFlowQuality } from "@/lib/types";
+
 export interface ResearchQuery {
   symbol: string;
   question?: string;
@@ -127,6 +129,9 @@ export interface ResearchResult {
   earnings?: EarningsQuarter[];
   /** Short catalyst phrases for the catalyst chips; [] when none. */
   catalysts?: string[];
+  /** Cash-flow quality for the value lens (FCF level/trend/yield, leverage); null
+   *  when none was returned. Folded into this one capped fetch — no extra call. */
+  cashFlow?: CashFlowQuality | null;
   /** Real per-call cost in USD, when the Agent API reports it. */
   cost?: number;
 }
@@ -164,6 +169,11 @@ export interface SymbolResearch {
   earnings: EarningsQuarter[];
   /** Short catalyst phrases for the catalyst chips; [] when none. */
   catalysts: string[];
+  /** Cash-flow quality for the value lens (value-cashflow M1) — FCF level/trend,
+   *  FCF yield, leverage/coverage. Perplexity-supplied (Robinhood does not carry
+   *  it); null when unavailable. Drives the value checklist + red-team + stat
+   *  block. Folded into the one capped value research fetch — no extra call. */
+  cashFlow: CashFlowQuality | null;
   /** Raw finance_results blocks (kept for back-compat / debugging). */
   finance: ResearchFinanceResult[];
   /**

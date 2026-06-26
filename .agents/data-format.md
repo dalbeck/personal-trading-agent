@@ -202,6 +202,31 @@ journal records it as a `lens:<strategy>` tag. The manual pipeline fetches
 research **once** (shared across both lenses) so the Perplexity cap is respected.
 Defaults to `[]` so older records still validate.
 
+**Proposal `cashFlow` (value-cashflow M1).** The **value lens's** floor-vs-trap
+signal — a `CashFlowQualitySchema` block: `operatingCashFlow` / `freeCashFlow` /
+`netDebt` (USD; net debt may be negative = net cash), **`fcfYield`** (a fraction,
+`0.041` === 4.1% — FCF ÷ market cap), `fcfTrend` (`growing | stable | declining`),
+and `debtToEquity` / `interestCoverage` (plain multiples). Every field is
+nullable; the whole block defaults to **`null`**. It is carried on the **value**
+`ProposalLensSchema` breakdown **only** (the trend lens stays `null`), and on the
+proposal's **top-level `cashFlow`** mirroring the **active** lens (so a
+value-active proposal carries it, a trend-active one is `null`). It is folded
+into the **same capped Perplexity value research fetch** — no extra call: the
+Perplexity adapter requests the cash-flow keys in its one JSON block and
+`coerceCashFlow` (`src/lib/server/research/parse.ts`, pure + unit-tested) parses
+them, **deriving `fcfYield` from `freeCashFlow ÷ marketCap`** when the model
+didn't give one. It drives the **"Cash-flow quality"** value-checklist item
+(pass on durable, positive FCF + healthy yield + manageable leverage; flag on
+negative/declining FCF or rising leverage; `na` when no data — the pure
+`assessCashFlowQuality` in `src/lib/cash-flow.ts`), the **value red-team's**
+floor-vs-trap weighting (`buildProsecutorPrompt` briefs it in the value branch
+only), and a **cash-flow stat block** in the value breakdown
+(`src/components/cash-flow-block.tsx`, glossary tooltips on FCF / FCF yield /
+interest coverage). **Value lens only** — the trend lens, gates, and hard rails
+are unchanged. Defaults to `null` so trend records + older proposals still
+validate. (The research cache `CACHE_VERSION` bumped to 6 so stale entries
+re-fetch with the new block.)
+
 **Proposal `convictionScore` / `convictionTier` (M1 diversified discovery).** A
 `TradeProposal` also carries `convictionScore` (a `0–1` composite of the playbook
 signals — trend, momentum, relative strength, volume, R:R, catalyst) and
