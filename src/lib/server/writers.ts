@@ -474,6 +474,9 @@ export interface AdvisoryProposalInput {
   catalystType?: TradeProposal["catalystType"];
   convictionScore?: number | null;
   convictionTier?: TradeProposal["convictionTier"];
+  // Dual-lens breakdowns (dual-lens M1) — a manual analyze carries both the trend
+  // and value lens. Empty/omitted = single-lens (the top-level fields are it).
+  lenses?: TradeProposal["lenses"];
 }
 
 /**

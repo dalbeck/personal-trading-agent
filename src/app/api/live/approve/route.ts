@@ -2,6 +2,7 @@ import { readProposals } from "@/lib/server/data";
 import { submitTradeApproval } from "@/lib/server/live-order";
 import { setProposalStatus } from "@/lib/server/writers";
 import { isAdvisoryProposal } from "@/lib/proposal-advisory";
+import { resolveActiveLens } from "@/lib/proposal-lens";
 
 /**
  * Per-trade human approval endpoint (Phase 3 M3). The dashboard posts the
@@ -28,6 +29,12 @@ export async function POST(req: Request): Promise<Response> {
     decision?: string;
     reason?: string;
     override?: { comment?: string } | null;
+    // Which lens the human acted under (dual-lens M1). For a dual-lens proposal
+    // this selects the lens whose levels + red-team verdict drive the order; it
+    // is also recorded in the journal as the decision rationale. Ignored for a
+    // single-lens proposal. Never trust the client to widen scope — only the two
+    // known strategies are honoured.
+    actingLens?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -72,6 +79,23 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const timestamp = nowET();
+  // The acting lens (dual-lens M1): its levels + red-team verdict drive the
+  // order, and the order is risk-checked + gated under it — exactly as if it were
+  // a single-lens proposal at those levels. For a single-lens proposal this is
+  // the lone top-level lens, so behaviour is unchanged.
+  const actingLens =
+    body.actingLens === "trend" || body.actingLens === "value"
+      ? body.actingLens
+      : undefined;
+  const lens = resolveActiveLens(proposal, actingLens);
+  const isDual = (proposal.lenses ?? []).length > 0;
+  // Carry the proposal's origin (manual analyze → `manual-request`, M2) and the
+  // acting lens (dual-lens → `lens:<strategy>`) into the journal so the decision
+  // basis is auditable.
+  const tags: string[] = [];
+  if (proposal.origin === "manual-request") tags.push("manual-request");
+  if (isDual) tags.push(`lens:${lens.strategy}`);
+
   let result;
   try {
     result = await submitTradeApproval({
@@ -94,26 +118,22 @@ export async function POST(req: Request): Promise<Response> {
         symbol: proposal.symbol,
         action: proposal.action,
         side: proposal.side,
-        qty: proposal.qty,
-        limitPrice: proposal.limitPrice,
-        stopPrice: proposal.stopPrice,
-        takeProfit: proposal.takeProfit,
-        riskPct: proposal.riskPct,
+        qty: lens.qty,
+        limitPrice: lens.limitPrice,
+        stopPrice: lens.stopPrice,
+        takeProfit: lens.takeProfit,
+        riskPct: lens.riskPct,
         reviewDate: proposal.reviewByDate ?? timestamp.slice(0, 10),
-        thesis: proposal.thesis,
-        reasoning: proposal.reasoning,
-        redTeam: proposal.redTeam,
+        thesis: lens.thesis,
+        reasoning: lens.reasoning,
+        redTeam: lens.redTeam,
         account: proposal.account,
         sector: proposal.sector,
-        targetType: proposal.targetType,
-        relativeVolume: proposal.relativeVolume,
-        catalyst: proposal.catalyst,
-        catalystType: proposal.catalystType,
-        // Carry the proposal's origin into the journal: an on-demand
-        // analyze-a-symbol pick is tagged `manual-request` on the recorded
-        // decision (M2), so the coaching/journal can tell it apart later.
-        tags:
-          proposal.origin === "manual-request" ? ["manual-request"] : undefined,
+        targetType: lens.targetType,
+        relativeVolume: lens.relativeVolume,
+        catalyst: lens.catalyst,
+        catalystType: lens.catalystType,
+        tags: tags.length > 0 ? tags : undefined,
       },
     });
   } catch (err) {

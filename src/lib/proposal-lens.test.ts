@@ -3,10 +3,47 @@ import {
   buildProposalLenses,
   dualVerdictSummary,
   isDualLens,
-  type ProposalLens,
+  proposalBreakdowns,
+  resolveActiveLens,
 } from "./proposal-lens";
 import { TradeProposalSchema } from "./schemas";
-import type { RedTeamVerdict, TradeProposal } from "./types";
+import type {
+  ProposalLensBreakdown,
+  RedTeamVerdict,
+  TradeProposal,
+} from "./types";
+
+const verdict = (v: RedTeamVerdict["verdict"]): RedTeamVerdict => ({
+  verdict: v,
+  notes: "n",
+  factors: [],
+  basis: null,
+});
+
+function lens(
+  strategy: "trend" | "value",
+  overrides: Partial<ProposalLensBreakdown> = {},
+): ProposalLensBreakdown {
+  return {
+    strategy,
+    limitPrice: 50,
+    stopPrice: 46,
+    takeProfit: 60,
+    targetType: strategy === "value" ? "fundamental" : "prior_high",
+    qty: 10,
+    riskPct: 0.015,
+    relativeVolume: 0.9,
+    catalyst: "Dividend hike",
+    catalystType: "guidance",
+    convictionScore: strategy === "value" ? 0.6 : 0.4,
+    convictionTier: strategy === "value" ? "moderate" : "moderate",
+    confidence: 0.5,
+    thesis: `${strategy} thesis`,
+    reasoning: `${strategy} reasoning`,
+    redTeam: verdict(strategy === "value" ? "concern" : "reject"),
+    ...overrides,
+  };
+}
 
 function makeProposal(overrides: Partial<TradeProposal> = {}): TradeProposal {
   return TradeProposalSchema.parse({
@@ -28,21 +65,14 @@ function makeProposal(overrides: Partial<TradeProposal> = {}): TradeProposal {
   });
 }
 
-const verdict = (v: RedTeamVerdict["verdict"]): RedTeamVerdict => ({
-  verdict: v,
-  notes: "n",
-  factors: [],
-  basis: null,
-});
-
-describe("buildProposalLenses", () => {
-  it("returns a single lens for a single-strategy proposal, carrying its checklist + verdict", () => {
+describe("buildProposalLenses — single-lens", () => {
+  it("derives one lens from the top-level fields, with its checklist", () => {
     const p = makeProposal({ strategy: "value", redTeam: verdict("concern") });
     const lenses = buildProposalLenses(p);
     expect(lenses).toHaveLength(1);
     expect(lenses[0].strategy).toBe("value");
     expect(lenses[0].redTeam?.verdict).toBe("concern");
-    // The checklist is the value mandate's (reframed labels).
+    expect(lenses[0].thesis).toBe("t");
     expect(
       lenses[0].checklist.some((c) =>
         c.label.includes("Mean-reversion stop below support"),
@@ -50,36 +80,67 @@ describe("buildProposalLenses", () => {
     ).toBe(true);
   });
 
-  it("derives the trend checklist for a trend proposal", () => {
-    const lenses = buildProposalLenses(makeProposal({ strategy: "trend" }));
-    expect(lenses[0].strategy).toBe("trend");
-    expect(lenses[0].checklist.some((c) => c.label === "Volume confirms")).toBe(
-      true,
-    );
-  });
-
-  it("is single-lens today (isDualLens false)", () => {
+  it("is not dual", () => {
     expect(isDualLens(buildProposalLenses(makeProposal()))).toBe(false);
   });
 });
 
-describe("dual-lens helpers (forward-compatible)", () => {
-  const dual: ProposalLens[] = [
-    { strategy: "trend", redTeam: verdict("reject"), checklist: [] },
-    { strategy: "value", redTeam: verdict("concern"), checklist: [] },
-  ];
-
-  it("flags a two-lens analysis as dual", () => {
-    expect(isDualLens(dual)).toBe(true);
+describe("buildProposalLenses — dual-lens (manual analyze)", () => {
+  const p = makeProposal({
+    strategy: "value",
+    lenses: [lens("trend"), lens("value")],
   });
 
-  it("renders a glanceable dual-verdict summary", () => {
-    expect(dualVerdictSummary(dual)).toBe("Trend: reject · Value: concern");
+  it("returns one view per lens, each with its own checklist + verdict", () => {
+    const lenses = buildProposalLenses(p);
+    expect(lenses.map((l) => l.strategy)).toEqual(["trend", "value"]);
+    // Trend lens has the breakout-volume item; value lens does not.
+    const trend = lenses[0];
+    const value = lenses[1];
+    expect(trend.checklist.some((c) => c.label === "Volume confirms")).toBe(true);
+    expect(value.checklist.some((c) => c.label === "Volume confirms")).toBe(
+      false,
+    );
+    expect(trend.redTeam?.verdict).toBe("reject");
+    expect(value.redTeam?.verdict).toBe("concern");
   });
 
-  it("reads an un-judged lens as 'not run'", () => {
+  it("is dual + summarizes both verdicts at a glance", () => {
+    const lenses = buildProposalLenses(p);
+    expect(isDualLens(lenses)).toBe(true);
+    expect(dualVerdictSummary(lenses)).toBe("Trend: reject · Value: concern");
+  });
+});
+
+describe("proposalBreakdowns", () => {
+  it("returns the persisted lenses when dual, the synthetic top-level lens when single", () => {
     expect(
-      dualVerdictSummary([{ strategy: "trend", redTeam: null, checklist: [] }]),
-    ).toBe("Trend: not run");
+      proposalBreakdowns(makeProposal({ lenses: [lens("trend"), lens("value")] })),
+    ).toHaveLength(2);
+    expect(proposalBreakdowns(makeProposal())).toHaveLength(1);
+  });
+});
+
+describe("resolveActiveLens", () => {
+  const p = makeProposal({
+    strategy: "value", // active default
+    lenses: [
+      lens("trend", { limitPrice: 51 }),
+      lens("value", { limitPrice: 49 }),
+    ],
+  });
+
+  it("picks the lens matching the requested acting strategy", () => {
+    expect(resolveActiveLens(p, "trend").limitPrice).toBe(51);
+    expect(resolveActiveLens(p, "value").limitPrice).toBe(49);
+  });
+
+  it("falls back to the proposal's active strategy when none requested", () => {
+    expect(resolveActiveLens(p).strategy).toBe("value");
+  });
+
+  it("returns the lone top-level lens for a single-lens proposal", () => {
+    const single = makeProposal({ strategy: "trend" });
+    expect(resolveActiveLens(single, "value").strategy).toBe("trend");
   });
 });

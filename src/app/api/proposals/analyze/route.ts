@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
-  let body: { symbol?: string; strategy?: string };
+  let body: { symbol?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -25,12 +25,11 @@ export async function POST(req: Request): Promise<Response> {
   if (!symbol) {
     return Response.json({ error: "symbol is required" }, { status: 400 });
   }
-  // The lens the human picked (value-sleeve M1). Anything but "value" is the
-  // default trend mandate — never trust the client to widen scope.
-  const strategy = body.strategy === "value" ? "value" : "trend";
 
+  // Dual-lens (M1): analyze runs BOTH the trend and value mandates and produces
+  // one proposal holding both breakdowns — no lens to pick.
   const account = await getViewMode(); // "paper" | "live"
-  const result = await analyzeSymbol(symbol, { account, strategy });
+  const result = await analyzeSymbol(symbol, { account });
 
   if (!result.ok) {
     const status =
@@ -50,9 +49,11 @@ export async function POST(req: Request): Promise<Response> {
     proposalId: result.proposal.id,
     symbol: result.proposal.symbol,
     account: result.proposal.account,
-    strategy: result.proposal.strategy,
-    convictionTier: result.proposal.convictionTier,
-    verdict: result.redTeam.verdict,
+    // Both lens verdicts at a glance (dual-lens M1): [{ strategy, verdict }, …].
+    lenses: result.proposal.lenses.map((l) => ({
+      strategy: l.strategy,
+      verdict: l.redTeam?.verdict ?? null,
+    })),
     railsOk: result.risk.ok,
     railViolations: result.risk.violations.map((v) => ({
       rule: v.rule,
