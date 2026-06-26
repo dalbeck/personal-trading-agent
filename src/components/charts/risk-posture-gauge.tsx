@@ -5,8 +5,9 @@ import type { PostureLevel } from "@/lib/risk-posture";
  * fills to the score via `stroke-dasharray` on a `pathLength={100}` path, a
  * glowing indicator dot riding the arc at the reading, and the score + level
  * read out in the center well. Driven entirely by `score` (0–100), so the same
- * component renders the full and compact variants. Pure SVG + an HTML overlay
- * for the numbers (Inter `tabular-nums` — serif never on data).
+ * component renders the full and compact variants. Pure SVG + an HTML overlay;
+ * the headline score is the **serif** display voice (Fraunces), the level label
+ * stays sans (see `.agents/design-system.md` → Type).
  *
  * Accessible: `role="img"` with a full text-equivalent label; the visible
  * readout repeats it. The fill has a ≤200ms transition that reduced-motion
@@ -110,7 +111,7 @@ export function RiskPostureGauge({
         }`}
       >
         <span
-          className={`font-semibold leading-none tabular-nums text-fg ${
+          className={`font-serif font-semibold leading-none tabular-nums text-fg ${
             compact ? "text-2xl" : "text-[2.75rem]"
           }`}
         >

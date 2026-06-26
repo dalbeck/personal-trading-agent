@@ -39,7 +39,9 @@ export function HeroCard({
 /**
  * The hero's primary figure: a muted label + a large two-tone number (cents
  * de-emphasized) + an optional delta pill and trailing slot (e.g. a sparkline).
- * Numbers stay sans `tabular-nums` — serif never touches data.
+ * The big display figure renders in the **serif** voice (Fraunces) — large
+ * editorial numbers carry the headline; dense/aligned data-grid numbers stay
+ * sans `tabular-nums` (see `.agents/design-system.md` → Type).
  */
 export function HeroMetric({
   label,
@@ -63,7 +65,7 @@ export function HeroMetric({
         {label}
       </span>
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-        <p className="text-[2.5rem] font-semibold leading-none tabular-nums md:text-[2.75rem]">
+        <p className="font-serif text-[2.5rem] font-semibold leading-none tabular-nums md:text-[2.75rem]">
           <span className={numberTone[tone]}>{primary}</span>
           {secondary ? <span className="text-fg-subtle">{secondary}</span> : null}
         </p>
@@ -102,7 +104,7 @@ export function HeroStat({
         {label}
       </span>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <p className="text-lg font-semibold leading-none tabular-nums">
+        <p className="font-serif text-lg font-semibold leading-none tabular-nums">
           <span className={numberTone[tone]}>{primary}</span>
           {secondary ? (
             <span className="text-fg-subtle">{secondary}</span>
