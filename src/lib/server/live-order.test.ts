@@ -4,7 +4,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HARNESS_ORDER_PERMISSIONS } from "./gate";
 import {
+  approvalIsBlocked,
   buildPlaceOrderCliCommand,
+  evaluateApprovalBlocks,
   hasValidOverride,
   placeLiveOrder,
   routeApprovedOrder,
@@ -418,6 +420,77 @@ describe("per-trade approval", () => {
     );
     expect(body).toMatch(/routed to robinhood/);
     expect(body).not.toMatch(/dry-run sink/);
+  });
+});
+
+describe("stale-levels guard at approval (fresh-entry-levels M1)", () => {
+  const CALM = { spyIntradayChangePct: 0, vix: 15 };
+
+  it("flags staleLevels when the entry has drifted from the current quote", async () => {
+    const gate = await closedGate();
+    const blocks = await evaluateApprovalBlocks(ORDER, {
+      ...gate,
+      snapshot: null, // skip the rail block — isolate the staleness guard
+      market: CALM,
+      quoteOf: async () => 90, // entry 100 vs quote 90 → −10% drift
+    });
+    expect(blocks.staleLevels).not.toBeNull();
+    expect(blocks.staleLevels?.quote).toBe(90);
+    expect(blocks.staleLevels?.driftPct).toBeCloseTo(-0.1);
+    expect(approvalIsBlocked(blocks)).toBe(true);
+  });
+
+  it("is not stale within the threshold, and never stale without a quote", async () => {
+    const gate = await closedGate();
+    const fresh = await evaluateApprovalBlocks(ORDER, {
+      ...gate,
+      snapshot: null,
+      market: CALM,
+      quoteOf: async () => 100.5, // 0.5% drift < 1.5%
+    });
+    expect(fresh.staleLevels).toBeNull();
+
+    const noQuote = await evaluateApprovalBlocks(ORDER, {
+      ...gate,
+      snapshot: null,
+      market: CALM,
+      quoteOf: async () => null, // fail-soft
+    });
+    expect(noQuote.staleLevels).toBeNull();
+  });
+
+  it("blocks approval on stale levels and is NOT cleared by an override comment", async () => {
+    const gate = await closedGate();
+    const res = await submitTradeApproval(
+      {
+        order: ORDER,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+        // Even WITH a valid override comment, stale levels still block — the only
+        // remedy is a re-anchor ("Refresh levels").
+        override: { comment: "I really want this fill." },
+      },
+      { ...gate, snapshot: null, market: CALM, quoteOf: async () => 88, mockOrderId: "mock-stale" },
+    );
+    expect(res.outcome).toBe("blocked-stale");
+    expect(res.brokerOrderId).toBeUndefined();
+    const files = await journalFiles(gate.dataDir);
+    expect(files.some((f) => f.includes("rejection"))).toBe(true);
+  });
+
+  it("lets a fresh-priced order through the staleness guard", async () => {
+    const gate = await closedGate();
+    const res = await submitTradeApproval(
+      {
+        order: ORDER,
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      { ...gate, snapshot: null, market: CALM, quoteOf: async () => 100, mockOrderId: "mock-fresh" },
+    );
+    expect(res.outcome).toBe("approved");
   });
 });
 

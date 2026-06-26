@@ -37,6 +37,11 @@ export interface BuildManualProposalInput {
   symbol: string;
   /** Daily OHLCV bars, oldest → newest (Alpaca). */
   bars: Ohlc[];
+  /** The **current** Alpaca quote (fresh-entry-levels M1) — the entry/stop/target/
+   *  sizing anchor. A marketable-limit entry sits at/near the live quote, never a
+   *  stale daily-bar close. Falls back to the last bar close when absent or
+   *  non-positive (older callers, no live quote). */
+  quote?: number | null;
   /** Active book equity the position is sized against. */
   equity: number;
   /** Which mandate the human is analyzing under (value-sleeve M1). `trend`
@@ -83,7 +88,11 @@ export function buildManualProposalDraft(
   const { bars, equity } = input;
   if (bars.length < MIN_BARS || !(equity > 0)) return null;
 
-  const entry = bars[bars.length - 1].c;
+  // Anchor to the CURRENT quote (fresh-entry-levels M1) so the stop / target /
+  // R:R / sizing are computed off the live price, not a stale daily-bar close.
+  // Fall back to the last close when no live quote is supplied.
+  const lastClose = bars[bars.length - 1].c;
+  const entry = input.quote && input.quote > 0 ? input.quote : lastClose;
   if (!(entry > 0)) return null;
 
   const closes = bars.map((b) => b.c);

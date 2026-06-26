@@ -184,6 +184,24 @@ proposals come from the manual analyze-a-symbol **lens** picker (`strategy` in
 the `POST /api/proposals/analyze` body) and, when enabled, the discovery run (see
 `valueSleeveEnabled` below). Defaults to `trend` so older records still validate.
 
+**Proposal `pricedAt` (fresh-entry-levels M1).** A `TradeProposal` carries
+**`pricedAt`** (ISO datetime, nullable) — when the levels (entry/stop/target/
+sizing) were **anchored to the live Alpaca quote**. The manual analyze pipeline
+anchors the entry to the *current* quote (`getLatestPrice`, snapshot→last-bar
+fallback) rather than a stale daily-bar close, so the stop / reward-risk / sizing
+are computed off the price the market is actually at; both lenses share the one
+quote. Set to `createdAt` at analysis and **updated on a "Refresh levels"
+re-anchor** (`refreshProposalLevels` → `overwriteProposal`, same id/file — it
+recomputes every lens off a fresh quote and re-runs each red-team, but spends no
+new metered research). It drives the **levels-freshness indicator** ("levels as
+of … · price now $X") and the **approval staleness guard**: at approval the entry
+is compared to the current quote and an order whose entry has drifted beyond
+`STALE_DRIFT_THRESHOLD` (1.5%) is **blocked until refreshed** — a correctness gate
+that, unlike a rail/red-team block, is **not** clearable by an override comment
+(`src/lib/price-freshness.ts`, `src/lib/server/live-order.ts`). Null for older
+records → the UI falls back to `createdAt`. Defaults to null so older records
+still validate.
+
 **Proposal `lenses` (dual-lens M1).** A **manual** analyze-a-symbol proposal is
 evaluated under **both** the trend and value mandates and carries **both**
 breakdowns in **`lenses`** (an array of `ProposalLensSchema`: per-lens

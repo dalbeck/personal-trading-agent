@@ -6,6 +6,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
+import { ProposalLevelsFreshness } from "@/components/proposal-levels-freshness";
 import { ProposalActions } from "@/components/proposal-actions";
 import { CheckIcon, FlagIcon, ChevronRightIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -278,13 +279,20 @@ export function ProposalDetailView({
                 : undefined
             }
           >
+            <ProposalLevelsFreshness
+              proposalId={p.id}
+              symbol={p.symbol}
+              entry={lens.limitPrice}
+              pricedAt={p.pricedAt}
+              createdAt={p.createdAt}
+            />
             <RiskRewardBar
               action={p.action}
               entry={lens.limitPrice}
               stop={lens.stopPrice}
               target={lens.takeProfit}
               confidence={lens.confidence}
-              className="mb-1"
+              className="mb-1 mt-1"
             />
             <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <MathRow

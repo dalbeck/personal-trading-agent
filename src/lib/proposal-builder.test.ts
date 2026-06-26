@@ -40,6 +40,41 @@ describe("buildManualProposalDraft", () => {
     expect(rr).toBeGreaterThanOrEqual(1.99);
   });
 
+  it("anchors entry/stop/target/sizing to the current quote, not the last bar close (fresh-levels M1)", () => {
+    const bars = ramp(60, 50, 1); // last close = 109
+    // The market has since traded down to 102 — the entry must follow the quote.
+    const draft = buildManualProposalDraft({
+      symbol: "TEST",
+      bars,
+      equity: 10_000,
+      quote: 102,
+    });
+    expect(draft).not.toBeNull();
+    if (!draft) return;
+    expect(draft.limitPrice).toBeCloseTo(102, 6);
+    // Stop + sizing are computed off the live anchor, not the stale 109.
+    expect(draft.stopPrice as number).toBeLessThan(102);
+    const riskPerShare = 102 - (draft.stopPrice as number);
+    expect(draft.qty * riskPerShare).toBeLessThanOrEqual(10_000 * 0.02 + 1e-6);
+  });
+
+  it("falls back to the last bar close when no live quote is given", () => {
+    const bars = ramp(60, 50, 1);
+    const draft = buildManualProposalDraft({ symbol: "TEST", bars, equity: 10_000 });
+    expect(draft?.limitPrice).toBeCloseTo(109, 6);
+  });
+
+  it("ignores a non-positive quote and falls back to the last close", () => {
+    const bars = ramp(60, 50, 1);
+    const draft = buildManualProposalDraft({
+      symbol: "TEST",
+      bars,
+      equity: 10_000,
+      quote: 0,
+    });
+    expect(draft?.limitPrice).toBeCloseTo(109, 6);
+  });
+
   it("sizes stop-first within the 2% risk and 20% size caps", () => {
     const bars = ramp(60, 50, 1);
     const draft = buildManualProposalDraft({
