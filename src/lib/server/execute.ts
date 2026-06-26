@@ -48,6 +48,9 @@ export interface ExecutableProposal {
   sector?: string | null;
   /** How the profit target is anchored (M3); the red-team flags a weak one. */
   targetType?: string | null;
+  /** Relative volume = entry-day volume ÷ trailing average (M2); a soft signal
+   *  the red-team weighs. */
+  relativeVolume?: number | null;
 }
 
 export type PlaceOrder = (
@@ -128,6 +131,7 @@ export async function executeProposal(
       stopPrice: proposal.stopPrice,
       takeProfit: proposal.takeProfit,
       targetType: proposal.targetType ?? null,
+      relativeVolume: proposal.relativeVolume ?? null,
       thesis: proposal.thesis,
       reasoning: proposal.reasoning,
       research: proposal.research,

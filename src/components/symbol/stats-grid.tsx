@@ -8,6 +8,7 @@ import {
 } from "@/lib/format";
 import { RESEARCH_PROVIDER_LABEL, RESEARCH_PROVIDER_SHORT } from "@/lib/research-display";
 import type { SymbolQuote } from "@/lib/symbol";
+import { formatRelativeVolume } from "@/lib/volume";
 import type { ResearchOrigin } from "@/lib/server/research/types";
 import { useSymbolResearch } from "@/components/symbol/research-context";
 
@@ -153,6 +154,15 @@ export function SymbolStatsGrid({ quote }: { quote: SymbolQuote | null }) {
         <Cell
           label="Volume"
           value={quote?.volume == null ? "—" : formatCompactNumber(quote.volume)}
+          source="alpaca"
+        />
+        <Cell
+          label="Rel. volume"
+          value={
+            quote?.relativeVolume == null
+              ? "—"
+              : formatRelativeVolume(quote.relativeVolume)
+          }
           source="alpaca"
         />
       </dl>

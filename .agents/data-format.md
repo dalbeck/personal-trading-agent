@@ -113,6 +113,17 @@ weak** by the checklist/red-team, not hard-blocked. `sector` feeds the
 fire for that name (fails open). Both default to `null` so older records still
 validate.
 
+**Proposal `relativeVolume` (M2 volume check).** A `TradeProposal` also carries
+`relativeVolume` (nullable number) — the **entry-day volume ÷ the trailing
+20–50-day average** (`computeRelativeVolume` in `src/lib/volume.ts`). It is a
+**volume confirmation**: a breakout/momentum entry wants **above-average**
+volume (≥ ~1.3×), a pullback/reset entry wants **below-average** volume. A
+**soft signal** the checklist + red-team weigh (never a hard rail); it is
+surfaced on the proposal card and the symbol view (Rel. volume). `null` when
+unknown or history is too thin to be meaningful (older records, illiquid names)
+— rendered as "—", never a fabricated figure. Defaults to `null` so older
+records still validate.
+
 **Red-team verdict (structured rationale).** The prosecutor's verdict on a
 proposal is **structured, not one text blob** (`RedTeamVerdictSchema` in
 `src/lib/schemas.ts`):

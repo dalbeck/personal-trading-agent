@@ -55,6 +55,8 @@ export interface SymbolQuote {
   dayLow: number | null;
   prevClose: number | null;
   volume: number | null;
+  /** Relative volume = latest day ÷ trailing average (M2); null when unknown. */
+  relativeVolume: number | null;
   week52High: number | null;
   week52Low: number | null;
   asOf: string | null;

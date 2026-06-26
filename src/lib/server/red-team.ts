@@ -26,6 +26,9 @@ export interface RedTeamProposal {
   /** How the target is anchored (M3). An `analyst_price` or unspecified target is
    *  weak — the prosecutor is told to flag it. */
   targetType?: string | null;
+  /** Relative volume = entry-day volume ÷ trailing average (M2). A soft volume
+   *  confirmation the prosecutor weighs; null/absent when unknown. */
+  relativeVolume?: number | null;
   thesis: string;
   reasoning?: string;
   research?: string;
@@ -46,9 +49,11 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     `- Side/Action: ${p.action} ${p.side}`,
     `- Qty: ${p.qty} @ limit ${p.limitPrice}`,
     `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"} (${p.targetType ?? "unspecified"})`,
+    `- Relative volume: ${p.relativeVolume != null ? `${p.relativeVolume.toFixed(2)}x avg` : "unknown"}`,
     `- Thesis: ${p.thesis}`,
   ];
   lines.push(
+    "VOLUME CONFIRMATION (soft signal — weigh it, do not treat as a hard rail): a breakout/momentum entry should come on ABOVE-AVERAGE relative volume (~1.3x or more); a pullback/reset entry should come on DECLINING / below-average volume. Relative volume well below 1x on a breakout, or a volume spike on a pullback, is a weakness — call it out in the Entry factor. Unknown volume is not itself a strike, but a breakout claim with no volume confirmation is weaker.",
     "This is a TECHNICAL trend-following desk. The thesis must be PRIMARILY technical (trend, momentum, relative strength, volume, price structure). If the primary rationale is fundamental or valuation ('cheap', 'undervalued', 'earnings growth', 'analyst upgrade') rather than price/trend evidence, it is OUT OF MANDATE — penalize it in the Edge factor and lean toward reject or concern. Fundamentals are only a catalyst-check / disqualifier, never the primary reason to enter.",
     "A target anchored to a sell-side analyst_price — or left unspecified — is WEAK (the desk is borrowing someone else's number, not its own thesis); call it out in the Target factor.",
   );

@@ -17,6 +17,7 @@ import {
   type SymbolQuote,
   type SymbolRange,
 } from "@/lib/symbol";
+import { computeRelativeVolume } from "@/lib/volume";
 
 /**
  * Resolver for the `/symbol/[ticker]` view. Mirrors the account resolver's
@@ -88,6 +89,7 @@ export function mapSnapshotToQuote(
   symbol: string,
   snap: AlpacaSnapshot,
   week: { high: number | null; low: number | null },
+  relativeVolume: number | null = null,
 ): SymbolQuote {
   const daily = snap.dailyBar;
   const prevClose = snap.prevDailyBar?.c ?? null;
@@ -106,6 +108,7 @@ export function mapSnapshotToQuote(
     dayLow: daily?.l ?? null,
     prevClose,
     volume: daily?.v ?? null,
+    relativeVolume,
     week52High: week.high,
     week52Low: week.low,
     asOf: snap.latestTrade?.t ?? daily?.t ?? null,
@@ -120,6 +123,7 @@ export function quoteFromDailyBars(
   symbol: string,
   bars: AlpacaOhlcBar[],
   week: { high: number | null; low: number | null },
+  relativeVolume: number | null = null,
 ): SymbolQuote | null {
   if (bars.length === 0) return null;
   const last = bars[bars.length - 1];
@@ -136,6 +140,7 @@ export function quoteFromDailyBars(
     dayLow: last.l,
     prevClose,
     volume: last.v,
+    relativeVolume,
     week52High: week.high,
     week52Low: week.low,
     asOf: last.t,
@@ -213,11 +218,15 @@ export async function getSymbolDetail(
 
   const yearBars = yearRes.status === "fulfilled" ? yearRes.value : [];
   const week = week52Range(yearBars);
+  // Relative volume from the trailing daily series (M2). Null when history is
+  // too thin to be meaningful — surfaced as "—", never a fabricated figure.
+  const relativeVolume =
+    computeRelativeVolume(yearBars.map((b) => b.v))?.ratio ?? null;
 
   const snap = snapRes.status === "fulfilled" ? snapRes.value : null;
   const quote = snap
-    ? mapSnapshotToQuote(symbol, snap, week)
-    : quoteFromDailyBars(symbol, yearBars, week);
+    ? mapSnapshotToQuote(symbol, snap, week, relativeVolume)
+    : quoteFromDailyBars(symbol, yearBars, week, relativeVolume);
 
   const news = newsRes.status === "fulfilled" ? mapNews(newsRes.value) : [];
 

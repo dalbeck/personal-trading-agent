@@ -190,6 +190,11 @@ export const TradeProposalSchema = z
     // GICS sector for the concentration rail; null when unknown. Resolved from
     // research at proposal time so the rail can see correlated names.
     sector: z.string().nullable().default(null),
+    // Relative volume = entry-day volume ÷ the trailing average (M2). A volume
+    // confirmation: breakouts want above-average (≥ ~1.3×), pullbacks want
+    // below-average. Soft signal weighed by the checklist/red-team, not a rail.
+    // Null when unknown/insufficient history (older records, thin names).
+    relativeVolume: z.number().nonnegative().nullable().default(null),
     riskPct: ratio,
     confidence: z.number().min(0).max(1).nullable().default(null),
     thesis: z.string().min(1),
