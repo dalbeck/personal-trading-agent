@@ -22,7 +22,7 @@ export function RedTeamVerdict({
   return (
     <section
       aria-label="Codex red-team verdict"
-      className={`rounded-card border border-line bg-surface-overlay p-4 ${className}`}
+      className={`rounded-card border border-l-4 p-4 ${style.callout} ${className}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">

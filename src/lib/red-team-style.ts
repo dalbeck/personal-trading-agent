@@ -12,19 +12,24 @@ import type { RedTeamFactor, RedTeamVerdict } from "@/lib/types";
  */
 export const redTeamVerdictStyle: Record<
   RedTeamVerdict["verdict"],
-  { label: string; className: string }
+  { label: string; className: string; callout: string }
 > = {
   approve: {
     label: "Approve",
     className: "border-success-border bg-success-surface text-success",
+    // Callout block (proposal card / dialog): a verdict-tinted surface with a
+    // colored left rail so the red-team reads as a distinct zone, not body copy.
+    callout: "border-success-border border-l-success bg-success-surface/40",
   },
   concern: {
     label: "Concern",
     className: "border-warning-border bg-warning-surface text-warning",
+    callout: "border-warning-border border-l-warning bg-warning-surface/40",
   },
   reject: {
     label: "Reject",
     className: "border-danger-border bg-danger-surface text-danger",
+    callout: "border-danger-border border-l-danger bg-danger-surface/40",
   },
 };
 
