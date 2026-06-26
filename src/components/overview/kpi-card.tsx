@@ -63,7 +63,7 @@ export function KpiCard({
         ) : null}
       </div>
 
-      <p className="text-[1.75rem] font-semibold leading-none tabular-nums">
+      <p className="font-serif text-[1.75rem] font-semibold leading-none tabular-nums">
         <span className={numberTone[tone]}>{primary}</span>
         {secondary ? (
           <span className="text-fg-subtle">{secondary}</span>
