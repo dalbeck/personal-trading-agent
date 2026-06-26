@@ -459,6 +459,17 @@ export interface AdvisoryProposalInput {
   reasoning: string;
   redTeam?: TradeProposal["redTeam"];
   reviewByDate?: string | null;
+  // Optional author-set fields (M1/M2). All schema-backed + default null, so a
+  // caller may carry them through without re-validating: the proposal's GICS
+  // sector + target anchoring, the relative-volume read, the named catalyst, and
+  // the conviction ranking.
+  targetType?: TradeProposal["targetType"];
+  sector?: string | null;
+  relativeVolume?: number | null;
+  catalyst?: string | null;
+  catalystType?: TradeProposal["catalystType"];
+  convictionScore?: number | null;
+  convictionTier?: TradeProposal["convictionTier"];
 }
 
 /**
@@ -504,6 +515,35 @@ export async function recordApprovableLiveProposal(
     side: input.side ?? "long",
     account: "live",
     advisory: false,
+    status: "pending",
+  });
+  const dir = path.join(dataRoot(opts), "proposals");
+  const file = await uniquePath(dir, input.id, ".json");
+  await writeStructured(file, TradeProposalSchema, proposal);
+  return { id: input.id, file };
+}
+
+/**
+ * Emit a **manual-request** proposal (Phase 3 M2) — a review candidate produced
+ * by the on-demand "analyze a symbol" pipeline for a human-entered ticker. It is
+ * stamped `origin: "manual-request"`, `status: "pending"`, and validated. The
+ * `account` and `advisory` flags are passed by the caller so it works per book:
+ * a **paper** request is a normal paper proposal; a **live** request is approvable
+ * (`advisory: false`) and flows the same gated approval path (gate closed →
+ * dry-run sink). A manual pick is **never** rubber-stamped — the route runs the
+ * risk rails + red-team over it before this writes the verdict in `redTeam`.
+ */
+export async function recordManualProposal(
+  input: AdvisoryProposalInput,
+  meta: { account: "paper" | "live"; advisory?: boolean },
+  opts?: { dataDir?: string },
+): Promise<WriteResult> {
+  const proposal = TradeProposalSchema.parse({
+    ...input,
+    side: input.side ?? "long",
+    account: meta.account,
+    advisory: meta.advisory ?? false,
+    origin: "manual-request",
     status: "pending",
   });
   const dir = path.join(dataRoot(opts), "proposals");

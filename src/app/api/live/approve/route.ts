@@ -109,6 +109,11 @@ export async function POST(req: Request): Promise<Response> {
         relativeVolume: proposal.relativeVolume,
         catalyst: proposal.catalyst,
         catalystType: proposal.catalystType,
+        // Carry the proposal's origin into the journal: an on-demand
+        // analyze-a-symbol pick is tagged `manual-request` on the recorded
+        // decision (M2), so the coaching/journal can tell it apart later.
+        tags:
+          proposal.origin === "manual-request" ? ["manual-request"] : undefined,
       },
     });
   } catch (err) {

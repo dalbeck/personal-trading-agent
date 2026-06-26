@@ -1,3 +1,4 @@
+import { AnalyzeSymbolForm } from "@/components/analyze-symbol-form";
 import { ViewingBadge } from "@/components/mode-scope";
 import { ProposalsList } from "@/components/proposals-list";
 import { Card, PageTitle } from "@/components/page-shell";
@@ -44,6 +45,9 @@ export default async function ProposalsPage() {
             ? "Proposals for the live account — approve to place"
             : "Proposals for the paper desk"}
         </span>
+      </div>
+      <div className="mb-4">
+        <AnalyzeSymbolForm mode={mode} />
       </div>
       <SampleDataBanner show={anySample(proposals)} />
       {proposals.length === 0 ? (
