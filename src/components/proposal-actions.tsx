@@ -58,6 +58,9 @@ interface PrecheckResult {
   redTeamNotes: string | null;
   railViolations: Violation[];
   capViolations: Violation[];
+  /** Stale-levels guard (fresh-entry-levels M1): the entry has drifted from the
+   *  live quote. Cleared by re-anchoring ("Refresh levels"), never by an override. */
+  staleLevels: { entry: number; quote: number; driftPct: number } | null;
   liveEnabled: boolean;
   blocked: boolean;
 }
@@ -183,6 +186,26 @@ export function ProposalActions({
     })();
   }
 
+  // Re-anchor the levels to the current quote (fresh-entry-levels M1), then close
+  // the dialog and re-render so the human approves on FRESH levels. The staleness
+  // guard is refresh-only — it is never cleared by an override comment.
+  function refreshLevelsAndClose() {
+    if (busy) return;
+    setBusy(true);
+    void (async () => {
+      try {
+        await fetch(
+          `/api/proposals/${encodeURIComponent(p.id)}/refresh-levels`,
+          { method: "POST" },
+        );
+        router.refresh();
+      } finally {
+        setBusy(false);
+        setConfirming(false);
+      }
+    })();
+  }
+
   const rr = computeRiskReward({
     action: p.action,
     entry: al.limitPrice,
@@ -192,8 +215,14 @@ export function ProposalActions({
   const conf = al.confidence === null ? null : confidenceBucket(al.confidence);
   const blocks = precheck.result;
   const blocked = blocks?.blocked ?? false;
+  // Stale levels are a refresh-only gate: an override comment can't clear them.
+  const stale = blocks?.staleLevels ?? null;
   const overrideReady = overrideComment.trim().length > 0;
-  const confirmBlocked = busy || precheck.loading || (blocked && !overrideReady);
+  // When stale, the only action is "Refresh levels" (always enabled); otherwise
+  // the normal busy / loading / override-required gating applies.
+  const confirmBlocked = stale
+    ? busy
+    : busy || precheck.loading || (blocked && !overrideReady);
 
   return (
     <div className="flex flex-col gap-3">
@@ -297,17 +326,23 @@ export function ProposalActions({
         confirmLabel={
           busy
             ? "Routing…"
-            : precheck.loading
-              ? "Checking rails…"
-              : blocked
-                ? "Override & approve"
-                : liveEnabled
-                  ? "Approve — place LIVE order"
-                  : "Approve (dry-run)"
+            : stale
+              ? "Refresh levels"
+              : precheck.loading
+                ? "Checking rails…"
+                : blocked
+                  ? "Override & approve"
+                  : liveEnabled
+                    ? "Approve — place LIVE order"
+                    : "Approve (dry-run)"
         }
-        confirmVariant={blocked || liveEnabled ? "danger" : "primary"}
+        confirmVariant={stale ? "primary" : blocked || liveEnabled ? "danger" : "primary"}
         confirmDisabled={confirmBlocked}
-        onConfirm={() => decide("approve", blocked ? overrideComment : undefined)}
+        onConfirm={() =>
+          stale
+            ? refreshLevelsAndClose()
+            : decide("approve", blocked ? overrideComment : undefined)
+        }
         onDismiss={() => setConfirming(false)}
       >
         <div className="flex flex-col gap-4">
@@ -375,11 +410,27 @@ export function ProposalActions({
 
           {al.redTeam ? <RedTeamVerdict verdict={al.redTeam} /> : null}
 
+          {stale ? (
+            <div className="rounded-card border border-warning/40 bg-warning-surface p-4">
+              <p className="text-sm font-semibold text-warning">
+                Stale levels — the entry has drifted{" "}
+                {formatPercent(stale.driftPct)} from the live quote{" "}
+                {formatCurrency(stale.quote)}.
+              </p>
+              <p className="mt-1 text-sm text-warning">
+                The stop, reward/risk, and sizing were computed off{" "}
+                {formatCurrency(stale.entry)} — a price the market has left.
+                Re-anchor the levels before approving; this isn&apos;t something
+                an override should wave through.
+              </p>
+            </div>
+          ) : null}
+
           {precheck.loading ? (
             <p className="text-sm text-fg-muted">
               Checking the risk rails and red-team…
             </p>
-          ) : blocked && blocks ? (
+          ) : blocked && blocks && !stale ? (
             <div className="rounded-card border border-danger-border bg-danger-surface p-4">
               <p className="text-sm font-semibold text-danger">
                 This order is blocked by a safeguard. Overriding is a deliberate,

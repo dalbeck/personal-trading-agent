@@ -78,6 +78,9 @@ export async function POST(req: Request): Promise<Response> {
     redTeamNotes: blocks.redTeam?.notes ?? null,
     railViolations: blocks.railViolations,
     capViolations: blocks.capViolations,
+    // Stale-levels guard (fresh-entry-levels M1): the entry has drifted from the
+    // live quote; the remedy is a "Refresh levels" re-anchor, not an override.
+    staleLevels: blocks.staleLevels,
     liveEnabled: blocks.liveEnabled,
     blocked: approvalIsBlocked(blocks),
   });

@@ -1,10 +1,6 @@
 import "server-only";
 
-import {
-  getStockBars,
-  getStockSnapshot,
-  hasAlpacaCredentials,
-} from "@/lib/server/alpaca";
+import { getLatestPrice, hasAlpacaCredentials } from "@/lib/server/alpaca";
 import type { PortfolioSnapshot, Position } from "@/lib/types";
 
 /**
@@ -23,24 +19,6 @@ import type { PortfolioSnapshot, Position } from "@/lib/types";
  */
 export type MarkGetter = (symbol: string) => Promise<number | null>;
 
-/** Resolve a symbol's current mark from Alpaca: snapshot first, then the last
- *  daily bar close (robust when the market is closed). Null if nothing is
- *  available; throws are swallowed by the caller (per-symbol best-effort). */
-async function alpacaMark(symbol: string): Promise<number | null> {
-  try {
-    const snap = await getStockSnapshot(symbol);
-    const live =
-      snap.latestTrade?.p ?? snap.dailyBar?.c ?? snap.prevDailyBar?.c ?? null;
-    if (live != null) return live;
-  } catch {
-    /* fall through to bars */
-  }
-  // After-hours / thin IEX snapshot → use the most recent daily close.
-  const start = new Date(Date.now() - 12 * 86_400_000).toISOString();
-  const bars = await getStockBars(symbol, { timeframe: "1Day", start });
-  return bars.at(-1)?.c ?? null;
-}
-
 function repriced(p: Position, last: number): Position {
   const marketValue = p.qty * last;
   const unrealizedPl = marketValue - p.costBasis;
@@ -57,7 +35,7 @@ export async function enrichLivePositions(
   snapshot: PortfolioSnapshot,
   opts?: { getMark?: MarkGetter },
 ): Promise<PortfolioSnapshot> {
-  const getMark = opts?.getMark ?? alpacaMark;
+  const getMark = opts?.getMark ?? getLatestPrice;
   // No price source → return as-is (honest: better a blank mark than a fake one).
   if (!opts?.getMark && !hasAlpacaCredentials()) return snapshot;
   if (snapshot.positions.length === 0) return snapshot;

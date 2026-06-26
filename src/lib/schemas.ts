@@ -317,6 +317,12 @@ export const TradeProposalSchema = z
     // (discovery candidates, older manual records) — the top-level fields are the
     // lone lens. Discovery stays single-lens; only manual analyze is dual.
     lenses: z.array(ProposalLensSchema).default([]),
+    // When the levels (entry/stop/target/sizing) were anchored to the live Alpaca
+    // quote (fresh-entry-levels M1). Set at analysis and updated on a "Refresh
+    // levels" re-anchor; drives the "levels as of …" freshness indicator and the
+    // approval staleness guard (entry vs the current quote). Null for older
+    // records → the UI falls back to `createdAt`.
+    pricedAt: isoDateTime.nullable().default(null),
     reviewByDate: isoDate.nullable().default(null),
     // Seeded/demo content. Live records written by the routines/scout omit this
     // (or set it false). Any view rendering a sample record flags it so demo

@@ -11,7 +11,12 @@ import {
   type Violation,
 } from "@/lib/risk";
 import type { PortfolioSnapshot, RedTeamVerdict } from "@/lib/types";
-import { hasAlpacaCredentials, placePaperOrder } from "./alpaca";
+import {
+  computePriceDrift,
+  isStaleEntry,
+  STALE_DRIFT_THRESHOLD,
+} from "@/lib/price-freshness";
+import { getLatestPrice, hasAlpacaCredentials, placePaperOrder } from "./alpaca";
 import { readLatestSnapshot } from "./data";
 import {
   assertLiveOrderAllowed,
@@ -279,6 +284,7 @@ export type ApprovalOutcome =
   | "blocked-risk"
   | "blocked-caps"
   | "blocked-redteam"
+  | "blocked-stale"
   | "error";
 
 export interface ApprovalResult {
@@ -350,6 +356,10 @@ export interface ApprovalOpts extends RouteOpts {
   /** Sector classifier for the concentration rail (tests inject; defaults to a
    *  cache-only lookup — no metered spend). Returns null for an unknown symbol. */
   sectorOf?: (symbol: string) => Promise<string | null>;
+  /** Current-quote seam for the staleness guard (fresh-entry-levels M1; tests
+   *  inject). Defaults to a live Alpaca read, fail-soft to null (then levels are
+   *  never treated as stale — a quote hiccup can't block every order). */
+  quoteOf?: (symbol: string) => Promise<number | null>;
 }
 
 /**
@@ -365,14 +375,22 @@ export interface ApprovalBlocks {
   railViolations: Violation[];
   capViolations: Violation[];
   liveEnabled: boolean;
+  /** Stale-levels guard (fresh-entry-levels M1): set when the proposal's entry
+   *  has drifted from the current quote beyond the threshold. The remedy is a
+   *  "Refresh levels" re-anchor — this block is NOT cleared by an override
+   *  comment (it is a correctness gate, not a judgment call). Null when fresh /
+   *  no quote. `driftPct` is a signed fraction (−0.05 === the quote is 5% below). */
+  staleLevels: { entry: number; quote: number; driftPct: number } | null;
 }
 
-/** True when an order is blocked by red-team and/or a rail/cap violation. */
+/** True when an order is blocked by red-team, a rail/cap violation, or stale
+ *  levels. Stale levels block regardless of an override comment (refresh-only). */
 export function approvalIsBlocked(b: ApprovalBlocks): boolean {
   return (
     b.redTeamRejects ||
     b.railViolations.length > 0 ||
-    b.capViolations.length > 0
+    b.capViolations.length > 0 ||
+    b.staleLevels !== null
   );
 }
 
@@ -499,12 +517,31 @@ export async function evaluateApprovalBlocks(
     ).violations;
   }
 
+  // Stale-levels guard (fresh-entry-levels M1): compare the order's entry to the
+  // CURRENT Alpaca quote. A drift beyond the threshold means the stop / R:R /
+  // sizing were computed off a price the market has left — block until the human
+  // re-anchors ("Refresh levels"). Fail-soft: no quote → never stale.
+  const quoteOf =
+    opts.quoteOf ??
+    ((s: string) =>
+      hasAlpacaCredentials() ? getLatestPrice(s).catch(() => null) : Promise.resolve(null));
+  const quote = await quoteOf(order.symbol);
+  let staleLevels: ApprovalBlocks["staleLevels"] = null;
+  if (quote != null && isStaleEntry(order.limitPrice, quote, STALE_DRIFT_THRESHOLD)) {
+    staleLevels = {
+      entry: order.limitPrice,
+      quote,
+      driftPct: computePriceDrift(order.limitPrice, quote) ?? 0,
+    };
+  }
+
   return {
     redTeam,
     redTeamRejects,
     railViolations,
     capViolations,
     liveEnabled: status.liveEnabled,
+    staleLevels,
   };
 }
 
@@ -603,6 +640,28 @@ async function runApproval(
   const blocks = await evaluateApprovalBlocks(order, { ...opts, now });
   const override = hasValidOverride(input.override);
   const proposed = toProposedOrder(order);
+
+  // Stale-levels guard (fresh-entry-levels M1) — a real-money CORRECTNESS gate,
+  // checked FIRST and **not** clearable by an override comment: the only remedy is
+  // re-anchoring the levels ("Refresh levels"). Placing on a stale entry would use
+  // a wrong stop / R:R / size. Journaled as a `rules` rejection (rule:stale-levels).
+  if (blocks.staleLevels) {
+    const { entry, quote, driftPct } = blocks.staleLevels;
+    const { id } = await recordRiskRejection(
+      { ...journalMeta, proposedAction: order.action },
+      {
+        ok: false,
+        violations: [
+          {
+            rule: "stale-levels",
+            message: `Entry ${entry.toFixed(2)} has drifted ${(driftPct * 100).toFixed(1)}% from the current quote ${quote.toFixed(2)} — refresh the levels before approving.`,
+          },
+        ],
+      },
+      { dataDir: opts.dataDir },
+    );
+    return { outcome: "blocked-stale", journalId: id, dryRun: !blocks.liveEnabled };
+  }
 
   // Each block holds UNLESS the human supplied a valid (non-empty-comment)
   // override. A blank comment is not a valid override, so the block still fires.

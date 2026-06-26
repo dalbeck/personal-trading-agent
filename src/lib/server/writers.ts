@@ -440,6 +440,62 @@ export async function setProposalRedTeam(
   return null;
 }
 
+/**
+ * Read one proposal by id from data/proposals/ (dataDir-aware, so it is testable
+ * against a temp dir). Returns the validated record, or `null` on no match /
+ * unreadable dir. Used by the "Refresh levels" re-anchor (fresh-entry-levels M1).
+ */
+export async function readProposalById(
+  id: string,
+  opts?: { dataDir?: string },
+): Promise<TradeProposal | null> {
+  const dir = path.join(dataRoot(opts), "proposals");
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return null;
+  }
+  for (const name of names.filter((n) => n.endsWith(".json"))) {
+    const parsed = TradeProposalSchema.safeParse(
+      JSON.parse(await readFile(path.join(dir, name), "utf8")),
+    );
+    if (parsed.success && parsed.data.id === id) return parsed.data;
+  }
+  return null;
+}
+
+/**
+ * Overwrite an existing proposal in place (data/proposals/), matched by id,
+ * validating the full record against the contract before writing. Used by the
+ * "Refresh levels" re-anchor (fresh-entry-levels M1) to rewrite the recomputed
+ * levels / lenses / verdict / `pricedAt` without minting a new id or file.
+ * Returns the file written, or `null` if no proposal matches the id.
+ */
+export async function overwriteProposal(
+  proposal: TradeProposal,
+  opts?: { dataDir?: string },
+): Promise<WriteResult | null> {
+  const dir = path.join(dataRoot(opts), "proposals");
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return null;
+  }
+  for (const name of names.filter((n) => n.endsWith(".json"))) {
+    const file = path.join(dir, name);
+    const parsed = TradeProposalSchema.safeParse(
+      JSON.parse(await readFile(file, "utf8")),
+    );
+    if (parsed.success && parsed.data.id === proposal.id) {
+      await writeStructured(file, TradeProposalSchema, proposal);
+      return { id: proposal.id, file };
+    }
+  }
+  return null;
+}
+
 /** The fields a caller supplies to emit a live-advisory proposal. The
  *  account/advisory/status stamps are forced by the writer — a caller can never
  *  produce a paper or executable proposal through this path. */
@@ -477,6 +533,9 @@ export interface AdvisoryProposalInput {
   // Dual-lens breakdowns (dual-lens M1) — a manual analyze carries both the trend
   // and value lens. Empty/omitted = single-lens (the top-level fields are it).
   lenses?: TradeProposal["lenses"];
+  // When the levels were anchored to the live quote (fresh-entry-levels M1).
+  // Schema-backed + default null, so a caller may omit it (older records).
+  pricedAt?: TradeProposal["pricedAt"];
 }
 
 /**
