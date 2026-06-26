@@ -159,6 +159,20 @@ export const RedTeamVerdictSchema = z
   })
   .strict();
 
+/**
+ * How a proposal's profit target is anchored (M3). A target must be technically
+ * or fundamentally grounded — `analyst_price` (a sell-side price target) is the
+ * **weak** kind the red-team / checklist flags, since it isn't the desk's own
+ * thesis. Surfaced on the proposal card.
+ */
+export const TargetType = z.enum([
+  "prior_high",
+  "measured_move",
+  "atr_multiple",
+  "fundamental",
+  "analyst_price",
+]);
+
 export const TradeProposalSchema = z
   .object({
     id: z.string().min(1),
@@ -170,6 +184,12 @@ export const TradeProposalSchema = z
     limitPrice: money, // marketable-limit only (charter)
     stopPrice: money.nullable().default(null),
     takeProfit: money.nullable().default(null),
+    // How the profit target is anchored. A well-formed proposal sets this; older
+    // records (and a missing/analyst_price target) are flagged weak, not blocked.
+    targetType: TargetType.nullable().default(null),
+    // GICS sector for the concentration rail; null when unknown. Resolved from
+    // research at proposal time so the rail can see correlated names.
+    sector: z.string().nullable().default(null),
     riskPct: ratio,
     confidence: z.number().min(0).max(1).nullable().default(null),
     thesis: z.string().min(1),

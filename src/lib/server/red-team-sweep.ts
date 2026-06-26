@@ -48,6 +48,7 @@ export async function sweepPendingRedTeam(opts?: {
         limitPrice: p.limitPrice,
         stopPrice: p.stopPrice,
         takeProfit: p.takeProfit,
+        targetType: p.targetType,
         thesis: p.thesis,
         reasoning: p.reasoning,
       },

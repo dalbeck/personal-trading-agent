@@ -23,6 +23,9 @@ export interface RedTeamProposal {
   limitPrice: number;
   stopPrice: number | null;
   takeProfit: number | null;
+  /** How the target is anchored (M3). An `analyst_price` or unspecified target is
+   *  weak — the prosecutor is told to flag it. */
+  targetType?: string | null;
   thesis: string;
   reasoning?: string;
   research?: string;
@@ -42,9 +45,12 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     `- Ticker: ${p.symbol}`,
     `- Side/Action: ${p.action} ${p.side}`,
     `- Qty: ${p.qty} @ limit ${p.limitPrice}`,
-    `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"}`,
+    `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"} (${p.targetType ?? "unspecified"})`,
     `- Thesis: ${p.thesis}`,
   ];
+  lines.push(
+    "A target anchored to a sell-side analyst_price — or left unspecified — is WEAK (the desk is borrowing someone else's number, not its own thesis); call it out in the Target factor.",
+  );
   if (p.reasoning) lines.push(`- Reasoning: ${p.reasoning}`);
   if (p.research) lines.push(`- Research: ${p.research}`);
   lines.push(

@@ -9,7 +9,7 @@ import type { Guardrails } from "@/lib/server/overview";
  * snapshot — the same snapshot the KPI row shows.
  */
 export function GuardrailHeadroom({ guardrails }: { guardrails: Guardrails }) {
-  const { drawdown, ordersToday, openPositions } = guardrails;
+  const { drawdown, ordersToday, openPositions, sector } = guardrails;
 
   return (
     <ModuleCard
@@ -54,6 +54,23 @@ export function GuardrailHeadroom({ guardrails }: { guardrails: Guardrails }) {
           fraction={openPositions.fraction}
           danger={openPositions.used >= openPositions.limit}
         />
+        {sector ? (
+          <Rail
+            label={`Sector — ${sector.name}`}
+            value={`${(sector.used * 100).toFixed(0)}% / ${(
+              sector.limit * 100
+            ).toFixed(0)}%`}
+            headroom={
+              sector.used >= sector.limit
+                ? "Sector concentration cap reached"
+                : `${((sector.limit - sector.used) * 100).toFixed(
+                    0,
+                  )}pp before the sector cap`
+            }
+            fraction={sector.fraction}
+            danger={sector.used >= sector.limit}
+          />
+        ) : null}
       </div>
     </ModuleCard>
   );

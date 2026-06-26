@@ -34,6 +34,7 @@ import {
   runSingleFlight,
 } from "./order-idempotency";
 import { getEffectiveRiskConfig } from "./risk-settings";
+import { getCachedSector } from "./symbol-research";
 import {
   runRedTeam,
   type RedTeamExec,
@@ -258,6 +259,12 @@ export interface ApprovalOrder {
   /** Which book the order is for. A live order is risk-checked against the live
    *  account's equity (not paper); defaults to paper. */
   account?: "paper" | "live";
+  /** GICS sector for the concentration rail; null/absent when unknown (the rail
+   *  then fails open). Resolved from the proposal or the cached research. */
+  sector?: string | null;
+  /** How the profit target is anchored (M3) — the red-team flags an
+   *  `analyst_price`/unspecified target as weak. */
+  targetType?: string | null;
 }
 
 export type ApprovalOutcome =
@@ -334,6 +341,9 @@ export interface ApprovalOpts extends RouteOpts {
   /** ET-day / timestamp basis for the order counter (tests pin it; defaults to
    *  the approval timestamp, then the live clock). */
   now?: Date;
+  /** Sector classifier for the concentration rail (tests inject; defaults to a
+   *  cache-only lookup — no metered spend). Returns null for an unknown symbol. */
+  sectorOf?: (symbol: string) => Promise<string | null>;
 }
 
 /**
@@ -370,6 +380,9 @@ function toProposedOrder(o: ApprovalOrder): ProposedOrder {
     orderType: "marketable_limit",
     stopPrice: o.stopPrice,
     assetClass: "equity",
+    // Winner-exit + concentration rails (M3).
+    takeProfit: o.takeProfit,
+    sector: o.sector ?? null,
   };
 }
 
@@ -382,6 +395,7 @@ function toRedTeamProposal(o: ApprovalOrder): RedTeamProposal {
     limitPrice: o.limitPrice,
     stopPrice: o.stopPrice,
     takeProfit: o.takeProfit,
+    targetType: o.targetType ?? null,
     thesis: o.thesis,
     reasoning: o.reasoning,
     research: o.research,
@@ -429,20 +443,34 @@ export async function evaluateApprovalBlocks(
       opts.ordersToday ??
       (await readOrdersToday({ dataDir: opts.dataDir, now: opts.now }));
     const market = opts.market ?? (await getMarketConditions());
+    // Sector classification for the concentration rail (M3). Cache-only by
+    // default (no metered spend) and fail-open: an unknown sector can't fire the
+    // rail. The order's own sector comes from the proposal, falling back to cache.
+    const sectorOf =
+      opts.sectorOf ??
+      ((s: string) => getCachedSector(s, { dataDir: opts.dataDir }));
+    const orderSector = order.sector ?? (await sectorOf(order.symbol));
+    const openPositions = await Promise.all(
+      snapshot.positions.map(async (p) => ({
+        symbol: p.symbol,
+        marketValue: p.marketValue,
+        sector: await sectorOf(p.symbol),
+      })),
+    );
     const context: RiskContext = {
       equity: snapshot.equity,
       highWaterEquity: highWater(snapshot),
-      openPositions: snapshot.positions.map((p) => ({
-        symbol: p.symbol,
-        marketValue: p.marketValue,
-      })),
+      openPositions,
       ordersToday,
       spyIntradayChangePct: market.spyIntradayChangePct,
       vix: market.vix,
     };
-    railViolations = evaluateOrder(proposed, context, limits, {
-      skipRules,
-    }).violations;
+    railViolations = evaluateOrder(
+      { ...proposed, sector: orderSector },
+      context,
+      limits,
+      { skipRules },
+    ).violations;
   }
 
   // Live-only caps (M4) — only when this order will actually go live.

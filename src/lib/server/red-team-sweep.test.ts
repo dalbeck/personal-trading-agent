@@ -21,6 +21,8 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     limitPrice: 374.5,
     stopPrice: 355,
     takeProfit: 420,
+    targetType: "prior_high",
+    sector: "Industrials",
     riskPct: 0.01,
     confidence: null,
     thesis: "t",

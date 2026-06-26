@@ -57,6 +57,8 @@ export async function POST(req: Request): Promise<Response> {
     reasoning: proposal.reasoning,
     redTeam: proposal.redTeam,
     account: proposal.account,
+    sector: proposal.sector,
+    targetType: proposal.targetType,
   });
 
   return Response.json({

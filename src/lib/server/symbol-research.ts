@@ -128,6 +128,19 @@ export async function getResearchFreshness(
   return { fetchedAt: cached?.fetchedAt ?? null };
 }
 
+/**
+ * A symbol's GICS sector from the **cache only** (no fetch, no spend) for the
+ * concentration rail. Returns null when the symbol isn't cached or carries no
+ * sector — the rail then simply can't fire for that name.
+ */
+export async function getCachedSector(
+  symbol: string,
+  opts?: { dataDir?: string },
+): Promise<string | null> {
+  const cached = await readResearchCache(symbol, { dataDir: opts?.dataDir });
+  return cached?.profile?.sector ?? null;
+}
+
 export async function getSymbolResearch(
   symbol: string,
   opts?: GetSymbolResearchOpts,

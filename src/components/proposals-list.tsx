@@ -13,6 +13,7 @@ import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
 import { formatCurrency, formatPercent } from "@/lib/format";
+import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
 import {
   ADVISORY_TAG,
   LIVE_APPROVE_TAG,
@@ -236,6 +237,17 @@ export function ProposalsList({
                   Risk{" "}
                   <span className="font-semibold text-fg">
                     {formatPercent(p.riskPct, { signed: false })}
+                  </span>
+                </span>
+                <span className="text-fg-muted">
+                  Target{" "}
+                  <span
+                    className={`font-semibold ${
+                      isWeakTarget(p.targetType) ? "text-warning" : "text-fg"
+                    }`}
+                  >
+                    {targetTypeLabel(p.targetType)}
+                    {isWeakTarget(p.targetType) ? " · weak" : ""}
                   </span>
                 </span>
               </div>
