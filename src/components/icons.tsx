@@ -4,8 +4,10 @@ import {
   ArrowUpRight,
   Banknote,
   BarChart3,
+  Check,
   ChevronDown,
   ClipboardCheck,
+  Flag,
   GraduationCap,
   Info,
   LayoutDashboard,
@@ -88,3 +90,5 @@ export const ArrowDownRightIcon = lucideIcon(ArrowDownRight);
 export const XIcon = lucideIcon(X);
 export const InfoIcon = lucideIcon(Info);
 export const ChevronDownIcon = lucideIcon(ChevronDown);
+export const CheckIcon = lucideIcon(Check);
+export const FlagIcon = lucideIcon(Flag);
