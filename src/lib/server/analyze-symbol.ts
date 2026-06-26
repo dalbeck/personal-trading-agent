@@ -193,7 +193,13 @@ export async function analyzeSymbol(
 
   // Build the candidate proposal object so rails + red-team see the real order.
   const createdAt = now.toISOString();
-  const id = `manual-${createdAt.slice(0, 10)}-${symbol}`;
+  // Unique PER RUN, not just per day: a second same-day analysis of the same
+  // symbol must not collide on id, or the two proposals would share one
+  // `/proposals/[id]` URL and trip a duplicate React key in the queue. Stamp the
+  // full time (to the millisecond) into the id.
+  const id = `manual-${symbol}-${createdAt
+    .slice(0, 23)
+    .replace(/[-:.T]/g, "")}`;
   const advisory = false; // approvable; the gate (not this) is the money boundary
   const proposal: TradeProposal = TradeProposalSchema.parse({
     ...draft,

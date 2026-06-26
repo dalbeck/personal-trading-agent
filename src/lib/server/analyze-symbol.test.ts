@@ -159,6 +159,32 @@ describe("analyzeSymbol", () => {
     expect(p.strategy).toBe("value");
   });
 
+  it("gives each same-day re-analysis of a symbol a distinct id + file", async () => {
+    const common = {
+      account: "live" as const,
+      dataDir: dir,
+      fetchBars: async () => ramp(60, 50, 1),
+      readSnapshot: snapshotSeam,
+      fetchResearch: researchSeam,
+      redTeamExec: approveExec,
+    };
+    const first = await analyzeSymbol("KR", {
+      ...common,
+      now: () => new Date("2026-06-26T18:28:30.056-04:00"),
+    });
+    const second = await analyzeSymbol("KR", {
+      ...common,
+      now: () => new Date("2026-06-26T19:04:32.321-04:00"),
+    });
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    // Distinct ids → distinct /proposals/[id] URLs and no duplicate React key.
+    expect(first.proposal.id).not.toBe(second.proposal.id);
+    // Both persisted as separate files.
+    const files = await readdir(path.join(dir, "proposals"));
+    expect(files.length).toBe(2);
+  });
+
   it("rejects an invalid ticker before doing any work", async () => {
     const res = await analyzeSymbol("not a ticker!", { dataDir: dir });
     expect(res.ok).toBe(false);
