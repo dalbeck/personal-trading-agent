@@ -252,6 +252,13 @@ export const TradeProposalSchema = z
     // Robinhood — there is no approve-to-execute action and no order path can be
     // reached from it. Tagged `live · advisory · execute manually` in the UI.
     advisory: z.boolean().default(false),
+    // Where the idea came from (M2). `manual-request` = a human asked the desk to
+    // analyze this ticker on demand (the full pipeline still ran: research →
+    // proposal → rails → red-team); `discovery` = the autonomous pre-market run.
+    // Surfaced as a badge and carried into the journal as a `manual-request` tag
+    // on approval. Nullable/`null` default = unknown (older records, treated as
+    // discovery) so older proposals still validate.
+    origin: z.enum(["discovery", "manual-request"]).nullable().default(null),
     redTeam: RedTeamVerdictSchema.nullable().default(null),
     reviewByDate: isoDate.nullable().default(null),
     // Seeded/demo content. Live records written by the routines/scout omit this

@@ -35,6 +35,7 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     status: "pending",
     account: "live",
     advisory: false,
+    origin: null,
     redTeam: null,
     reviewByDate: null,
     sample: false,

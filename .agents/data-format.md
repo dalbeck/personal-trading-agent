@@ -110,6 +110,18 @@ directly, not a `data/` artifact contract, malformed = treated as "not placed".
   routes by the order gate — closed → dry-run sink, open → Robinhood. The gate,
   not the account, is the real-money boundary (see `.agents/infra.md`).
 
+**Proposal `origin` (M2 manual analyze).** A `TradeProposal` also carries
+`origin` (`discovery | manual-request`, nullable). `manual-request` marks a
+proposal produced by the on-demand **"analyze a symbol"** pipeline
+(`src/lib/server/analyze-symbol.ts`, `POST /api/proposals/analyze`) for a
+human-entered ticker — the full pipeline (research → build → **risk rails →
+red-team**) still ran, so a weak manual pick is **flagged, not rubber-stamped**.
+It is written by `recordManualProposal` (account-aware: a paper request is a
+normal paper proposal; a live request is approvable and flows the gated approval
+path, gate closed → dry-run sink). On approval the journal entry inherits a
+`manual-request` **tag** (the approve route maps `origin` → tags). `null`
+default reads as `discovery` (older records / the autonomous pre-market run).
+
 **Proposal `targetType` / `sector` (M3 governance).** A `TradeProposal` also
 carries `targetType` (`prior_high | measured_move | atr_multiple | fundamental |
 analyst_price`, nullable for back-compat) and `sector` (GICS string, nullable).
