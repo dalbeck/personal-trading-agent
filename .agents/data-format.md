@@ -52,8 +52,17 @@ it. `data/control/live-trades.json` tracks already-ingested broker order ids so
 the sync is idempotent (an internal state file, like the halt latch / funding
 tracker — written directly, not a `data/` artifact contract). Coaching entries
 stay behavior-driven: `paper` reviews grade the desk; `live` reviews coach the
-human's manual execution, kept in separate entries so the paper-desk evaluation
-is never contaminated. `data/control/risk-settings.json` (`RiskSettingsSchema`)
+live book's behavior (human-approved desk exits/trims **and** the human's manual
+fills), kept in separate entries so the paper-desk evaluation is never
+contaminated. **The evaluation surfaces are account-scoped too (Phase 3 M3, no
+bleed):** `getEvaluationScorecard` and `getGovernanceScorecard` filter the
+journal/snapshots/proposals to **`paper`** (a live trade or a routinely-refreshed
+live snapshot can no longer inflate the paper stats or falsely trip the
+"real-money path" integrity flag), and the Evaluation LIVE view renders the live
+book's own performance (`buildLiveBookPerformance` — P&L vs cost basis, vs SPY
+where the snapshot carries a benchmark, exits taken) plus a live-scoped
+governance card. The EOD summary + weekly review routines cover both books in
+clearly-labelled, separate sections. `data/control/risk-settings.json` (`RiskSettingsSchema`)
 is the human's per-rail overrides of the charter `RISK_LIMITS` — likewise an
 internal state file (written directly, not a `data/` artifact contract), layered
 in at per-trade approval (`src/lib/server/risk-settings.ts`; see `.agents/infra.md`).
