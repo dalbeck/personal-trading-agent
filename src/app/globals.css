@@ -42,6 +42,11 @@
   --danger-surface: #fbe7df;
   --danger-border: #f1c2ad;
   --overlay-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
+  /* Risk-posture gauge ramp (teal → amber → red). A non-semantic exposure
+     ramp — NOT gain/loss; "aggressive" red is not "bad", just more exposed. */
+  --gauge-low: #0f9b8e;
+  --gauge-mid: #b9791f;
+  --gauge-high: #c93600;
   /* Restrained categorical palette — ONLY for true composition charts
      (sector / portfolio mix). Never for status or general decoration. */
   --chart-1: #2a72a3;
@@ -80,6 +85,10 @@
   --danger-surface: #2a130c;
   --danger-border: #5a2a1c;
   --overlay-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.6);
+  /* Gauge ramp lifted for the dark surface. */
+  --gauge-low: #2dd4bf;
+  --gauge-mid: #f2b73c;
+  --gauge-high: #ff7a4d;
   /* Categorical palette (composition charts only) — slightly lifted for dark. */
   --chart-1: #7fb4d5;
   --chart-2: #a9a2f6;

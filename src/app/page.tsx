@@ -11,6 +11,7 @@ import { Card, PageTitle, SectionTitle } from "@/components/page-shell";
 import { ProgressBar } from "@/components/ui/progress";
 import { CompositionRing } from "@/components/charts/composition-ring";
 import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
+import { RiskPostureCard } from "@/components/risk-posture-card";
 import { Badge } from "@/components/ui/badge";
 import { DeskScopeNote } from "@/components/mode-scope";
 import { LiveRefreshButton } from "@/components/live-refresh-button";
@@ -25,6 +26,8 @@ import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
 import { getLiveTradingStatus } from "@/lib/server/gate";
 import { liveDrawdown } from "@/lib/server/live-guards";
 import { getViewMode } from "@/lib/server/mode";
+import { getEffectiveRiskConfig } from "@/lib/server/risk-settings";
+import { riskPostureFromSnapshot } from "@/lib/risk-posture";
 import { getTrackedUniverse } from "@/lib/server/universe";
 import { getOverviewModules } from "@/lib/server/overview";
 import { getRegimeContext } from "@/lib/server/regime";
@@ -35,12 +38,13 @@ export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const { snapshot: snap, source, notice } = await getPaperAccount();
-  const [live, gate, modules, mode, regime] = await Promise.all([
+  const [live, gate, modules, mode, regime, riskConfig] = await Promise.all([
     getLiveAccount(),
     getLiveTradingStatus(),
     getOverviewModules(snap),
     getViewMode(),
     getRegimeContext(),
+    getEffectiveRiskConfig(),
   ]);
   const universe = await getTrackedUniverse(mode);
 
@@ -64,6 +68,15 @@ export default async function OverviewPage() {
         readOnly: false,
       };
   const heroSnap = hero.snapshot;
+
+  // Risk posture (M6) — a snapshot of how aggressively the ACTIVE book is
+  // positioned, blended from real signals (deployment, concentration, position
+  // count, risk-per-trade, drawdown) + whether a rail has been loosened.
+  const posture = heroSnap
+    ? riskPostureFromSnapshot(heroSnap, {
+        railsLoosened: riskConfig.skipRules.length > 0,
+      })
+    : null;
 
   // Live pilot caps (M4) for the LIVE panel — configured limits, with current
   // exposure/drawdown when a real live snapshot is present.
@@ -157,6 +170,13 @@ export default async function OverviewPage() {
               </div>
             </HeroCard>
           </section>
+
+          {posture ? (
+            <RiskPostureCard
+              posture={posture}
+              scopeLabel={`${MODE_LABEL[mode]} book · snapshot`}
+            />
+          ) : null}
 
           {heroSnap.equityCurve.length > 1 ? (
             <section>
