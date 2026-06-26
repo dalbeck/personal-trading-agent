@@ -74,8 +74,8 @@ The target is *premium, calm, "nonsense-free" clarity* — not a busy dashboard.
 - Always frame it as **model self-rated and uncalibrated** (e.g. a tooltip): one input alongside the risk rails and red-team, not a probability.
 
 ## Iconography
-- **One icon library across the whole app** — consistent stroke width, a single default size (~16–18px inline, 20px for nav), `currentColor` so icons inherit token colors. No mixed sets, no hand-drawn SVGs.
-- A documented **semantic map** (gain ↑, loss ↓, alert, gate, etc.) and `aria-label` on every icon-only control.
+- **One icon library: `lucide-react`.** All icons are re-exported under semantic names from `src/components/icons.tsx` (e.g. `OverviewIcon`, `WalletIcon`) via a thin wrapper that sets a consistent stroke width (1.75), a default 20px square (override with `className` — `size-4` inline, `size-5` nav), `currentColor` (icons inherit token colors), and `aria-hidden` (icons are decorative; the text label carries meaning). Import icons from `@/components/icons`, never from `lucide-react` directly, so the set stays swappable and consistent. No mixed sets, no hand-drawn SVGs (the sidebar brand glyph is a logo, not an icon).
+- `aria-label` on every icon-only control (e.g. the theme toggle).
 
 ## Charts & data-viz
 - One consistent visual language for the equity curve, sparklines, R:R bar, earnings beat/miss strip, and KPI deltas: gain/loss semantic colors, the blue accent for neutral series, **thin axes, restrained gridlines**, `tabular-nums` labels. Data should look composed, not raw.
