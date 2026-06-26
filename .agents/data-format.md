@@ -124,6 +124,15 @@ unknown or history is too thin to be meaningful (older records, illiquid names)
 — rendered as "—", never a fabricated figure. Defaults to `null` so older
 records still validate.
 
+**Proposal `catalyst` / `catalystType` (M3 catalyst requirement).** A
+`TradeProposal` also carries `catalyst` (a one-line "why now", nullable) and
+`catalystType` (`earnings_momentum | product_news | sector_rotation | guidance |
+other | none`, nullable for back-compat). The desk wants a **named catalyst** on
+every entry; a `catalystType` of **`none`** (trend alone) — or a missing one — is
+**flagged weak** by the checklist/red-team (`isWeakCatalyst` in
+`src/lib/catalyst.ts`), not hard-blocked. Surfaced on the proposal card
+(Catalyst). Both default to `null` so older records still validate.
+
 **Red-team verdict (structured rationale).** The prosecutor's verdict on a
 proposal is **structured, not one text blob** (`RedTeamVerdictSchema` in
 `src/lib/schemas.ts`):

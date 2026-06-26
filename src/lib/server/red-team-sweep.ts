@@ -50,6 +50,8 @@ export async function sweepPendingRedTeam(opts?: {
         takeProfit: p.takeProfit,
         targetType: p.targetType,
         relativeVolume: p.relativeVolume,
+        catalyst: p.catalyst,
+        catalystType: p.catalystType,
         thesis: p.thesis,
         reasoning: p.reasoning,
       },

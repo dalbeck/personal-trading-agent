@@ -43,6 +43,26 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).toMatch(/fundamental|valuation/i);
     expect(prompt).toMatch(/analyst_price|analyst price/i);
   });
+
+  it("weighs relative volume and flags a missing/none catalyst", () => {
+    const prompt = buildProsecutorPrompt(proposal);
+    expect(prompt).toMatch(/relative volume/i);
+    expect(prompt).toMatch(/above-average/i);
+    expect(prompt).toMatch(/catalyst/i);
+    expect(prompt).toMatch(/why now/i);
+  });
+
+  it("renders catalyst details when present", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      relativeVolume: 1.45,
+      catalyst: "Q3 beat-and-raise",
+      catalystType: "earnings_momentum",
+    });
+    expect(prompt).toContain("1.45x avg");
+    expect(prompt).toContain("Q3 beat-and-raise");
+    expect(prompt).toContain("earnings_momentum");
+  });
 });
 
 describe("parseVerdict", () => {

@@ -173,6 +173,20 @@ export const TargetType = z.enum([
   "analyst_price",
 ]);
 
+/**
+ * Why *now* — the named catalyst behind a proposal (M3). The desk wants a
+ * catalyst on every entry; `none` (trend alone, no catalyst) is the **weak**
+ * kind a momentum chase has, flagged by the checklist / red-team.
+ */
+export const CatalystType = z.enum([
+  "earnings_momentum",
+  "product_news",
+  "sector_rotation",
+  "guidance",
+  "other",
+  "none",
+]);
+
 export const TradeProposalSchema = z
   .object({
     id: z.string().min(1),
@@ -195,6 +209,12 @@ export const TradeProposalSchema = z
     // below-average. Soft signal weighed by the checklist/red-team, not a rail.
     // Null when unknown/insufficient history (older records, thin names).
     relativeVolume: z.number().nonnegative().nullable().default(null),
+    // The named catalyst — why *now* (M3). `catalyst` is the one-line reason;
+    // `catalystType` buckets it. A `none` (trend alone) or a missing one is
+    // flagged weak by the checklist/red-team, not hard-blocked. Both default to
+    // null so older records still validate.
+    catalyst: z.string().nullable().default(null),
+    catalystType: CatalystType.nullable().default(null),
     riskPct: ratio,
     confidence: z.number().min(0).max(1).nullable().default(null),
     thesis: z.string().min(1),

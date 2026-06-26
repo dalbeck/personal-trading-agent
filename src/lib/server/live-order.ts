@@ -268,6 +268,9 @@ export interface ApprovalOrder {
   /** Relative volume = entry-day volume ÷ trailing average (M2); a soft signal
    *  the red-team weighs. Null/absent when unknown. */
   relativeVolume?: number | null;
+  /** The named catalyst — why *now* (M3); a `none`/missing one is flagged weak. */
+  catalyst?: string | null;
+  catalystType?: string | null;
 }
 
 export type ApprovalOutcome =
@@ -400,6 +403,8 @@ function toRedTeamProposal(o: ApprovalOrder): RedTeamProposal {
     takeProfit: o.takeProfit,
     targetType: o.targetType ?? null,
     relativeVolume: o.relativeVolume ?? null,
+    catalyst: o.catalyst ?? null,
+    catalystType: o.catalystType ?? null,
     thesis: o.thesis,
     reasoning: o.reasoning,
     research: o.research,
