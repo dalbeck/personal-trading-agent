@@ -1,20 +1,28 @@
-import { EquityCurve } from "@/components/charts/equity-curve";
+import { HeroEquityChart } from "@/components/charts/hero-equity-chart";
 import { DataSourceNotice } from "@/components/data-source-notice";
 import { ActivityFeed } from "@/components/overview/activity-feed";
-import { AttentionStrip } from "@/components/overview/attention-strip";
+import { NeedsYouCard } from "@/components/overview/needs-you-card";
 import { AwaitingReview } from "@/components/overview/awaiting-review";
 import { EvalSnapshotModule } from "@/components/overview/eval-snapshot";
 import { GuardrailHeadroom } from "@/components/overview/guardrail-headroom";
-import { RegimeContextStrip } from "@/components/overview/regime-context";
+import { MarketRegimeCard } from "@/components/overview/regime-context";
 import { RoutinesHealthModule } from "@/components/overview/routines-health";
+import { KpiCard } from "@/components/overview/kpi-card";
 import { Card, PageTitle, SectionTitle } from "@/components/page-shell";
 import { ProgressBar } from "@/components/ui/progress";
 import { CompositionRing } from "@/components/charts/composition-ring";
-import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
+import { HeroCard, HeroMetric } from "@/components/hero-card";
 import { RiskPostureCard } from "@/components/risk-posture-card";
 import { Badge } from "@/components/ui/badge";
 import { DeskScopeNote } from "@/components/mode-scope";
 import { LiveRefreshButton } from "@/components/live-refresh-button";
+import {
+  BanknotesIcon,
+  ScaleIcon,
+  TrendingDownIcon,
+  TrendingUpIcon,
+  ZapIcon,
+} from "@/components/icons";
 import {
   formatCurrency,
   formatPercent,
@@ -97,6 +105,9 @@ export default async function OverviewPage() {
       heroSnap.benchmark.benchmarkReturnPct
     : null;
 
+  const totalPlTone = toneForValue(heroSnap?.totalPl ?? 0);
+  const dayPlTone = toneForValue(heroSnap?.dayPl ?? 0);
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -111,130 +122,133 @@ export default async function OverviewPage() {
         <DataSourceNotice notice={hero.notice} />
       </div>
 
-      <AttentionStrip attention={modules.attention} />
-
-      <RegimeContextStrip regime={regime} />
-
       <DeskScopeNote mode={mode} />
 
-      {heroSnap ? (
-        <>
-          <section aria-label={`${MODE_LABEL[mode]} account summary`}>
-            <HeroCard>
-              <div className="mb-6 flex items-center gap-2">
-                <Badge tone={isLive ? "muted" : "accent"} dot>
-                  {MODE_LABEL[mode].toUpperCase()}
-                </Badge>
-                <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
-                  {isLive ? "Live account" : "Paper account"}
-                </h2>
-                {hero.readOnly ? (
-                  <span className="text-xs text-fg-muted">read-only</span>
-                ) : null}
-                <span className="ml-auto text-xs text-fg-muted">
-                  {hero.sourceLabel}
-                </span>
-              </div>
-              <div className="grid gap-6 lg:grid-cols-[1.05fr_1.5fr] lg:items-center">
-                <HeroMetric label="Equity" value={formatCurrency(heroSnap.equity)} />
-                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                  <HeroStat
-                    label="Total P&L"
-                    value={formatCurrency(heroSnap.totalPl, { signed: true })}
-                    tone={toneForValue(heroSnap.totalPl)}
-                    delta={formatPercent(heroSnap.totalPlPct)}
-                  />
-                  <HeroStat
-                    label="Day P&L"
-                    value={formatCurrency(heroSnap.dayPl, { signed: true })}
-                    tone={toneForValue(heroSnap.dayPl)}
-                    delta={formatPercent(heroSnap.dayPlPct)}
-                  />
-                  {heroSnap.benchmark ? (
-                    <HeroStat
-                      label="vs SPY"
-                      value={excess !== null ? formatPercent(excess) : "—"}
-                      tone={excess !== null ? toneForValue(excess) : "neutral"}
-                    />
-                  ) : (
-                    <HeroStat
-                      label="Cash"
-                      value={formatCurrency(heroSnap.cash)}
-                    />
-                  )}
-                  <HeroStat
-                    label="Buying power"
-                    value={formatCurrency(heroSnap.buyingPower)}
-                  />
+      {/* Composed reference layout: a dominant equity hero + enriched KPIs +
+          sector-rotation regime + the proposals queue in the main column, with
+          the actionable "Needs you" card and the risk-posture gauge riding a
+          subordinate sidebar. Hierarchy via size/weight, not a flat stack. */}
+      <div className="grid gap-5 lg:grid-cols-[1.7fr_1fr] lg:items-start">
+        {/* MAIN COLUMN */}
+        <div className="flex flex-col gap-5">
+          {heroSnap ? (
+            <section aria-label={`${MODE_LABEL[mode]} account summary`}>
+              <HeroCard surface="surface-hero-accent">
+                <div className="mb-5 flex flex-wrap items-center gap-2">
+                  <Badge tone={isLive ? "muted" : "accent"} dot>
+                    {MODE_LABEL[mode].toUpperCase()}
+                  </Badge>
+                  {hero.readOnly ? (
+                    <span className="text-xs text-fg-muted">read-only</span>
+                  ) : null}
+                  <span className="ml-auto text-xs text-fg-muted">
+                    {hero.sourceLabel}
+                  </span>
                 </div>
-              </div>
-            </HeroCard>
-          </section>
 
+                <HeroMetric
+                  label={`Total equity · ${MODE_LABEL[mode]}`}
+                  value={formatCurrency(heroSnap.equity)}
+                  delta={formatCurrency(heroSnap.totalPl, { signed: true })}
+                  deltaTone={totalPlTone}
+                />
+                <p className="mt-2 text-xs text-fg-muted">
+                  All-time
+                  {heroSnap.benchmark && excess !== null ? (
+                    <>
+                      {" · vs SPY "}
+                      <span
+                        className={`font-medium tabular-nums ${
+                          toneForValue(excess) === "gain"
+                            ? "text-gain"
+                            : toneForValue(excess) === "loss"
+                              ? "text-loss"
+                              : "text-fg"
+                        }`}
+                      >
+                        {formatPercent(excess)}
+                      </span>
+                    </>
+                  ) : null}
+                </p>
+
+                {heroSnap.equityCurve.length > 1 ? (
+                  <div className="mt-5">
+                    <HeroEquityChart
+                      points={heroSnap.equityCurve}
+                      benchmarkReturnPct={heroSnap.benchmark?.benchmarkReturnPct}
+                    />
+                  </div>
+                ) : null}
+              </HeroCard>
+            </section>
+          ) : (
+            <Card className="border-dashed">
+              <p className="text-pretty text-sm text-fg-muted">
+                {isLive
+                  ? live.connected
+                    ? "No live snapshot yet — use Refresh on the live card below to pull the account."
+                    : "Live account not connected — this view is read-only. Real-money execution stays behind a two-gate human approval."
+                  : "No paper snapshot found in data/snapshots/. KPIs and the equity curve appear once a snapshot is written."}
+              </p>
+            </Card>
+          )}
+
+          {heroSnap ? (
+            <section
+              aria-label="Key metrics"
+              className="grid grid-cols-2 gap-4"
+            >
+              <KpiCard
+                label="Total P&L"
+                value={formatCurrency(heroSnap.totalPl, { signed: true })}
+                tone={totalPlTone}
+                icon={totalPlTone === "loss" ? TrendingDownIcon : TrendingUpIcon}
+                delta={formatPercent(heroSnap.totalPlPct)}
+                sparkline={heroSnap.equityCurve.map((p) => p.equity)}
+              />
+              <KpiCard
+                label="vs SPY"
+                value={excess !== null ? formatPercent(excess) : "—"}
+                tone={excess !== null ? toneForValue(excess) : "neutral"}
+                icon={ScaleIcon}
+              />
+              <KpiCard
+                label="Day P&L"
+                value={formatCurrency(heroSnap.dayPl, { signed: true })}
+                tone={dayPlTone}
+                icon={ZapIcon}
+                delta={formatPercent(heroSnap.dayPlPct)}
+              />
+              <KpiCard
+                label="Cash"
+                value={formatCurrency(heroSnap.cash)}
+                icon={BanknotesIcon}
+              />
+            </section>
+          ) : null}
+
+          <MarketRegimeCard regime={regime} />
+
+          <AwaitingReview
+            proposals={modules.awaitingReview}
+            liveEnabled={gate.liveEnabled}
+            pendingTotal={modules.attention.pendingReview}
+          />
+        </div>
+
+        {/* SIDEBAR */}
+        <div className="flex flex-col gap-5">
+          <NeedsYouCard attention={modules.attention} />
           {posture ? (
             <RiskPostureCard
               posture={posture}
-              scopeLabel={`${MODE_LABEL[mode]} book · snapshot`}
+              layout="stacked"
+              scopeLabel={`${MODE_LABEL[mode]} book`}
             />
           ) : null}
-
-          {heroSnap.equityCurve.length > 1 ? (
-            <section>
-              <Card className="overflow-hidden">
-                <div className="tint-strip -mx-5 -mt-5 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line/60 px-5 pb-3 pt-4">
-                  <div>
-                    <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
-                      Equity curve
-                    </h2>
-                    <p className="text-xs text-fg-muted">
-                      Since inception · {mode} account
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs">
-                    <span className="inline-flex items-center gap-2 text-fg-muted">
-                      <span
-                        aria-hidden
-                        className="h-0.5 w-4 rounded bg-accent"
-                      />
-                      Portfolio
-                    </span>
-                    {heroSnap.benchmark ? (
-                      <span className="inline-flex items-center gap-2 text-fg-muted">
-                        <span
-                          aria-hidden
-                          className="h-0 w-4 border-t-2 border-dashed border-fg-muted"
-                        />
-                        SPY
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <EquityCurve
-                  points={heroSnap.equityCurve}
-                  benchmarkReturnPct={heroSnap.benchmark?.benchmarkReturnPct}
-                />
-              </Card>
-            </section>
-          ) : null}
-        </>
-      ) : (
-        <Card className="border-dashed">
-          <p className="text-pretty text-sm text-fg-muted">
-            {isLive
-              ? live.connected
-                ? "No live snapshot yet — use Refresh on the live card below to pull the account."
-                : "Live account not connected — this view is read-only. Real-money execution stays behind a two-gate human approval."
-              : "No paper snapshot found in data/snapshots/. KPIs and the equity curve appear once a snapshot is written."}
-          </p>
-        </Card>
-      )}
-
-      <AwaitingReview
-        proposals={modules.awaitingReview}
-        liveEnabled={gate.liveEnabled}
-        pendingTotal={modules.attention.pendingReview}
-      />
+        </div>
+      </div>
 
       <SectionTitle
         title="Desk health"

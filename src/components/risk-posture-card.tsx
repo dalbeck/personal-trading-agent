@@ -11,10 +11,15 @@ import type { PostureFactor, RiskPosture } from "@/lib/risk-posture";
 export function RiskPostureCard({
   posture,
   scopeLabel,
+  layout = "split",
 }: {
   posture: RiskPosture;
   scopeLabel?: string;
+  /** `split` = gauge beside factors (wide column); `stacked` = gauge above the
+   *  summary + factors (narrow sidebar column). */
+  layout?: "split" | "stacked";
 }) {
+  const stacked = layout === "stacked";
   return (
     <section className="surface-hero relative overflow-hidden rounded-card border border-line p-6">
       <div className="mb-5 flex items-center justify-between gap-2">
@@ -26,7 +31,13 @@ export function RiskPostureCard({
         ) : null}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-8">
+      <div
+        className={
+          stacked
+            ? "flex flex-col gap-5"
+            : "grid gap-6 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-8"
+        }
+      >
         <RiskPostureGauge
           score={posture.score}
           level={posture.level}
