@@ -35,19 +35,19 @@ const schema = {
 const components: Components = {
   h1: (props) => (
     <h1
-      className="mt-4 mb-2 text-balance text-xl font-semibold text-fg first:mt-0"
+      className="mt-4 mb-2 text-balance font-serif text-xl font-semibold text-fg first:mt-0"
       {...props}
     />
   ),
   h2: (props) => (
     <h2
-      className="mt-4 mb-2 text-balance text-lg font-semibold text-fg first:mt-0"
+      className="mt-4 mb-2 text-balance font-serif text-lg font-semibold text-fg first:mt-0"
       {...props}
     />
   ),
   h3: (props) => (
     <h3
-      className="mt-3 mb-1.5 text-base font-semibold text-fg first:mt-0"
+      className="mt-3 mb-1.5 font-serif text-base font-semibold text-fg first:mt-0"
       {...props}
     />
   ),

@@ -60,7 +60,10 @@ export function AlertDialog({
       className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] ${SIZE_CLASS[size]} overflow-y-auto rounded-card border border-line bg-surface-overlay p-0 text-fg shadow-overlay backdrop:bg-black/50`}
     >
       <div className="p-6">
-        <h2 id={titleId} className="text-base font-semibold text-balance">
+        <h2
+          id={titleId}
+          className="font-serif text-lg font-semibold text-balance"
+        >
           {title}
         </h2>
         {description ? (

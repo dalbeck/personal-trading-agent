@@ -91,7 +91,9 @@ export default async function GoLivePage() {
       </Card>
 
       <Card>
-        <h2 className="mb-1 text-sm font-semibold text-fg">Checklist</h2>
+        <h2 className="mb-1 font-serif text-[0.95rem] font-semibold text-fg">
+          Checklist
+        </h2>
         <ul className="flex flex-col">
           {items.map((item) => (
             <li

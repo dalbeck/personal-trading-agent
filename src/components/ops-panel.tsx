@@ -127,7 +127,7 @@ export function OpsPanel({ enabled }: { enabled: boolean }) {
             key={group}
             className={emergency ? "border-loss/40" : undefined}
           >
-            <h2 className="text-sm font-semibold tracking-tight text-fg">
+            <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
               {group}
             </h2>
             <div className="mt-3 flex flex-col gap-3">

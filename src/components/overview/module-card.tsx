@@ -26,7 +26,9 @@ export function ModuleCard({
     <Card className={className}>
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div>
-          <h2 className="text-sm font-semibold text-fg">{title}</h2>
+          <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
+            {title}
+          </h2>
           {subtitle ? (
             <p className="mt-0.5 text-xs text-fg-muted">{subtitle}</p>
           ) : null}

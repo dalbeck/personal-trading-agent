@@ -203,7 +203,7 @@ export function ProposalsList({
                   </Badge>
                   <TickerLink
                     symbol={p.symbol}
-                    className="text-base font-semibold text-fg"
+                    className="font-serif text-base font-semibold text-fg"
                   />
                   <span className="text-sm tabular-nums text-fg-muted">
                     {p.qty} @ {formatCurrency(p.limitPrice)} limit

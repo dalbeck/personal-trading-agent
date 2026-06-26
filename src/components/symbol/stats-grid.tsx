@@ -107,7 +107,10 @@ export function SymbolStatsGrid({ quote }: { quote: SymbolQuote | null }) {
       aria-labelledby="stats-heading"
       className="rounded-card border border-line bg-surface-raised p-5"
     >
-      <h2 id="stats-heading" className="mb-4 text-sm font-semibold text-fg">
+      <h2
+        id="stats-heading"
+        className="mb-4 font-serif text-[0.95rem] font-semibold text-fg"
+      >
         Key statistics
       </h2>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
