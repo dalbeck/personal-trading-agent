@@ -106,6 +106,7 @@ export async function POST(req: Request): Promise<Response> {
         account: proposal.account,
         sector: proposal.sector,
         targetType: proposal.targetType,
+        relativeVolume: proposal.relativeVolume,
       },
     });
   } catch (err) {

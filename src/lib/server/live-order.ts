@@ -265,6 +265,9 @@ export interface ApprovalOrder {
   /** How the profit target is anchored (M3) — the red-team flags an
    *  `analyst_price`/unspecified target as weak. */
   targetType?: string | null;
+  /** Relative volume = entry-day volume ÷ trailing average (M2); a soft signal
+   *  the red-team weighs. Null/absent when unknown. */
+  relativeVolume?: number | null;
 }
 
 export type ApprovalOutcome =
@@ -396,6 +399,7 @@ function toRedTeamProposal(o: ApprovalOrder): RedTeamProposal {
     stopPrice: o.stopPrice,
     takeProfit: o.takeProfit,
     targetType: o.targetType ?? null,
+    relativeVolume: o.relativeVolume ?? null,
     thesis: o.thesis,
     reasoning: o.reasoning,
     research: o.research,

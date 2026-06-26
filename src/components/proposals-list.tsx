@@ -14,6 +14,7 @@ import { SampleDataBadge } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
+import { formatRelativeVolume } from "@/lib/volume";
 import {
   ADVISORY_TAG,
   LIVE_APPROVE_TAG,
@@ -248,6 +249,14 @@ export function ProposalsList({
                   >
                     {targetTypeLabel(p.targetType)}
                     {isWeakTarget(p.targetType) ? " · weak" : ""}
+                  </span>
+                </span>
+                <span className="text-fg-muted">
+                  Rel. vol{" "}
+                  <span className="font-semibold text-fg">
+                    {p.relativeVolume == null
+                      ? "—"
+                      : formatRelativeVolume(p.relativeVolume)}
                   </span>
                 </span>
               </div>

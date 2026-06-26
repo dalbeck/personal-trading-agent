@@ -44,6 +44,8 @@ export async function POST(req: Request): Promise<Response> {
     limitPrice: body.limitPrice,
     stopPrice: body.stopPrice ?? null,
     takeProfit: body.takeProfit ?? null,
+    targetType: body.targetType ?? null,
+    relativeVolume: body.relativeVolume ?? null,
     thesis: body.thesis,
     reasoning: body.reasoning,
     research: body.research,

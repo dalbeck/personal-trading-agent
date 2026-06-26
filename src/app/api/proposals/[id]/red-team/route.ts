@@ -34,6 +34,8 @@ export async function POST(
     limitPrice: proposal.limitPrice,
     stopPrice: proposal.stopPrice,
     takeProfit: proposal.takeProfit,
+    targetType: proposal.targetType,
+    relativeVolume: proposal.relativeVolume,
     thesis: proposal.thesis,
     reasoning: proposal.reasoning,
   });

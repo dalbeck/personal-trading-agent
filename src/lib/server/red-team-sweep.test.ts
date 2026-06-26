@@ -23,6 +23,7 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     takeProfit: 420,
     targetType: "prior_high",
     sector: "Industrials",
+    relativeVolume: null,
     riskPct: 0.01,
     confidence: null,
     thesis: "t",

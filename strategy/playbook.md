@@ -27,25 +27,31 @@ on any single item is a reason to pass or to downsize.
    highs / higher lows intact. No counter-trend entries.
 3. **Momentum** — entering on a constructive reset (pullback to the rising
    20/50-day or a base-breakout retest), not chasing an extended move.
-4. **Relative strength** — leading its sector and outperforming SPY over the
+4. **Volume** — confirm the move with **relative volume** (entry-day volume ÷
+   the 20–50-day average). A breakout/momentum entry should come on
+   **above-average** volume (**≥ ~1.3–1.5×**); a pullback/reset entry should
+   come on **declining / below-average** volume. A breakout on quiet volume — or
+   a pullback on a volume spike — is a weak entry. Soft signal (weighed, not a
+   hard rail).
+5. **Relative strength** — leading its sector and outperforming SPY over the
    recent window; avoid laggards.
-5. **Volatility** — passes the charter volatility filter (20-day ATR within the
+6. **Volatility** — passes the charter volatility filter (20-day ATR within the
    universe cap); the stop distance is sane relative to ATR.
-6. **Catalyst & timing** — note any earnings/event risk inside the holding
+7. **Catalyst & timing** — note any earnings/event risk inside the holding
    window; avoid binary events unless the thesis explicitly accounts for them.
-7. **Sizing** — define the protective stop **first** (the **tighter** of a fixed
+8. **Sizing** — define the protective stop **first** (the **tighter** of a fixed
    −8% and an ATR-based level — deterministic, never discretionary), then size so
    the stop costs **≤2%** of equity and the position is **≤20%** of equity.
    Reward/risk must be **≥2:1**.
-8. **Target** — the profit target must be **technically or fundamentally
+9. **Target** — the profit target must be **technically or fundamentally
    anchored** (`prior_high`, `measured_move`, `atr_multiple`, or `fundamental`),
    **not a sell-side `analyst_price`** — an analyst target is the desk taking
    someone else's number, and the red-team flags it weak.
-9. **Winner-exit** — define how the trade *exits a winner* at entry: a profit
-   target **or** a trailing-stop rule. Govern the upside, not just the stop.
-10. **Correlation / sector** — does this overlap existing book exposure? Respect
+10. **Winner-exit** — define how the trade *exits a winner* at entry: a profit
+    target **or** a trailing-stop rule. Govern the upside, not just the stop.
+11. **Correlation / sector** — does this overlap existing book exposure? Respect
     the **40%** per-sector cap and the 5-position cap; trim size on overlap.
-11. **Red-team** — the prosecutor defaults to "no"; the thesis must survive it.
+12. **Red-team** — the prosecutor defaults to "no"; the thesis must survive it.
 
 ## Banked lessons
 
@@ -64,6 +70,12 @@ Durable lessons promoted from the coaching log. Newest first.
 Structural edits to this playbook (distinct from the banked lessons above).
 Newest first.
 
+- **2026-06-25** — **Relative-volume check (strategy coherence M2).** Added a
+  **Volume** checklist item: confirm the move with relative volume (entry-day ÷
+  the 20–50-day average) — breakouts want above-average (≥ ~1.3–1.5×), pullbacks
+  want below-average; a soft signal weighed by the checklist + red-team, not a
+  hard rail. Proposals now carry a `relativeVolume` figure (surfaced on the
+  proposal card + symbol view). See `planning/strategy-coherence-spec.md`.
 - **2026-06-25** — **Analytical identity (strategy coherence M1).** Added the
   **Strategy identity** section and made the Thesis checklist item require a
   **technical primary rationale**, with fundamentals as a catalyst-check /
