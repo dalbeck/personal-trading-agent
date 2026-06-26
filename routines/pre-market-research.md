@@ -74,10 +74,13 @@ approve → place. (Ignore the paper book entirely.)
 4. Write each candidate as a **proposal** JSON file in `data/proposals/`
    (e.g. `data/proposals/<date>-<ticker>-buy.json`) conforming to
    `TradeProposalSchema` (`src/lib/schemas.ts`), with `account: "live"`,
-   `advisory: false`, `status: "pending"` (see `.agents/data-format.md`). These
-   are **review candidates only** — the human approves every trade; you never
-   place an order, and an approved live order routes to the dry-run sink until
-   the human opens the gates.
+   `advisory: false`, `status: "pending"` (see `.agents/data-format.md`). Each
+   proposal must name a **catalyst** — set `catalyst` (one line: *why now?*) and
+   `catalystType` (`earnings_momentum`, `product_news`, `sector_rotation`,
+   `guidance`, or `other`); a `none` / trend-alone entry is flagged weak by the
+   red-team, so prefer names with a real catalyst. These are **review candidates
+   only** — the human approves every trade; you never place an order, and an
+   approved live order routes to the dry-run sink until the human opens the gates.
 5. **Leave `redTeam` as `null`** — do NOT run any red-team yourself. After you
    finish, the desk automatically runs the cross-model red-team on each new
    proposal **in code** and attaches the verdict (visible to the human at

@@ -24,6 +24,8 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     targetType: "prior_high",
     sector: "Industrials",
     relativeVolume: null,
+    catalyst: null,
+    catalystType: null,
     riskPct: 0.01,
     confidence: null,
     thesis: "t",

@@ -46,6 +46,8 @@ export async function POST(req: Request): Promise<Response> {
     takeProfit: body.takeProfit ?? null,
     targetType: body.targetType ?? null,
     relativeVolume: body.relativeVolume ?? null,
+    catalyst: body.catalyst ?? null,
+    catalystType: body.catalystType ?? null,
     thesis: body.thesis,
     reasoning: body.reasoning,
     research: body.research,

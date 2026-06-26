@@ -37,8 +37,13 @@ on any single item is a reason to pass or to downsize.
    recent window; avoid laggards.
 6. **Volatility** — passes the charter volatility filter (20-day ATR within the
    universe cap); the stop distance is sane relative to ATR.
-7. **Catalyst & timing** — note any earnings/event risk inside the holding
-   window; avoid binary events unless the thesis explicitly accounts for them.
+7. **Catalyst & timing** — name the **catalyst**: *why now?* Every proposal must
+   carry a named catalyst (`catalyst` + `catalyst_type`: `earnings_momentum`,
+   `product_news`, `sector_rotation`, `guidance`, or `other`). A proposal with
+   **`none` (trend alone, no catalyst)** is a momentum chase with nothing behind
+   it — flagged **weak** by the checklist and the red-team. Still note any
+   earnings/event risk inside the holding window, and avoid binary events unless
+   the thesis explicitly accounts for them.
 8. **Sizing** — define the protective stop **first** (the **tighter** of a fixed
    −8% and an ATR-based level — deterministic, never discretionary), then size so
    the stop costs **≤2%** of equity and the position is **≤20%** of equity.
@@ -70,6 +75,12 @@ Durable lessons promoted from the coaching log. Newest first.
 Structural edits to this playbook (distinct from the banked lessons above).
 Newest first.
 
+- **2026-06-25** — **Catalyst requirement (strategy coherence M3).** Promoted
+  the **Catalyst & timing** checklist item from "avoid binary events" to a
+  positive **requirement**: every proposal must name a catalyst (`catalyst` +
+  `catalyst_type`); a `none` / trend-alone entry is flagged **weak** by the
+  checklist + red-team. Proposals now carry both fields (surfaced on the
+  proposal card). See `planning/strategy-coherence-spec.md`.
 - **2026-06-25** — **Relative-volume check (strategy coherence M2).** Added a
   **Volume** checklist item: confirm the move with relative volume (entry-day ÷
   the 20–50-day average) — breakouts want above-average (≥ ~1.3–1.5×), pullbacks

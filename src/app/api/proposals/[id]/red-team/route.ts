@@ -36,6 +36,8 @@ export async function POST(
     takeProfit: proposal.takeProfit,
     targetType: proposal.targetType,
     relativeVolume: proposal.relativeVolume,
+    catalyst: proposal.catalyst,
+    catalystType: proposal.catalystType,
     thesis: proposal.thesis,
     reasoning: proposal.reasoning,
   });

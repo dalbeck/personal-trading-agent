@@ -51,6 +51,9 @@ export interface ExecutableProposal {
   /** Relative volume = entry-day volume ÷ trailing average (M2); a soft signal
    *  the red-team weighs. */
   relativeVolume?: number | null;
+  /** The named catalyst — why *now* (M3); a `none`/missing one is flagged weak. */
+  catalyst?: string | null;
+  catalystType?: string | null;
 }
 
 export type PlaceOrder = (
@@ -132,6 +135,8 @@ export async function executeProposal(
       takeProfit: proposal.takeProfit,
       targetType: proposal.targetType ?? null,
       relativeVolume: proposal.relativeVolume ?? null,
+      catalyst: proposal.catalyst ?? null,
+      catalystType: proposal.catalystType ?? null,
       thesis: proposal.thesis,
       reasoning: proposal.reasoning,
       research: proposal.research,

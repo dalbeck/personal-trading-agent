@@ -14,6 +14,7 @@ import { SampleDataBadge } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
+import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
 import { formatRelativeVolume } from "@/lib/volume";
 import {
   ADVISORY_TAG,
@@ -259,7 +260,24 @@ export function ProposalsList({
                       : formatRelativeVolume(p.relativeVolume)}
                   </span>
                 </span>
+                <span className="text-fg-muted" title={p.catalyst ?? undefined}>
+                  Catalyst{" "}
+                  <span
+                    className={`font-semibold ${
+                      isWeakCatalyst(p.catalystType) ? "text-warning" : "text-fg"
+                    }`}
+                  >
+                    {catalystTypeLabel(p.catalystType)}
+                    {isWeakCatalyst(p.catalystType) ? " · weak" : ""}
+                  </span>
+                </span>
               </div>
+              {p.catalyst ? (
+                <p className="mt-1.5 text-pretty text-xs text-fg-muted">
+                  <span className="font-medium text-fg">Catalyst:</span>{" "}
+                  {p.catalyst}
+                </p>
+              ) : null}
 
               <RiskRewardBar
                 action={p.action}
