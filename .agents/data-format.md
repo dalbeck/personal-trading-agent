@@ -149,7 +149,10 @@ is still valid.
 - **Decision journal:** the trade write-up — thesis as the lead, then the
   reasoning. The structured facts (symbol, action, qty, price, stop, target,
   risk, review date) live in frontmatter and are rendered as the card header,
-  so the body is pure narrative.
+  so the body is pure narrative. A **risk-rail rejection** also carries
+  `rule:<id>` **tags** (one per violated rail, e.g. `rule:sector-concentration`)
+  so the governance scorecard (M4) counts per-rule rejections without parsing the
+  prose reason (`recordRiskRejection`).
 - **Coaching log:** the self-review, labelled `**Expected.**` / `**Actual.**` /
   `**Lesson.**`. `grade`, `period`, `relatedJournalIds`, and
   `promotedToPlaybook` stay in frontmatter.
