@@ -250,6 +250,7 @@ export const ROUTINE_IDS = [
   "pre-market-research",
   "market-open-execution",
   "midday-scan",
+  "live-position-management",
   "end-of-day-summary",
   "weekly-review",
 ] as const;

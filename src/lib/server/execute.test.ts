@@ -189,4 +189,51 @@ describe("executePendingProposals", () => {
     const journals = await readdir(path.join(dir, "decision-journal"));
     expect(journals).toHaveLength(2);
   });
+
+  it("NEVER auto-executes a live proposal — the autonomous paper batch is paper-only", async () => {
+    const dir = await tmpData();
+    const placeOrder = vi.fn(async () => ({ brokerOrderId: "ord" }));
+    const liveSell = {
+      id: "live-1",
+      createdAt: "2026-06-24T12:35:00-04:00",
+      symbol: "NVDA",
+      action: "sell",
+      side: "long",
+      qty: 10,
+      limitPrice: 150,
+      stopPrice: null,
+      takeProfit: null,
+      riskPct: 0,
+      confidence: null,
+      thesis: "Hit take-profit; bank the gain.",
+      reasoning: "Approaching target.",
+      status: "pending",
+      account: "live",
+      advisory: false,
+      redTeam: null,
+      reviewByDate: "2026-07-24",
+    } as unknown as TradeProposal;
+    const liveAdvisory = { ...liveSell, id: "live-2", advisory: true } as TradeProposal;
+
+    const summary = await executePendingProposals({
+      exec: approve,
+      placeOrder,
+      dataDir: dir,
+      timestamp: "2026-06-24T12:35:00-04:00",
+      // A paper buy alongside live (approvable + advisory) proposals.
+      proposals: [pending[0], liveSell, liveAdvisory],
+      snapshot,
+    });
+
+    // Only the paper proposal is considered/placed; the live ones never reach
+    // the broker — live execution is human-approved per trade, never the batch.
+    expect(summary.considered).toBe(1);
+    expect(summary.placed).toBe(1);
+    expect(placeOrder).toHaveBeenCalledOnce();
+    expect(placeOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: "NVDA", action: "buy" }),
+    );
+    const journals = await readdir(path.join(dir, "decision-journal"));
+    expect(journals).toHaveLength(1);
+  });
 });
