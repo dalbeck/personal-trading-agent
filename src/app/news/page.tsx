@@ -3,9 +3,11 @@ import { Card, PageTitle } from "@/components/page-shell";
 import { RunHint } from "@/components/run-hint";
 import { SampleDataBadge, SampleDataBanner } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
+import { NewsIcon } from "@/components/icons";
 import { ScoutRunButton } from "@/components/scout-run-button";
 import { TrackedUniverseCard } from "@/components/tracked-universe";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { groupByDay } from "@/lib/group";
 import { anySample } from "@/lib/sample-data";
 import { classifyOwnership } from "@/lib/universe";
 import { readMaterialNews, readWatchlistEntries } from "@/lib/server/data";
@@ -62,37 +64,59 @@ export default async function NewsPage() {
           ) : null}
         </Card>
       ) : (
-        <div className="flex flex-col gap-3">
-          {visible.map((item) => (
-            <Card key={`${item.seenAt}-${item.link}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <TickerLink
-                    symbol={item.symbol}
-                    className="font-semibold text-fg"
-                  />
-                  <OwnershipBadge
-                    ownership={classifyOwnership(item.symbol, universe)}
-                  />
-                  {item.sample ? <SampleDataBadge /> : null}
-                </div>
-                <time className="text-xs text-fg-muted" dateTime={item.seenAt}>
-                  {formatDateTime(item.seenAt)}
-                </time>
+        <div className="flex flex-col gap-8">
+          {groupByDay(visible, (it) => it.seenAt).map(({ key, items }) => (
+            <section key={key}>
+              <h2 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                {formatDate(key)}
+              </h2>
+              <div className="flex flex-col gap-3">
+                {items.map((item) => (
+                  <Card key={`${item.seenAt}-${item.link}`}>
+                    <div className="flex items-start gap-3">
+                      <span
+                        aria-hidden
+                        className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-accent/12 text-accent"
+                      >
+                        <NewsIcon className="size-[18px]" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <TickerLink
+                              symbol={item.symbol}
+                              className="font-semibold text-fg"
+                            />
+                            <OwnershipBadge
+                              ownership={classifyOwnership(item.symbol, universe)}
+                            />
+                            {item.sample ? <SampleDataBadge /> : null}
+                          </div>
+                          <time
+                            className="shrink-0 text-xs tabular-nums text-fg-muted"
+                            dateTime={item.seenAt}
+                          >
+                            {formatDateTime(item.seenAt)}
+                          </time>
+                        </div>
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1.5 block text-pretty text-sm font-medium text-fg underline-offset-2 hover:underline"
+                        >
+                          {item.title}
+                        </a>
+                        <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-fg-muted">
+                          <span>{item.source}</span>
+                          <span>{item.reason}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
               </div>
-              <a
-                href={item.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 block text-pretty text-sm font-medium text-fg underline-offset-2 hover:underline"
-              >
-                {item.title}
-              </a>
-              <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-fg-muted">
-                <span>{item.source}</span>
-                <span>{item.reason}</span>
-              </div>
-            </Card>
+            </section>
           ))}
         </div>
       )}

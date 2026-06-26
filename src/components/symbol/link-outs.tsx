@@ -1,3 +1,5 @@
+import { ArrowUpRightIcon } from "@/components/icons";
+
 /**
  * External link-outs for a symbol — Yahoo (deep fundamentals), Robinhood
  * (retail view), Stocktwits (social sentiment). Built purely from the symbol,
@@ -36,19 +38,7 @@ export function LinkOuts({ symbol }: { symbol: string }) {
           >
             <span className="flex items-center gap-1.5 text-sm font-semibold text-fg">
               {link.label}
-              <svg
-                aria-hidden
-                viewBox="0 0 24 24"
-                className="size-3.5 text-fg-muted transition-colors group-hover:text-link"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M7 17 L17 7" />
-                <path d="M8 7 h9 v9" />
-              </svg>
+              <ArrowUpRightIcon className="size-3.5 text-fg-muted transition-colors group-hover:text-link" />
             </span>
             <span className="text-xs text-fg-muted">{link.note}</span>
           </a>

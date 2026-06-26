@@ -1,4 +1,5 @@
 import type { RedTeamVerdict } from "@/lib/types";
+import { Term } from "@/components/term";
 import { factorStanceStyle, redTeamVerdictStyle } from "@/lib/red-team-style";
 
 /**
@@ -25,7 +26,7 @@ export function RedTeamVerdict({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-          Codex red-team
+          Codex <Term term="red-team">red-team</Term>
         </h3>
         <span
           className={`rounded-pill border px-2.5 py-0.5 text-xs font-semibold ${style.className}`}

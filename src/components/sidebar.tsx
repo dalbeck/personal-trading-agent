@@ -17,11 +17,11 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-dvh w-16 shrink-0 flex-col border-r border-line bg-surface-raised md:w-60">
-      <div className="flex h-14 items-center gap-2.5 border-b border-line px-3 md:px-5">
+    <aside className="flex h-dvh w-16 shrink-0 flex-col border-r border-line bg-surface-raised md:w-64">
+      <div className="flex h-16 items-center gap-2.5 border-b border-line px-3 md:px-5">
         <span
           aria-hidden
-          className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-accent text-accent-foreground"
+          className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-accent text-accent-foreground"
         >
           <svg
             viewBox="0 0 24 24"
@@ -40,7 +40,10 @@ export function Sidebar() {
         </span>
       </div>
 
-      <nav aria-label="Primary" className="flex flex-1 flex-col gap-1 p-2 md:p-3">
+      <nav
+        aria-label="Primary"
+        className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3"
+      >
         {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (
@@ -50,10 +53,10 @@ export function Sidebar() {
               aria-current={active ? "page" : undefined}
               title={label}
               className={[
-                "flex items-center gap-3 rounded-card px-2.5 py-2 text-sm font-medium transition-colors duration-150 ease-out",
+                "flex items-center gap-3 rounded-input px-3 py-2.5 text-sm font-medium transition-colors duration-150 ease-out",
                 "max-md:justify-center",
                 active
-                  ? "bg-surface-overlay text-fg shadow-overlay"
+                  ? "bg-accent/10 text-fg"
                   : "text-fg-muted hover:bg-surface-overlay hover:text-fg",
               ].join(" ")}
             >

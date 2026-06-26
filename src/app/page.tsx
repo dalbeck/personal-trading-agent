@@ -7,7 +7,18 @@ import { EvalSnapshotModule } from "@/components/overview/eval-snapshot";
 import { GuardrailHeadroom } from "@/components/overview/guardrail-headroom";
 import { RegimeContextStrip } from "@/components/overview/regime-context";
 import { RoutinesHealthModule } from "@/components/overview/routines-health";
-import { Card, PageTitle, StatCard } from "@/components/page-shell";
+import { Card, PageTitle } from "@/components/page-shell";
+import { ProgressBar } from "@/components/ui/progress";
+import { CompositionRing } from "@/components/charts/composition-ring";
+import { KpiCard } from "@/components/overview/kpi-card";
+import {
+  BanknotesIcon,
+  ScaleIcon,
+  TrendingDownIcon,
+  TrendingUpIcon,
+  WalletIcon,
+  ZapIcon,
+} from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { DeskScopeNote } from "@/components/mode-scope";
 import { LiveRefreshButton } from "@/components/live-refresh-button";
@@ -122,34 +133,48 @@ export default async function OverviewPage() {
               </span>
             </div>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-              <StatCard label="Equity" value={formatCurrency(heroSnap.equity)} />
-              <StatCard
+              <KpiCard
+                label="Equity"
+                value={formatCurrency(heroSnap.equity)}
+                icon={WalletIcon}
+                sparkline={
+                  heroSnap.equityCurve.length > 1
+                    ? heroSnap.equityCurve.map((p) => p.equity)
+                    : undefined
+                }
+              />
+              <KpiCard
                 label="Total P&L"
                 value={formatCurrency(heroSnap.totalPl, { signed: true })}
-                delta={formatPercent(heroSnap.totalPlPct)}
+                icon={heroSnap.totalPl < 0 ? TrendingDownIcon : TrendingUpIcon}
                 tone={toneForValue(heroSnap.totalPl)}
+                delta={formatPercent(heroSnap.totalPlPct)}
               />
-              <StatCard
+              <KpiCard
                 label="Day P&L"
                 value={formatCurrency(heroSnap.dayPl, { signed: true })}
-                delta={formatPercent(heroSnap.dayPlPct)}
+                icon={heroSnap.dayPl < 0 ? TrendingDownIcon : TrendingUpIcon}
                 tone={toneForValue(heroSnap.dayPl)}
+                delta={formatPercent(heroSnap.dayPlPct)}
               />
               {heroSnap.benchmark ? (
-                <StatCard
+                <KpiCard
                   label="vs SPY (excess)"
                   value={excess !== null ? formatPercent(excess) : "—"}
-                  delta={`you ${formatPercent(
-                    heroSnap.benchmark.portfolioReturnPct,
-                  )} · SPY ${formatPercent(heroSnap.benchmark.benchmarkReturnPct)}`}
+                  icon={ScaleIcon}
                   tone={excess !== null ? toneForValue(excess) : "neutral"}
                 />
               ) : (
-                <StatCard label="Cash" value={formatCurrency(heroSnap.cash)} />
+                <KpiCard
+                  label="Cash"
+                  value={formatCurrency(heroSnap.cash)}
+                  icon={BanknotesIcon}
+                />
               )}
-              <StatCard
+              <KpiCard
                 label="Buying power"
                 value={formatCurrency(heroSnap.buyingPower)}
+                icon={ZapIcon}
               />
             </div>
           </section>
@@ -297,32 +322,55 @@ export default async function OverviewPage() {
             ) : null}
           </dl>
 
-          <dl className="mb-3 grid grid-cols-1 gap-1.5 rounded-card border border-line bg-surface p-3 text-xs">
-            <div className="mb-0.5 font-semibold uppercase tracking-wide text-fg-muted">
+          <div className="mb-3 flex flex-col gap-3.5 rounded-card border border-line bg-surface p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
               Live pilot caps
             </div>
+            {liveCaps.exposureUsd !== null ? (
+              <ProgressBar
+                label="Account exposure"
+                valueText={`${formatCurrency(liveCaps.exposureUsd)} / ${formatCurrency(liveCaps.maxAccountExposureUsd)}`}
+                value={liveCaps.exposureUsd}
+                max={liveCaps.maxAccountExposureUsd}
+                tone={
+                  liveCaps.exposureUsd >= liveCaps.maxAccountExposureUsd
+                    ? "loss"
+                    : liveCaps.exposureUsd >= 0.8 * liveCaps.maxAccountExposureUsd
+                      ? "warning"
+                      : "accent"
+                }
+              />
+            ) : (
+              <CapRow
+                label="Account exposure ceiling"
+                value={formatCurrency(liveCaps.maxAccountExposureUsd)}
+              />
+            )}
+            {liveCaps.drawdownPct !== null ? (
+              <ProgressBar
+                label="Drawdown vs kill switch"
+                valueText={`${formatPercent(-liveCaps.drawdownPct)} / −${(liveCaps.drawdownKillPct * 100).toFixed(0)}%`}
+                value={liveCaps.drawdownPct}
+                max={liveCaps.drawdownKillPct}
+                tone={
+                  liveCaps.killBreached
+                    ? "loss"
+                    : liveCaps.drawdownPct >= 0.8 * liveCaps.drawdownKillPct
+                      ? "warning"
+                      : "accent"
+                }
+              />
+            ) : (
+              <CapRow
+                label="Drawdown kill switch"
+                value={`−${(liveCaps.drawdownKillPct * 100).toFixed(0)}% from high-water`}
+              />
+            )}
             <CapRow
               label="Weekly funding cap"
               value={formatCurrency(liveCaps.weeklyFundingCapUsd)}
             />
-            <CapRow
-              label="Account exposure ceiling"
-              value={
-                liveCaps.exposureUsd !== null
-                  ? `${formatCurrency(liveCaps.exposureUsd)} / ${formatCurrency(liveCaps.maxAccountExposureUsd)}`
-                  : formatCurrency(liveCaps.maxAccountExposureUsd)
-              }
-            />
-            <CapRow
-              label="Drawdown kill switch"
-              value={
-                liveCaps.drawdownPct !== null
-                  ? `${formatPercent(-liveCaps.drawdownPct)} · trips at −${(liveCaps.drawdownKillPct * 100).toFixed(0)}%`
-                  : `−${(liveCaps.drawdownKillPct * 100).toFixed(0)}% from high-water`
-              }
-              tone={liveCaps.killBreached ? "loss" : "muted"}
-            />
-          </dl>
+          </div>
 
           {live.snapshot ? (
             <>
@@ -349,7 +397,28 @@ export default async function OverviewPage() {
                   {live.snapshot.positions.length}
                 </dd>
               </dl>
-              {live.snapshot.positions.length > 0 ? (
+              {live.snapshot.positions.length >= 2 ? (
+                <div className="mt-4 border-t border-line pt-4">
+                  <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                    Holdings mix
+                  </h4>
+                  <CompositionRing
+                    title="Live holdings by market value"
+                    centerValue={String(live.snapshot.positions.length)}
+                    centerLabel="holdings"
+                    slices={live.snapshot.positions
+                      .filter((p) => p.marketValue > 0)
+                      .slice()
+                      .sort((a, b) => b.marketValue - a.marketValue)
+                      .slice(0, 6)
+                      .map((p) => ({
+                        label: p.symbol,
+                        value: p.marketValue,
+                        valueText: formatCurrency(p.marketValue),
+                      }))}
+                  />
+                </div>
+              ) : live.snapshot.positions.length === 1 ? (
                 <ul className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
                   {live.snapshot.positions.map((p) => (
                     <li

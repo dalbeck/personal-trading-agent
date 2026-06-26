@@ -26,8 +26,8 @@ export async function Header() {
     mode === "live" ? "Paper sink active" : "Live account active";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 md:px-8">
-      <div className="flex items-center gap-2">
+    <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 md:px-8">
+      <div className="flex items-center gap-3">
         <ModeToggle mode={mode} />
         <span className="hidden text-xs text-fg-muted lg:inline">
           · {otherBookHint}

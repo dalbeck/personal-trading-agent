@@ -18,7 +18,7 @@ export function GuardrailHeadroom({ guardrails }: { guardrails: Guardrails }) {
       href="/strategy"
       hrefLabel="Charter"
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <Rail
           label="Drawdown vs halt"
           value={`−${(drawdown.used * 100).toFixed(1)}% / −${(
@@ -90,8 +90,20 @@ function Rail({
   danger: boolean;
 }) {
   const atLimit = danger || fraction >= 1;
-  const fill = atLimit ? "bg-loss" : "bg-fg-muted";
-  const valueTone = atLimit ? "text-loss" : "text-fg";
+  const near = !atLimit && fraction >= 0.8;
+  // Calm by default (blue accent), amber as the rail approaches, red at the
+  // limit — the same restrained semantic ramp used elsewhere.
+  const fill = atLimit ? "bg-loss" : near ? "bg-warning" : "bg-accent";
+  const valueTone = atLimit
+    ? "text-loss"
+    : near
+      ? "text-warning"
+      : "text-fg";
+  const captionTone = atLimit
+    ? "text-loss"
+    : near
+      ? "text-warning"
+      : "text-fg-muted";
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
@@ -106,16 +118,14 @@ function Rail({
         aria-valuenow={Math.round(fraction * 100)}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="mt-1.5 h-2 w-full overflow-hidden rounded-pill bg-surface-overlay"
+        className="mt-2 h-2.5 w-full overflow-hidden rounded-pill bg-surface-overlay"
       >
         <div
-          className={`h-full rounded-pill ${fill}`}
-          style={{ width: `${Math.max(2, fraction * 100)}%` }}
+          className={`h-full rounded-pill transition-[width] duration-200 ease-out ${fill}`}
+          style={{ width: `${Math.max(2, Math.min(100, fraction * 100))}%` }}
         />
       </div>
-      <p className={`mt-1 text-xs ${atLimit ? "text-loss" : "text-fg-muted"}`}>
-        {headroom}
-      </p>
+      <p className={`mt-1.5 text-xs ${captionTone}`}>{headroom}</p>
     </div>
   );
 }

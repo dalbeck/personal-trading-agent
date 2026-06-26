@@ -55,6 +55,9 @@ The target is *premium, calm, "nonsense-free" clarity* — not a busy dashboard.
 | gain | #22C55E | #0A7A33 |
 | loss | #FF6B3D | #C93600 |
 
+### Categorical palette (composition charts ONLY)
+`chart-1 … chart-6` (`bg-chart-1`, `stroke-chart-1`, …) — a restrained six-hue set for **true composition charts only** (portfolio/sector mix donuts via `CompositionRing`). **Never** for status, KPIs, or general decoration; everything else stays blue accent + neutrals + gain/loss. Dark: blue / violet / amber / teal / rose / slate, lifted for the dark surface; light: the same hues deepened.
+
 - The **light** blue/green/red are intentionally deeper than the dark theme's so they clear **≥4.5:1 as text** on white — the spec's raw light values (`#2F7DB0`/`#00A301`/`#E03A00`) fail that bar; contrast wins. Dark values are exactly as specced.
 - Accent (blue) = primary actions (as a **fill**), links, and focus **only** — never a surface, and **never to convey status** (see below).
 - **Link text uses the `link` token, NOT raw `accent`.** Use `text-link` / `hover:text-link-hover` for anchor text. `text-accent` stays valid for an accent **fill**, the focus ring, or a hover on dark surfaces.
@@ -71,12 +74,17 @@ The target is *premium, calm, "nonsense-free" clarity* — not a busy dashboard.
 - Always frame it as **model self-rated and uncalibrated** (e.g. a tooltip): one input alongside the risk rails and red-team, not a probability.
 
 ## Iconography
-- **One icon library across the whole app** — consistent stroke width, a single default size (~16–18px inline, 20px for nav), `currentColor` so icons inherit token colors. No mixed sets, no hand-drawn SVGs.
-- A documented **semantic map** (gain ↑, loss ↓, alert, gate, etc.) and `aria-label` on every icon-only control.
+- **One icon library: `lucide-react`.** All icons are re-exported under semantic names from `src/components/icons.tsx` (e.g. `OverviewIcon`, `WalletIcon`) via a thin wrapper that sets a consistent stroke width (1.75), a default 20px square (override with `className` — `size-4` inline, `size-5` nav), `currentColor` (icons inherit token colors), and `aria-hidden` (icons are decorative; the text label carries meaning). Import icons from `@/components/icons`, never from `lucide-react` directly, so the set stays swappable and consistent. No mixed sets, no hand-drawn SVGs (the sidebar brand glyph is a logo, not an icon).
+- `aria-label` on every icon-only control (e.g. the theme toggle).
 
 ## Charts & data-viz
 - One consistent visual language for the equity curve, sparklines, R:R bar, earnings beat/miss strip, and KPI deltas: gain/loss semantic colors, the blue accent for neutral series, **thin axes, restrained gridlines**, `tabular-nums` labels. Data should look composed, not raw.
 - The **symbol chart stays as-is** (owner likes it) — restyle only its surrounding surface to match.
+
+## Glossary tooltips
+- **One central glossary** (`src/lib/glossary.ts`): `term → { label, definition, caveat? }`. Definitions live here once and are reused everywhere — never hardcode an explanation inline. Caveats reuse the honest copy we already surface (uncalibrated confidence, IEX vs the consolidated tape, metered Perplexity, dry-run sink, advisory vs approvable).
+- **One reusable component** (`<Term term="…">`, `src/components/term.tsx`): a subtle dotted-underline trigger + small info dot; opens on hover, focus, AND tap; dismisses on Esc / blur / outside tap. The trigger is a real button (`aria-expanded`), the popover is `role="tooltip"` linked via `aria-describedby`; no motion, so reduced-motion is respected by construction.
+- **Restraint:** tag a term only on its **primary** appearance per view, and only genuinely jargony terms/acronyms — never decorate every word.
 
 ## Components
 - **Buttons:** primary = accent fill (white text in light, black text in dark), hover toward `accent-hover`; secondary = subtle 1px border; ghost = transparent. Disabled = `opacity: 0.5`, `cursor: not-allowed`.
