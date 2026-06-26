@@ -12,6 +12,7 @@ import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { SampleDataBadge } from "@/components/sample-data-badge";
 import { TickerLink } from "@/components/ticker-link";
+import { Term } from "@/components/term";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
 import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
@@ -426,7 +427,9 @@ export function ProposalsList({
                   {confirmProposal.qty}
                 </dd>
                 <dt className="text-fg-muted">Order type</dt>
-                <dd className="text-right text-fg">marketable-limit</dd>
+                <dd className="text-right text-fg">
+                  <Term term="marketable-limit">marketable-limit</Term>
+                </dd>
                 <dt className="text-fg-muted">Limit price</dt>
                 <dd className="text-right tabular-nums text-fg">
                   {formatCurrency(confirmProposal.limitPrice)}

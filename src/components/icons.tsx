@@ -6,6 +6,7 @@ import {
   BarChart3,
   ClipboardCheck,
   GraduationCap,
+  Info,
   LayoutDashboard,
   Lightbulb,
   type LucideProps,
@@ -84,3 +85,4 @@ export const TrendingDownIcon = lucideIcon(TrendingDown);
 export const ArrowUpRightIcon = lucideIcon(ArrowUpRight);
 export const ArrowDownRightIcon = lucideIcon(ArrowDownRight);
 export const XIcon = lucideIcon(X);
+export const InfoIcon = lucideIcon(Info);

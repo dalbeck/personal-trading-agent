@@ -81,6 +81,11 @@ The target is *premium, calm, "nonsense-free" clarity* — not a busy dashboard.
 - One consistent visual language for the equity curve, sparklines, R:R bar, earnings beat/miss strip, and KPI deltas: gain/loss semantic colors, the blue accent for neutral series, **thin axes, restrained gridlines**, `tabular-nums` labels. Data should look composed, not raw.
 - The **symbol chart stays as-is** (owner likes it) — restyle only its surrounding surface to match.
 
+## Glossary tooltips
+- **One central glossary** (`src/lib/glossary.ts`): `term → { label, definition, caveat? }`. Definitions live here once and are reused everywhere — never hardcode an explanation inline. Caveats reuse the honest copy we already surface (uncalibrated confidence, IEX vs the consolidated tape, metered Perplexity, dry-run sink, advisory vs approvable).
+- **One reusable component** (`<Term term="…">`, `src/components/term.tsx`): a subtle dotted-underline trigger + small info dot; opens on hover, focus, AND tap; dismisses on Esc / blur / outside tap. The trigger is a real button (`aria-expanded`), the popover is `role="tooltip"` linked via `aria-describedby`; no motion, so reduced-motion is respected by construction.
+- **Restraint:** tag a term only on its **primary** appearance per view, and only genuinely jargony terms/acronyms — never decorate every word.
+
 ## Components
 - **Buttons:** primary = accent fill (white text in light, black text in dark), hover toward `accent-hover`; secondary = subtle 1px border; ghost = transparent. Disabled = `opacity: 0.5`, `cursor: not-allowed`.
 - **Enriched KPI card:** small tinted rounded-square icon + muted label + big number (two-tone — de-emphasize secondary digits in `text-fg-subtle`) + compact delta pill (gain/loss tinted) + optional sparkline.
