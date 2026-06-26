@@ -1,7 +1,7 @@
 import type { ROUTINE_IDS } from "@/lib/schemas";
 
 /**
- * Static catalog of the five scheduled routines (id, name, description,
+ * Static catalog of the scheduled routines (id, name, description,
  * cadence). The launchd plists in `scripts/` fire them; their run **status** is
  * read at request time from `data/logs/` (see `readLatestRunByRoutine`), so the
  * dashboard reflects reality rather than a stub.
@@ -48,8 +48,15 @@ export const ROUTINE_CATALOG: RoutineInfo[] = [
   {
     id: "midday-scan",
     name: "Midday scan",
-    description: "Manage open positions, stops, and risk.",
+    description: "Manage open paper positions, stops, and risk.",
     schedule: "Mon–Fri · 12:30 PM ET",
+  },
+  {
+    id: "live-position-management",
+    name: "Live position management",
+    description:
+      "Review live Robinhood holdings vs thesis/stop/take-profit → live exit/trim proposals (human-approved).",
+    schedule: "Mon–Fri · 12:35 PM ET",
   },
   {
     id: "end-of-day-summary",

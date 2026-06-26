@@ -239,8 +239,13 @@ export async function executePendingProposals(opts: {
   proposals?: TradeProposal[];
   snapshot?: PortfolioSnapshot | null;
 }): Promise<RunSummary> {
-  const proposals =
-    opts.proposals ?? (await readProposals({ pendingOnly: true }));
+  // The autonomous batch is **paper-only**: it must never auto-place a
+  // live-intent order. Live proposals — approvable (`advisory: false`) or manual
+  // guidance (`advisory: true`) — are handled exclusively by the per-trade human
+  // approval path (`submitTradeApproval`), so the agent places nothing live on
+  // its own. Skip anything not a plain paper proposal here.
+  const all = opts.proposals ?? (await readProposals({ pendingOnly: true }));
+  const proposals = all.filter((p) => p.account !== "live" && !p.advisory);
   const snapshot = opts.snapshot ?? (await readLatestSnapshot("paper"));
   const results: ExecutionResult[] = [];
 

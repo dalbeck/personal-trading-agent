@@ -45,12 +45,15 @@ export interface OpsActionMeta {
   confirm?: OpsConfirm;
 }
 
-/** The five scheduled routines, each as its own discrete allowlisted action. */
+/** The scheduled routines, each as its own discrete allowlisted action. */
 const routineActions: OpsActionMeta[] = ROUTINE_IDS.map((id) => ({
   id: `routine:${id}`,
   label: id,
   group: "Routines",
-  description: `Trigger the ${id} routine now (paper). Runs the code-gated pipeline: propose → risk rails → red-team → journal.`,
+  description:
+    id === "live-position-management"
+      ? `Trigger the ${id} routine now. Reviews the LIVE Robinhood book and writes live exit/trim proposals (review-only; every live order stays human-approved per trade).`
+      : `Trigger the ${id} routine now (paper). Runs the code-gated pipeline: propose → risk rails → red-team → journal.`,
   danger: false,
 }));
 

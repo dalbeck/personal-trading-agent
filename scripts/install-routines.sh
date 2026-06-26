@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate launchd plists for the five scheduled routines into
+# Generate launchd plists for the scheduled routines into
 # ~/Library/LaunchAgents, wired to this repo's run-routine.sh.
 #
 # This script ONLY WRITES the plists. It deliberately does NOT load them — you
@@ -8,11 +8,12 @@
 # desk. (Still paper only; no real money anywhere in this phase.)
 #
 # Schedule (ET — assumes the Mac's clock is US/Eastern):
-#   pre-market-research    Mon–Fri 08:00
-#   market-open-execution  Mon–Fri 09:35
-#   midday-scan            Mon–Fri 12:30
-#   end-of-day-summary     Mon–Fri 16:15
-#   weekly-review          Sun     17:00
+#   pre-market-research       Mon–Fri 08:00
+#   market-open-execution     Mon–Fri 09:35
+#   midday-scan               Mon–Fri 12:30
+#   live-position-management  Mon–Fri 12:35  (read-only review of the LIVE book)
+#   end-of-day-summary        Mon–Fri 16:15
+#   weekly-review             Sun     17:00
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,6 +26,7 @@ JOBS=(
   "pre-market-research|8|0|1 2 3 4 5"
   "market-open-execution|9|35|1 2 3 4 5"
   "midday-scan|12|30|1 2 3 4 5"
+  "live-position-management|12|35|1 2 3 4 5"
   "end-of-day-summary|16|15|1 2 3 4 5"
   "weekly-review|17|0|0"
 )
@@ -72,7 +74,7 @@ done
 
 cat <<EOF
 
-Wrote 5 plists to $AGENTS (NOT loaded).
+Wrote ${#JOBS[@]} plists to $AGENTS (NOT loaded).
 
 Before loading: ensure the dashboard server is running, Alpaca paper keys are in
 .env, and you've reviewed strategy/charter.md.
