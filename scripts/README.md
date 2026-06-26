@@ -1,7 +1,8 @@
 # Scripts
 
 Helper scripts for the trading agent: the **preflight readiness check**, the
-**scheduled routines** (launchd) and the encrypted `data/` backups.
+**scheduled routines** (launchd), the **always-on services** (a supervised
+dashboard server + the daily backup), and the encrypted `data/` backups.
 
 ## Preflight readiness check
 
@@ -78,13 +79,21 @@ the LLM proposes but never executes.
 ### Reliability (M6)
 
 The trigger endpoint emits two kinds of alerts (both **fail-soft** and default
-**off** — see `src/lib/server/notify.ts`):
+**off** — see `src/lib/server/notify.ts`). They cover **every** routine — paper
+and live — because each runs through the same endpoint:
 
 - **Dead-man switch** — each routine pings healthchecks.io on start / success /
-  fail (`HEALTHCHECKS_PING_KEY`). A *missed or stalled* run trips healthchecks on
-  its own channel, so a silent failure still alerts.
+  fail (`HEALTHCHECKS_PING_KEY`), on its own slug (the routine id). A *missed or
+  stalled* run trips healthchecks on its own channel, so a silent failure still
+  alerts. The live routines (`live-snapshot-refresh`, `live-position-management`)
+  each get their own slug automatically — wire one healthchecks.io check per
+  routine id you load.
 - **Phone heartbeat** — ntfy or Pushover (`NOTIFY_PROVIDER`) on routine
   start/finish and on **any blocked order**.
+- **Live drawdown kill switch** — a fresh live snapshot (the scheduled refresh
+  or a manual Refresh) past the −10% live high-water threshold latches live
+  trading OFF and fires a phone + dead-man alert (`enforceLiveDrawdownKill`,
+  `src/lib/server/live-guards.ts`).
 
 `watchdog.sh <command>` keeps a long-running process (the optional M7 news
 scout) alive, restarting it with capped backoff if it dies:
@@ -92,6 +101,33 @@ scout) alive, restarting it with capped backoff if it dies:
 ```bash
 scripts/watchdog.sh node scripts/news-scout.mjs   # restarts the scout on crash
 ```
+
+## Always-on services: supervised server + daily backup (launchd)
+
+An unattended live desk needs the dashboard **server** to stay up (the scheduled
+routines POST to it) and the **backup** to run on its own. `install-services.sh`
+codifies both as launchd plists — it does **not** load them (loading is
+deliberate):
+
+- `com.tradingdesk.dashboard` — runs `start-server.sh` with **KeepAlive**
+  (auto-restart on crash) + **RunAtLoad** (starts at login / after reboot). So a
+  killed server comes back on its own, and the scheduled routines + the live
+  snapshot refresh keep firing against it across a crash or reboot. (Same label
+  as a hand-made supervisor, so installing is idempotent — there's one server.)
+- `com.tradingdesk.backup` — runs `backup.sh` daily at **03:10**, so the
+  encrypted R2 backup runs unattended (see below).
+
+```bash
+nvm use 22 && pnpm build          # build the production server first
+scripts/install-services.sh        # writes both plists (NOT loaded)
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.tradingdesk.dashboard.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.tradingdesk.backup.plist
+```
+
+`start-server.sh` runs the **production** server (`pnpm start`) by default; set
+`SERVER_CMD="pnpm dev"` in `.env` to supervise the dev server instead. It loads
+Node via nvm and `.env` (launchd has a minimal environment). LOCAL only — never
+expose the server publicly.
 
 ## Encrypted `data/` backups → Cloudflare R2
 
@@ -164,16 +200,18 @@ diff -r data /tmp/restore-check && echo "OK: restore matches"
 rm -rf /tmp/restore-check
 ```
 
-### Daily schedule (launchd or cron)
+### Daily schedule
 
-Cron example (3:10am daily) — use absolute paths and log output:
+**Preferred (launchd):** `scripts/install-services.sh` writes the
+`com.tradingdesk.backup` LaunchAgent that runs `backup.sh` daily at 03:10 — load
+it as shown in *Always-on services* above. It logs to
+`data/logs/launchd-backup.{out,err}.log`.
+
+**Cron alternative** (3:10am daily) — use absolute paths and log output:
 
 ```cron
 10 3 * * * cd /Users/<you>/Projects/personal-trading-agent && /bin/bash scripts/backup.sh >> /tmp/pta-backup.log 2>&1
 ```
-
-(launchd is the macOS-native alternative; a `LaunchAgent` calling the same
-command on a `StartCalendarInterval` works identically.)
 
 ## Clearing sample/seed data
 

@@ -162,8 +162,8 @@ else
   fi
 fi
 
-# --- 6. launchd routines ------------------------------------------------------
-section "6. launchd routines"
+# --- 6. launchd routines & services -------------------------------------------
+section "6. launchd routines & services"
 AGENTS_DIR="$HOME/Library/LaunchAgents"
 shopt -s nullglob
 plists=("$AGENTS_DIR"/com.tradingdesk.*.plist)
@@ -188,9 +188,24 @@ else
   if [ "$loaded_count" -eq 0 ]; then
     warn "${#plists[@]} routine plist(s) present but NONE are loaded — the desk won't run on a schedule. Load with 'launchctl bootstrap gui/\$(id -u) <plist>'."
   else
-    pass "$loaded_count of ${#plists[@]} routine plist(s) loaded."
+    pass "$loaded_count of ${#plists[@]} plist(s) loaded."
   fi
 fi
+
+# Always-on SERVICES (M4): the supervised dashboard server (KeepAlive) and the
+# scheduled daily backup. Written by install-services.sh; loaded deliberately.
+for svc in "com.tradingdesk.dashboard:supervised dashboard server (KeepAlive)" \
+           "com.tradingdesk.backup:daily encrypted R2 backup"; do
+  svc_label="${svc%%:*}"
+  svc_desc="${svc#*:}"
+  if [ ! -f "$AGENTS_DIR/${svc_label}.plist" ]; then
+    warn "No ${svc_label}.plist — ${svc_desc} not installed. Generate with 'scripts/install-services.sh' (writes; does not load)."
+  elif printf '%s\n' "${loaded_list:-}" | grep -q "${svc_label}"; then
+    pass "${svc_desc} loaded (${svc_label})."
+  else
+    warn "${svc_label}.plist present but not loaded — ${svc_desc} won't run. Load with 'launchctl bootstrap gui/\$(id -u) <plist>'."
+  fi
+done
 
 # --- 7. Notifications / dead-man switch ---------------------------------------
 section "7. Notifications & dead-man switch"
