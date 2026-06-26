@@ -1,100 +1,11 @@
 import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
-import { Markdown } from "@/components/markdown";
+import { JournalList } from "@/components/journal/journal-list";
 import { ViewingBadge } from "@/components/mode-scope";
 import { Card, PageTitle } from "@/components/page-shell";
-import { TickerLink } from "@/components/ticker-link";
-import { Badge } from "@/components/ui/badge";
-import {
-  TrendingDownIcon,
-  TrendingUpIcon,
-  XIcon,
-} from "@/components/icons";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
-import { groupByDay } from "@/lib/group";
 import { readJournal } from "@/lib/server/data";
 import { getViewMode } from "@/lib/server/mode";
-import type { JournalEntry } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-const rejectedByLabel: Record<string, string> = {
-  "codex-redteam": "Codex red-team",
-  rules: "Charter rules",
-  human: "Human",
-};
-
-function EntryCard({ entry }: { entry: JournalEntry }) {
-  const isTrade = entry.kind === "trade";
-  const buy = isTrade && entry.action === "buy";
-  const Icon = !isTrade ? XIcon : buy ? TrendingUpIcon : TrendingDownIcon;
-  const tint = !isTrade
-    ? "bg-fg-muted/10 text-fg-muted"
-    : buy
-      ? "bg-gain/12 text-gain"
-      : "bg-loss/12 text-loss";
-  return (
-    <Card interactive>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className={`grid size-9 shrink-0 place-items-center rounded-[12px] ${tint}`}
-          >
-            <Icon className="size-[18px]" />
-          </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <TickerLink
-                symbol={entry.symbol}
-                className="font-semibold text-fg"
-              />
-              {isTrade && entry.manual ? (
-                <Badge tone="muted">manual · live</Badge>
-              ) : null}
-            </div>
-            <span className="text-sm tabular-nums text-fg-muted">
-              {isTrade
-                ? `${entry.action.toUpperCase()} ${entry.qty} @ ${formatCurrency(entry.price)}`
-                : `Rejected · ${entry.proposedAction} · ${rejectedByLabel[entry.rejectedBy]}`}
-            </span>
-          </div>
-        </div>
-        <time className="text-xs text-fg-muted" dateTime={entry.timestamp}>
-          {formatDateTime(entry.timestamp)}
-        </time>
-      </div>
-
-      <Markdown source={entry.body} className="mt-3 text-sm text-fg" />
-
-      {isTrade && (entry.stopPrice !== null || entry.takeProfit !== null) ? (
-        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-fg-muted">
-          {entry.stopPrice !== null ? (
-            <span>Stop {formatCurrency(entry.stopPrice)}</span>
-          ) : null}
-          {entry.takeProfit !== null ? (
-            <span>Target {formatCurrency(entry.takeProfit)}</span>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-        <div className="flex flex-wrap gap-1.5">
-          {entry.tags.map((t) => (
-            <span
-              key={t}
-              className="rounded-pill bg-surface-overlay px-2 py-0.5 text-xs text-fg-muted"
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-        <span className="text-xs text-fg-muted">
-          Review {formatDate(entry.reviewDate)}
-        </span>
-      </div>
-    </Card>
-  );
-}
 
 export default async function JournalPage() {
   const [all, mode] = await Promise.all([readJournal(), getViewMode()]);
@@ -151,18 +62,7 @@ export default async function JournalPage() {
               </div>
             </div>
           </HeroCard>
-          {groupByDay(entries, (e) => e.timestamp).map(({ key, items }) => (
-            <section key={key}>
-              <h2 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                {formatDate(key)}
-              </h2>
-              <div className="flex flex-col gap-4">
-                {items.map((e) => (
-                  <EntryCard key={e.id} entry={e} />
-                ))}
-              </div>
-            </section>
-          ))}
+          <JournalList entries={entries} />
         </div>
       )}
     </div>

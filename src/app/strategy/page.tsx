@@ -1,4 +1,5 @@
 import { StrategyEditor } from "@/components/strategy-editor";
+import { StrategyIntro } from "@/components/strategy/strategy-intro";
 import { PageTitle } from "@/components/page-shell";
 import {
   STRATEGY_DOCS,
@@ -23,6 +24,7 @@ export default async function StrategyPage() {
         title="Strategy"
         subtitle="The charter (immutable rules) and playbook (checklist + lessons)."
       />
+      <StrategyIntro />
       <StrategyEditor docs={docs} />
     </div>
   );

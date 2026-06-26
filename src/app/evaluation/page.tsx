@@ -1,12 +1,29 @@
 import { HeroCard, HeroMetric, HeroStat } from "@/components/hero-card";
-import { Card, PageTitle, SectionTitle, StatCard } from "@/components/page-shell";
-import { ProgressBar } from "@/components/ui/progress";
+import { Card, PageTitle, SectionTitle } from "@/components/page-shell";
+import { KpiCard } from "@/components/overview/kpi-card";
+import { DivergingBars } from "@/components/charts/diverging-bars";
+import { Badge } from "@/components/ui/badge";
+import {
+  IntegrityChip,
+  ReliabilityTile,
+  VerdictHero,
+} from "@/components/evaluation/scorecard-cards";
+import {
+  CheckIcon,
+  GoLiveIcon,
+  InfoIcon,
+  PositionsIcon,
+  RoutinesIcon,
+  ScaleIcon,
+  TrendingDownIcon,
+  TrendingUpIcon,
+  WalletIcon,
+  ZapIcon,
+} from "@/components/icons";
 import { formatCurrency, formatPercent, toneForValue } from "@/lib/format";
 import { getEvaluationScorecard, getLiveBookPerformance } from "@/lib/server/eval";
 import { getGovernanceScorecard } from "@/lib/server/governance";
 import { getViewMode } from "@/lib/server/mode";
-import { verdictStyle } from "@/lib/eval/verdict-style";
-import type { Scorecard } from "@/lib/eval/scorecard";
 import type { GovernanceScorecard } from "@/lib/eval/governance";
 import type { LiveBookPerformance } from "@/lib/eval/live-performance";
 
@@ -20,31 +37,6 @@ function pct(value: number | null, opts?: { signed?: boolean }): string {
 
 function num(value: number | null, digits = 2): string {
   return value === null ? DASH : value.toFixed(digits);
-}
-
-function VerdictBanner({ verdict }: { verdict: Scorecard["verdict"] }) {
-  const style = verdictStyle[verdict.kind];
-  return (
-    <div className={`rounded-card border p-5 ${style.className}`}>
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-medium uppercase tracking-wide opacity-80">
-          Advisory verdict
-        </span>
-        <span className="text-lg font-semibold">{style.label}</span>
-      </div>
-      <ul className="mt-3 flex list-disc flex-col gap-1 pl-5 text-sm text-fg">
-        {verdict.reasons.map((r, i) => (
-          <li key={i} className="text-pretty">
-            {r}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-xs text-fg-muted">
-        Advisory only — the final GO to a capped live pilot is a human decision,
-        and the qualitative criteria (section 5) are not auto-scored.
-      </p>
-    </div>
-  );
 }
 
 function Section({
@@ -64,6 +56,7 @@ function Section({
   );
 }
 
+/** Compact label/value pair for the rubric long-tail (kept sans tabular-nums). */
 function Row({
   label,
   value,
@@ -85,21 +78,6 @@ function Row({
   );
 }
 
-function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
-        ok
-          ? "border-gain/40 bg-gain/10 text-gain"
-          : "border-loss/40 bg-loss/10 text-loss"
-      }`}
-    >
-      <span aria-hidden>{ok ? "✓" : "✕"}</span>
-      {children}
-    </span>
-  );
-}
-
 function GovernanceScorecardCard({
   governance,
 }: {
@@ -111,17 +89,25 @@ function GovernanceScorecardCard({
   if (sampleSize === 0) {
     return (
       <Card className="border-dashed">
-        <p className="text-sm text-fg-muted">
-          No governance decisions observed yet — once proposals are red-teamed
-          and orders pass (or are blocked by) the rails, this scorecard shows the
-          gate&apos;s selectivity and per-rule rejection counts.
-        </p>
+        <div className="flex items-start gap-3">
+          <span
+            aria-hidden
+            className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-accent/10 text-accent"
+          >
+            <InfoIcon className="size-[18px]" />
+          </span>
+          <p className="text-pretty text-sm text-fg-muted">
+            No governance decisions observed yet — once proposals are red-teamed
+            and orders pass (or are blocked by) the rails, this scorecard shows
+            the gate&apos;s selectivity and per-rule rejection counts.
+          </p>
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card className="flex flex-col gap-4">
+    <Card className="flex flex-col gap-5">
       {lowSample ? (
         <div className="rounded-card border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning">
           Small sample ({sampleSize} governance decision
@@ -129,33 +115,34 @@ function GovernanceScorecardCard({
         </div>
       ) : null}
 
-      <div>
-        <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
-          Red-team selectivity ({judged} judged · {tradesPlaced} placed)
-        </h3>
-        <Row
-          label="Approve rate"
-          value={`${pct(redTeam.approveRate, { signed: false })} (${redTeam.approve})`}
-          tone="gain"
-        />
-        <Row
-          label="Concern (downsize)"
-          value={String(redTeam.concern)}
-        />
-        <Row
-          label="Reject rate"
-          value={`${pct(redTeam.rejectRate, { signed: false })} (${redTeam.reject})`}
-          tone="loss"
-        />
-      </div>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
+            <ScaleIcon className="size-3.5" aria-hidden />
+            Red-team selectivity ({judged} judged · {tradesPlaced} placed)
+          </h3>
+          <Row
+            label="Approve rate"
+            value={`${pct(redTeam.approveRate, { signed: false })} (${redTeam.approve})`}
+            tone="gain"
+          />
+          <Row label="Concern (downsize)" value={String(redTeam.concern)} />
+          <Row
+            label="Reject rate"
+            value={`${pct(redTeam.rejectRate, { signed: false })} (${redTeam.reject})`}
+            tone="loss"
+          />
+        </div>
 
-      <div>
-        <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
-          Rejections by gate ({rejections.total})
-        </h3>
-        <Row label="Red-team" value={String(rejections.byActor.redTeam)} />
-        <Row label="Risk rails" value={String(rejections.byActor.rules)} />
-        <Row label="Human" value={String(rejections.byActor.human)} />
+        <div>
+          <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
+            <ZapIcon className="size-3.5" aria-hidden />
+            Rejections by gate ({rejections.total})
+          </h3>
+          <Row label="Red-team" value={String(rejections.byActor.redTeam)} />
+          <Row label="Risk rails" value={String(rejections.byActor.rules)} />
+          <Row label="Human" value={String(rejections.byActor.human)} />
+        </div>
       </div>
 
       {rejections.byRule.length > 0 ? (
@@ -165,11 +152,10 @@ function GovernanceScorecardCard({
           </h3>
           <ul className="flex flex-wrap gap-1.5">
             {rejections.byRule.map((r) => (
-              <li
-                key={r.rule}
-                className="rounded-pill border border-line bg-surface-overlay px-2.5 py-0.5 text-xs font-medium text-fg"
-              >
-                {r.rule} · {r.count}
+              <li key={r.rule}>
+                <Badge tone="muted" solid>
+                  {r.rule} · {r.count}
+                </Badge>
               </li>
             ))}
           </ul>
@@ -183,58 +169,91 @@ function LiveBookCard({ perf }: { perf: LiveBookPerformance | null }) {
   if (!perf) {
     return (
       <Card className="border-dashed">
-        <p className="text-sm text-fg-muted">
-          No live snapshot yet — connect the Robinhood Agentic account and
-          Refresh (or wait for the scheduled live refresh) to populate live-book
-          performance.
-        </p>
+        <div className="flex items-start gap-3">
+          <span
+            aria-hidden
+            className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-accent/10 text-accent"
+          >
+            <InfoIcon className="size-[18px]" />
+          </span>
+          <p className="text-pretty text-sm text-fg-muted">
+            No live snapshot yet — connect the Robinhood Agentic account and
+            Refresh (or wait for the scheduled live refresh) to populate
+            live-book performance.
+          </p>
+        </div>
       </Card>
     );
   }
-  const plTone =
-    perf.unrealizedPlUsd > 0 ? "gain" : perf.unrealizedPlUsd < 0 ? "loss" : "neutral";
+  const plTone = toneForValue(perf.unrealizedPlUsd);
+  const b = perf.benchmark;
   return (
-    <Card className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Open positions" value={String(perf.positions)} />
-        <StatCard label="Cost basis" value={formatCurrency(perf.costBasisUsd)} />
-        <StatCard label="Market value" value={formatCurrency(perf.marketValueUsd)} />
-        <StatCard
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard
+          label="Market value"
+          value={formatCurrency(perf.marketValueUsd)}
+          icon={WalletIcon}
+        />
+        <KpiCard
+          label="Unrealized P&L"
+          value={formatCurrency(perf.unrealizedPlUsd, { signed: true })}
+          icon={plTone === "loss" ? TrendingDownIcon : TrendingUpIcon}
+          tone={plTone}
+          delta={
+            perf.unrealizedPlPct === null
+              ? undefined
+              : formatPercent(perf.unrealizedPlPct)
+          }
+        />
+        <KpiCard
+          label="Cost basis"
+          value={formatCurrency(perf.costBasisUsd)}
+          icon={ScaleIcon}
+        />
+        <KpiCard
           label="Exits taken"
           value={String(perf.exitsTaken)}
+          icon={GoLiveIcon}
         />
       </div>
-      <div>
-        <Row
-          label="Unrealized P&L (vs cost basis)"
-          value={`${perf.unrealizedPlUsd >= 0 ? "+" : ""}${formatCurrency(
-            perf.unrealizedPlUsd,
-          )}${perf.unrealizedPlPct === null ? "" : ` · ${pct(perf.unrealizedPlPct)}`}`}
-          tone={plTone}
-        />
-        {perf.benchmark ? (
-          <>
-            <Row
-              label="Live return"
-              value={pct(perf.benchmark.portfolioReturnPct)}
-              tone={toneForValue(perf.benchmark.portfolioReturnPct)}
-            />
-            <Row
-              label={`${perf.benchmark.symbol} return`}
-              value={pct(perf.benchmark.benchmarkReturnPct)}
-              tone={toneForValue(perf.benchmark.benchmarkReturnPct)}
-            />
-            <Row
-              label={`Excess vs ${perf.benchmark.symbol} (alpha)`}
-              value={pct(perf.benchmark.excessReturnPct)}
-              tone={toneForValue(perf.benchmark.excessReturnPct)}
-            />
-          </>
-        ) : (
+
+      {b ? (
+        <Card className="flex flex-col gap-4">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+            Live vs {b.symbol}
+          </h3>
+          <DivergingBars
+            ariaLabel={`Live book return ${pct(
+              b.portfolioReturnPct,
+            )}, ${b.symbol} return ${pct(b.benchmarkReturnPct)}, excess ${pct(
+              b.excessReturnPct,
+            )}.`}
+            rows={[
+              {
+                label: "Live book",
+                value: b.portfolioReturnPct,
+                valueText: pct(b.portfolioReturnPct),
+              },
+              {
+                label: b.symbol,
+                value: b.benchmarkReturnPct,
+                valueText: pct(b.benchmarkReturnPct),
+              },
+              {
+                label: "Excess (alpha)",
+                value: b.excessReturnPct,
+                valueText: pct(b.excessReturnPct),
+              },
+            ]}
+          />
+        </Card>
+      ) : (
+        <Card>
           <Row label="Vs SPY" value={`${DASH} (benchmark not on snapshot)`} />
-        )}
-      </div>
-    </Card>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -271,7 +290,7 @@ export default async function EvaluationPage() {
                 label="Market value"
                 value={formatCurrency(livePerf.marketValueUsd)}
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <HeroStat
                   label="Unrealized P&L"
                   value={formatCurrency(livePerf.unrealizedPlUsd, {
@@ -288,6 +307,18 @@ export default async function EvaluationPage() {
                   label="Cost basis"
                   value={formatCurrency(livePerf.costBasisUsd)}
                 />
+                {livePerf.benchmark ? (
+                  <HeroStat
+                    label={`Excess vs ${livePerf.benchmark.symbol}`}
+                    value={formatPercent(livePerf.benchmark.excessReturnPct)}
+                    tone={toneForValue(livePerf.benchmark.excessReturnPct)}
+                  />
+                ) : (
+                  <HeroStat
+                    label="Exits taken"
+                    value={String(livePerf.exitsTaken)}
+                  />
+                )}
               </div>
             </div>
           </HeroCard>
@@ -314,11 +345,15 @@ export default async function EvaluationPage() {
           <p className="mt-2 text-pretty text-sm text-fg-muted">
             The go/no-go scorecard grades the{" "}
             <span className="font-medium text-fg">paper desk</span> — a secondary
-            proving-ground for the engine. Your <span className="font-medium text-fg">live</span>{" "}
-            trades are human-approved per trade (not auto-scored there). That gate
-            only governs whether <span className="font-medium text-fg">hands-off
-            automation</span> (no human in the loop) may ever be enabled — it does
-            not gate your own approvals. Switch to the{" "}
+            proving-ground for the engine. Your{" "}
+            <span className="font-medium text-fg">live</span> trades are
+            human-approved per trade (not auto-scored there). That gate only
+            governs whether{" "}
+            <span className="font-medium text-fg">
+              hands-off automation
+            </span>{" "}
+            (no human in the loop) may ever be enabled — it does not gate your
+            own approvals. Switch to the{" "}
             <span className="font-medium text-fg">Paper</span> view for the full
             rubric.
           </p>
@@ -333,158 +368,216 @@ export default async function EvaluationPage() {
   ]);
   const { window, returns, benchmark, trades, integrity, reliability } = card;
 
+  // Diverging bars comparing desk vs benchmark return + the excess. Rows are
+  // omitted only when a side is unavailable — no value is altered or synthesized.
+  const perfRows = [
+    benchmark.deskReturnPct === null
+      ? null
+      : {
+          label: "Desk",
+          value: benchmark.deskReturnPct,
+          valueText: pct(benchmark.deskReturnPct),
+        },
+    benchmark.benchmarkReturnPct === null
+      ? null
+      : {
+          label: benchmark.symbol,
+          value: benchmark.benchmarkReturnPct,
+          valueText: pct(benchmark.benchmarkReturnPct),
+        },
+    benchmark.excessReturnPct === null
+      ? null
+      : {
+          label: "Excess (alpha)",
+          value: benchmark.excessReturnPct,
+          valueText: pct(benchmark.excessReturnPct),
+        },
+  ].filter((r): r is NonNullable<typeof r> => r !== null);
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <PageTitle
         title="Evaluation"
         subtitle="Phase 2 paper-desk scorecard — the go/no-go gate to the Phase 3 live pilot. Computed live from data/ (snapshots, journal, proposals, run logs)."
       />
 
-      <VerdictBanner verdict={card.verdict} />
-
-      <Section
-        title="Window"
-        note="Sample window derived from the latest paper snapshot's equity curve."
-      >
-        <Card className="flex flex-col gap-5">
-          <ProgressBar
-            label="Evaluation window"
-            valueText={`${window.points} / 30 sessions`}
-            value={window.points}
-            max={30}
-            tone={window.points >= 30 ? "gain" : "accent"}
-            caption={
-              window.points >= 30
-                ? "Full evaluation window reached."
-                : `${Math.max(0, 30 - window.points)} more equity points to a full 30-session window.`
-            }
-          />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Start" value={window.startDate ?? DASH} />
-            <StatCard label="End" value={window.endDate ?? DASH} />
-            <StatCard label="Equity points" value={String(window.points)} />
-            <StatCard
-              label="Equity"
-              value={
-                window.startingEquity === null || window.endingEquity === null
-                  ? DASH
-                  : `${window.startingEquity.toLocaleString()} → ${window.endingEquity.toLocaleString()}`
-              }
-            />
-          </div>
-        </Card>
-      </Section>
+      {/* FOCAL: the verdict hero — go/no-go verdict + reasons + window progress. */}
+      <VerdictHero verdict={card.verdict} window={window} />
 
       <Section
         title="1 · Performance vs benchmark"
         note={`Desk equity curve vs ${benchmark.symbol}. ${benchmark.symbol} drawdown/volatility come from its daily closes (Alpaca data API); a — means the series was unavailable.`}
       >
-        <Card>
-          <Row
-            label="Total return — desk"
-            value={pct(benchmark.deskReturnPct)}
-            tone={
-              benchmark.deskReturnPct === null
-                ? "neutral"
-                : toneForValue(benchmark.deskReturnPct)
-            }
-          />
-          <Row
-            label={`Total return — ${benchmark.symbol}`}
-            value={pct(benchmark.benchmarkReturnPct)}
-            tone={
-              benchmark.benchmarkReturnPct === null
-                ? "neutral"
-                : toneForValue(benchmark.benchmarkReturnPct)
-            }
-          />
-          <Row
-            label="Excess return (alpha)"
-            value={pct(benchmark.excessReturnPct)}
-            tone={
-              benchmark.excessReturnPct === null
-                ? "neutral"
-                : toneForValue(benchmark.excessReturnPct)
-            }
-          />
-          <Row
-            label="Max drawdown — desk"
-            value={pct(benchmark.deskMaxDrawdownPct, { signed: false })}
-            tone={benchmark.deskMaxDrawdownPct ? "loss" : "neutral"}
-          />
-          <Row
-            label={`Max drawdown — ${benchmark.symbol}`}
-            value={pct(benchmark.benchmarkMaxDrawdownPct, { signed: false })}
-            tone={benchmark.benchmarkMaxDrawdownPct ? "loss" : "neutral"}
-          />
-          <Row
-            label="Drawdown vs benchmark"
-            value={
-              benchmark.drawdownExcessPct === null
-                ? DASH
-                : `${benchmark.drawdownExcessPct > 0 ? "+" : ""}${(
-                    benchmark.drawdownExcessPct * 100
-                  ).toFixed(2)}pp`
-            }
-            tone={
-              benchmark.drawdownExcessPct === null
-                ? "neutral"
-                : benchmark.drawdownExcessPct > 0
-                  ? "loss"
-                  : "gain"
-            }
-          />
-          <Row
-            label="Return ÷ max-drawdown"
-            value={num(returns.returnOverMaxDd)}
-          />
-          <Row
-            label="Volatility — desk (per-period stdev)"
-            value={pct(returns.volatility, { signed: false })}
-          />
-          <Row
-            label={`Volatility — ${benchmark.symbol}`}
-            value={pct(benchmark.benchmarkVolatility, { signed: false })}
-          />
-          <Row label="Simple Sharpe (rf=0)" value={num(returns.sharpe)} />
-        </Card>
-      </Section>
-
-      <Section title="2 · Trade statistics" note="Closed round-trips, FIFO long-only.">
-        {trades.tradesClosed === 0 ? (
-          <Card className="border-dashed">
-            <p className="text-sm text-fg-muted">
-              No closed round-trips yet ({trades.ordersExecuted} order
-              {trades.ordersExecuted === 1 ? "" : "s"} executed,{" "}
-              {trades.proposalsGenerated} proposal
-              {trades.proposalsGenerated === 1 ? "" : "s"} generated). Trade
-              statistics populate once positions are closed.
-            </p>
-          </Card>
-        ) : (
-          <Card>
-            <Row label="Trades closed" value={String(trades.tradesClosed)} />
-            <Row label="Win rate" value={pct(trades.winRate, { signed: false })} />
-            <Row label="Avg win" value={pct(trades.avgWinPct)} tone="gain" />
-            <Row label="Avg loss" value={pct(trades.avgLossPct)} tone="loss" />
-            <Row label="Profit factor" value={num(trades.profitFactor)} />
-            <Row
-              label="Avg holding period"
-              value={
-                trades.avgHoldingDays === null
-                  ? DASH
-                  : `${num(trades.avgHoldingDays, 1)} days`
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div className="grid grid-cols-2 gap-3">
+            <KpiCard
+              label="Excess return"
+              value={pct(benchmark.excessReturnPct)}
+              icon={ScaleIcon}
+              tone={
+                benchmark.excessReturnPct === null
+                  ? "neutral"
+                  : toneForValue(benchmark.excessReturnPct)
               }
             />
-            <Row
-              label="Largest win / loss"
-              value={`${pct(trades.largestWinPct)} / ${pct(trades.largestLossPct)}`}
+            <KpiCard
+              label="Desk return"
+              value={pct(benchmark.deskReturnPct)}
+              icon={TrendingUpIcon}
+              tone={
+                benchmark.deskReturnPct === null
+                  ? "neutral"
+                  : toneForValue(benchmark.deskReturnPct)
+              }
             />
-            <Row
-              label="Proposals vs executed (selectivity)"
-              value={`${trades.proposalsGenerated} / ${trades.ordersExecuted}`}
+            <KpiCard
+              label="Simple Sharpe"
+              value={num(returns.sharpe)}
+              icon={ZapIcon}
             />
+            <KpiCard
+              label="Return ÷ max-DD"
+              value={num(returns.returnOverMaxDd)}
+              icon={ScaleIcon}
+            />
+          </div>
+
+          <Card className="flex flex-col gap-5">
+            <div>
+              <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                Desk vs {benchmark.symbol} — total return
+              </h3>
+              {perfRows.length > 0 ? (
+                <DivergingBars
+                  ariaLabel={`Desk return ${pct(
+                    benchmark.deskReturnPct,
+                  )}, ${benchmark.symbol} return ${pct(
+                    benchmark.benchmarkReturnPct,
+                  )}, excess ${pct(benchmark.excessReturnPct)}.`}
+                  rows={perfRows}
+                />
+              ) : (
+                <p className="text-sm text-fg-muted">
+                  Return series unavailable — cannot chart desk vs benchmark
+                  yet.
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-line pt-1">
+              <Row
+                label="Max drawdown — desk"
+                value={pct(benchmark.deskMaxDrawdownPct, { signed: false })}
+                tone={benchmark.deskMaxDrawdownPct ? "loss" : "neutral"}
+              />
+              <Row
+                label={`Max drawdown — ${benchmark.symbol}`}
+                value={pct(benchmark.benchmarkMaxDrawdownPct, {
+                  signed: false,
+                })}
+                tone={benchmark.benchmarkMaxDrawdownPct ? "loss" : "neutral"}
+              />
+              <Row
+                label="Drawdown vs benchmark"
+                value={
+                  benchmark.drawdownExcessPct === null
+                    ? DASH
+                    : `${benchmark.drawdownExcessPct > 0 ? "+" : ""}${(
+                        benchmark.drawdownExcessPct * 100
+                      ).toFixed(2)}pp`
+                }
+                tone={
+                  benchmark.drawdownExcessPct === null
+                    ? "neutral"
+                    : benchmark.drawdownExcessPct > 0
+                      ? "loss"
+                      : "gain"
+                }
+              />
+              <Row
+                label="Volatility — desk (per-period stdev)"
+                value={pct(returns.volatility, { signed: false })}
+              />
+              <Row
+                label={`Volatility — ${benchmark.symbol}`}
+                value={pct(benchmark.benchmarkVolatility, { signed: false })}
+              />
+            </div>
           </Card>
+        </div>
+      </Section>
+
+      <Section
+        title="2 · Trade statistics"
+        note="Closed round-trips, FIFO long-only."
+      >
+        {trades.tradesClosed === 0 ? (
+          <Card className="border-dashed">
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden
+                className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-accent/10 text-accent"
+              >
+                <InfoIcon className="size-[18px]" />
+              </span>
+              <p className="text-pretty text-sm text-fg-muted">
+                No closed round-trips yet ({trades.ordersExecuted} order
+                {trades.ordersExecuted === 1 ? "" : "s"} executed,{" "}
+                {trades.proposalsGenerated} proposal
+                {trades.proposalsGenerated === 1 ? "" : "s"} generated). Trade
+                statistics populate once positions are closed.
+              </p>
+            </div>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <KpiCard
+                label="Win rate"
+                value={pct(trades.winRate, { signed: false })}
+                icon={CheckIcon}
+              />
+              <KpiCard
+                label="Profit factor"
+                value={num(trades.profitFactor)}
+                icon={ScaleIcon}
+              />
+              <KpiCard
+                label="Trades closed"
+                value={String(trades.tradesClosed)}
+                icon={PositionsIcon}
+              />
+              <KpiCard
+                label="Avg hold"
+                value={
+                  trades.avgHoldingDays === null
+                    ? DASH
+                    : `${num(trades.avgHoldingDays, 1)} days`
+                }
+                icon={RoutinesIcon}
+              />
+            </div>
+            <Card>
+              <Row
+                label="Avg win"
+                value={pct(trades.avgWinPct)}
+                tone="gain"
+              />
+              <Row
+                label="Avg loss"
+                value={pct(trades.avgLossPct)}
+                tone="loss"
+              />
+              <Row
+                label="Largest win / loss"
+                value={`${pct(trades.largestWinPct)} / ${pct(trades.largestLossPct)}`}
+              />
+              <Row
+                label="Proposals vs executed (selectivity)"
+                value={`${trades.proposalsGenerated} / ${trades.ordersExecuted}`}
+              />
+            </Card>
+          </div>
         )}
       </Section>
 
@@ -494,16 +587,19 @@ export default async function EvaluationPage() {
       >
         <Card className="flex flex-col gap-4">
           <div className="flex flex-wrap gap-2">
-            <Badge ok={integrity.ordersWithoutStop === 0}>
+            <IntegrityChip
+              ok={integrity.ordersWithoutStop === 0}
+              hardFail
+            >
               {integrity.ordersWithoutStop === 0
                 ? "Every buy carries a stop"
                 : `${integrity.ordersWithoutStop} buy(s) without a stop`}
-            </Badge>
-            <Badge ok={!integrity.realMoneyPathTouched}>
+            </IntegrityChip>
+            <IntegrityChip ok={!integrity.realMoneyPathTouched} hardFail>
               {integrity.realMoneyPathTouched
                 ? "Live snapshot present"
                 : "No real-money path touched"}
-            </Badge>
+            </IntegrityChip>
           </div>
           <div>
             <Row
@@ -522,21 +618,30 @@ export default async function EvaluationPage() {
         </Card>
       </Section>
 
-      <Section title="4 · Reliability" note="Scheduled-routine run outcomes (data/logs/).">
+      <Section
+        title="4 · Reliability"
+        note="Scheduled-routine run outcomes (data/logs/)."
+      >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <StatCard label="Total runs" value={String(reliability.totalRuns)} />
-          <StatCard
+          <ReliabilityTile
+            label="Total runs"
+            value={String(reliability.totalRuns)}
+          />
+          <ReliabilityTile
             label="Completed"
             value={String(reliability.completed)}
             tone="gain"
           />
-          <StatCard
+          <ReliabilityTile
             label="Errored"
             value={String(reliability.errored)}
             tone={reliability.errored ? "loss" : "neutral"}
           />
-          <StatCard label="Skipped" value={String(reliability.skipped)} />
-          <StatCard label="Locked" value={String(reliability.locked)} />
+          <ReliabilityTile
+            label="Skipped"
+            value={String(reliability.skipped)}
+          />
+          <ReliabilityTile label="Locked" value={String(reliability.locked)} />
         </div>
       </Section>
 
@@ -549,12 +654,21 @@ export default async function EvaluationPage() {
 
       <Section title="6 · Behavioral / qualitative">
         <Card className="border-dashed">
-          <p className="text-sm text-fg-muted">
-            Recurring-mistake review, lessons promoted to the playbook, journal
-            honesty, and whether the red-team meaningfully changed outcomes are
-            qualitative — assess them from the Decision Journal and Coaching log.
-            They are not auto-scored and remain part of the human GO decision.
-          </p>
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden
+              className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-accent/10 text-accent"
+            >
+              <InfoIcon className="size-[18px]" />
+            </span>
+            <p className="text-pretty text-sm text-fg-muted">
+              Recurring-mistake review, lessons promoted to the playbook,
+              journal honesty, and whether the red-team meaningfully changed
+              outcomes are qualitative — assess them from the Decision Journal
+              and Coaching log. They are not auto-scored and remain part of the
+              human GO decision.
+            </p>
+          </div>
         </Card>
       </Section>
     </div>

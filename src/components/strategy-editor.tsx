@@ -52,7 +52,7 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
       <div
         role="tablist"
         aria-label="Strategy documents"
-        className="mb-4 flex gap-1"
+        className="mb-4 inline-flex gap-1 rounded-pill border border-line bg-surface-raised p-1"
       >
         {docs.map((d) => {
           const isActive = d.doc === active;
@@ -66,9 +66,9 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
                 setActive(d.doc);
                 setMessage(null);
               }}
-              className={`rounded-pill px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+              className={`rounded-pill px-4 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 isActive
-                  ? "bg-surface-overlay text-fg"
+                  ? "bg-accent text-accent-foreground"
                   : "text-fg-muted hover:text-fg"
               }`}
             >
@@ -78,8 +78,8 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
         })}
       </div>
 
-      <div className="rounded-card border border-line bg-surface-raised p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="rounded-card border border-line bg-surface-raised p-6">
+        <div className="mb-5 flex items-center justify-between gap-3 border-b border-line pb-4">
           <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
             {title}.md
           </h2>
@@ -121,7 +121,7 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
             aria-label={`Edit ${title}.md`}
-            className="h-[28rem] w-full resize-y rounded-card border border-line bg-surface p-3 font-mono text-sm leading-relaxed text-fg"
+            className="h-[28rem] w-full resize-y rounded-input border border-line bg-surface p-4 font-mono text-sm leading-relaxed text-fg transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface-raised"
           />
         ) : (
           <Markdown source={current} />
