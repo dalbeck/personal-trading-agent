@@ -6,6 +6,8 @@ import { triggerRoutine } from "@/app/routines/actions";
 import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Card } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { ZapIcon } from "@/components/icons";
 import { formatDateTime } from "@/lib/format";
 import {
   routinePlacesOrders,
@@ -14,14 +16,42 @@ import {
   type RunStatus,
 } from "@/lib/routines";
 
-const statusMeta: Record<RunStatus, { label: string; dot: string; text: string }> =
-  {
-    ok: { label: "OK", dot: "bg-gain", text: "text-gain" },
-    error: { label: "Error", dot: "bg-loss", text: "text-loss" },
-    skipped: { label: "Skipped", dot: "bg-fg-muted/60", text: "text-fg-muted" },
-    locked: { label: "Locked", dot: "bg-fg-muted/60", text: "text-fg-muted" },
-    never: { label: "Never run", dot: "bg-fg-muted/40", text: "text-fg-muted" },
-  };
+const statusMeta: Record<
+  RunStatus,
+  { label: string; dot: string; text: string; tone: BadgeTone }
+> = {
+  ok: { label: "OK", dot: "bg-gain", text: "text-gain", tone: "gain" },
+  error: { label: "Error", dot: "bg-loss", text: "text-loss", tone: "loss" },
+  skipped: {
+    label: "Skipped",
+    dot: "bg-fg-muted/60",
+    text: "text-fg-muted",
+    tone: "muted",
+  },
+  locked: {
+    label: "Locked",
+    dot: "bg-fg-muted/60",
+    text: "text-fg-muted",
+    tone: "muted",
+  },
+  never: {
+    label: "Never run",
+    dot: "bg-fg-muted/40",
+    text: "text-fg-muted",
+    tone: "muted",
+  },
+};
+
+// Needs-attention (errored) routines float to the top so a stalled job is the
+// first thing you see; otherwise catalog order is preserved. Pure presentation
+// ordering — does not touch any trigger/run logic.
+const ATTENTION_RANK: Record<RunStatus, number> = {
+  error: 0,
+  never: 1,
+  skipped: 2,
+  locked: 2,
+  ok: 3,
+};
 
 export function RoutinesList({ routines }: { routines: RoutineRun[] }) {
   const router = useRouter();
@@ -52,55 +82,79 @@ export function RoutinesList({ routines }: { routines: RoutineRun[] }) {
 
   const confirmRoutine = routines.find((r) => r.id === confirmId) ?? null;
 
+  // Surface needs-attention routines first (errored, then never-run), otherwise
+  // keep catalog order. Stable sort preserves the original order within a tier.
+  const ordered = routines
+    .map((r, i) => ({ r, i }))
+    .sort(
+      (a, b) =>
+        ATTENTION_RANK[a.r.lastStatus] - ATTENTION_RANK[b.r.lastStatus] ||
+        a.i - b.i,
+    )
+    .map(({ r }) => r);
+
   return (
-    <div className="flex flex-col gap-3">
-      {routines.map((r) => {
-        const meta = statusMeta[r.lastStatus];
-        const isBusy = busyId === r.id && pending;
-        return (
-          <Card key={r.id}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
+    <Card className="p-0">
+      <ul className="divide-y divide-line">
+        {ordered.map((r) => {
+          const meta = statusMeta[r.lastStatus];
+          const isBusy = busyId === r.id && pending;
+          return (
+            <li
+              key={r.id}
+              className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 p-4 sm:px-5"
+            >
+              <div className="min-w-0 flex-1 basis-72">
+                <div className="flex items-center gap-2.5">
                   <span
                     aria-hidden
-                    className={`size-2 rounded-pill ${meta.dot}`}
+                    className={`size-2 shrink-0 rounded-pill ${meta.dot}`}
                   />
-                  <h2 className="font-serif font-semibold text-fg">{r.name}</h2>
+                  <h2 className="truncate font-serif font-semibold text-fg">
+                    {r.name}
+                  </h2>
+                  <Badge tone={meta.tone} solid>
+                    {meta.label}
+                  </Badge>
                 </div>
-                <p className="mt-1 text-pretty text-sm text-fg-muted">
+                <p className="mt-1.5 text-pretty text-sm text-fg-muted">
                   {r.description}
                 </p>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
                   <span>{r.schedule}</span>
-                  <span>
-                    Last run:{" "}
-                    {r.lastRun ? formatDateTime(r.lastRun) : "never"} ·{" "}
-                    <span className={meta.text}>{meta.label}</span>
+                  <span aria-hidden className="text-fg-subtle">
+                    ·
+                  </span>
+                  <span className="tabular-nums">
+                    Last run {r.lastRun ? formatDateTime(r.lastRun) : "never"}
                   </span>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
                 <Button
                   variant="secondary"
                   size="sm"
                   disabled={isBusy}
                   onClick={() => onRunClick(r.id)}
                 >
+                  <ZapIcon className="size-3.5" aria-hidden />
                   {isBusy ? "Starting…" : "Run now"}
                 </Button>
                 {startedId === r.id ? (
-                  <span role="status" className="max-w-56 text-pretty text-right text-xs text-fg-muted">
+                  <span
+                    role="status"
+                    className="max-w-56 text-pretty text-right text-xs text-fg-muted"
+                  >
                     Started — running in the background (can take a minute).
-                    Watch <span className="font-medium text-fg">Logs</span>; this
-                    updates when it finishes.
+                    Watch <span className="font-medium text-fg">Logs</span>;
+                    this updates when it finishes.
                   </span>
                 ) : null}
               </div>
-            </div>
-          </Card>
-        );
-      })}
+            </li>
+          );
+        })}
+      </ul>
 
       <AlertDialog
         open={confirmRoutine !== null}
@@ -113,6 +167,6 @@ export function RoutinesList({ routines }: { routines: RoutineRun[] }) {
         onConfirm={() => confirmId && run(confirmId)}
         onDismiss={() => setConfirmId(null)}
       />
-    </div>
+    </Card>
   );
 }
