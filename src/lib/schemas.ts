@@ -247,6 +247,7 @@ export const NewsFileSchema = z.array(MaterialNewsItemSchema);
  * Routines + Logs dashboard views and the dead-man switch.
  * ------------------------------------------------------------------------ */
 export const ROUTINE_IDS = [
+  "live-snapshot-refresh",
   "pre-market-research",
   "market-open-execution",
   "midday-scan",

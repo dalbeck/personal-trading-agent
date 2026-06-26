@@ -104,6 +104,33 @@ export async function getLiveAccount(): Promise<LiveAccount> {
 }
 
 /**
+ * Map a {@link refreshLiveAccount} result to a routine RunLog status + summary,
+ * for the scheduled read-only refresh (M2). A successful read is `ok` (the
+ * kill-switch notice, if any, is surfaced in the summary — the kill switch fires
+ * its own alert); a fallback to the last saved snapshot, or no snapshot at all,
+ * is `error` so the routine endpoint raises the dead-man / phone alert. Pure +
+ * exported so the mapping is unit-tested without spawning the CLI.
+ */
+export function summarizeLiveRefresh(live: LiveAccount): {
+  status: "ok" | "error";
+  summary: string;
+} {
+  if (live.source === "robinhood" && live.snapshot) {
+    const n = live.snapshot.positions.length;
+    let summary = `Refreshed live snapshot — ${n} position${
+      n === 1 ? "" : "s"
+    } as of ${live.snapshot.asOf}.`;
+    if (live.notice) summary += ` · ${live.notice}`;
+    return { status: "ok", summary };
+  }
+  return {
+    status: "error",
+    summary:
+      live.notice ?? "Live refresh failed — no fresh snapshot was written.",
+  };
+}
+
+/**
  * Fetch a **fresh** read-only snapshot of the live Agentic account: read it via
  * the `claude` CLI (`get_portfolio` / `get_equity_positions`), enrich each
  * position with the current Alpaca price (market value + unrealized P&L —

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { snapshotFreshness } from "@/lib/snapshot-freshness";
 
 /**
  * Refresh the live Robinhood snapshot on demand. The page renders from the last
@@ -11,10 +12,23 @@ import { useRouter } from "next/navigation";
  *
  * The read takes tens of seconds (a `claude` CLI spawn), so the button shows a
  * busy state and is disabled while it runs.
+ *
+ * It also surfaces **freshness**: when the persisted snapshot is older than the
+ * stale threshold (a scheduled refresh was missed/failed) the stamp turns into a
+ * `· stale` warning. Staleness is computed client-side (it depends on "now") so
+ * there is no hydration mismatch, and re-checked each minute.
  */
 export function LiveRefreshButton({ asOf }: { asOf?: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [stale, setStale] = useState(false);
+
+  useEffect(() => {
+    const check = () => setStale(snapshotFreshness(asOf, new Date()).stale);
+    check();
+    const t = setInterval(check, 60_000);
+    return () => clearInterval(t);
+  }, [asOf]);
 
   async function refresh() {
     setBusy(true);
@@ -36,7 +50,19 @@ export function LiveRefreshButton({ asOf }: { asOf?: string | null }) {
   return (
     <span className="inline-flex items-center gap-2">
       {stamp ? (
-        <span className="text-xs tabular-nums text-fg-muted">as of {stamp}</span>
+        <span
+          title={
+            stale
+              ? "The live snapshot is stale — the scheduled refresh may have failed. Click Refresh to pull now."
+              : undefined
+          }
+          className={`text-xs tabular-nums ${
+            stale ? "font-medium text-warning" : "text-fg-muted"
+          }`}
+        >
+          as of {stamp}
+          {stale ? " · stale" : ""}
+        </span>
       ) : null}
       <button
         type="button"
