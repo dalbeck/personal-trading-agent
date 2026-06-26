@@ -20,6 +20,8 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     catalystType: null,
     riskPct: 0.01,
     confidence: null,
+    convictionScore: null,
+    convictionTier: null,
     thesis: "t",
     reasoning: "r",
     status: "pending",

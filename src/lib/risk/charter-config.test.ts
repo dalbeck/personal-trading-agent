@@ -41,8 +41,23 @@ describe("LIVE_LIMITS mirrors strategy/charter.md (Phase 3 live pilot caps)", ()
 describe("DISCOVERY_LIMITS mirrors strategy/charter.md (Phase 3 discovery caps)", () => {
   it("matches the charter's discovery bounds", () => {
     expect(DISCOVERY_LIMITS).toEqual({
-      maxNewProposalsPerRun: 6, // tracks the daily order cap
+      ideaCap: 20, // DISCOVERY_IDEA_CAP — generous review-funnel default
+      maxIdeaCap: 40, // hard ceiling the tunable idea cap may reach
+      maxProposalsPerSector: 3, // best-in-sector cap per run
+      minSectorsTarget: 3, // sector-spread target
       maxWatchlistSymbols: 20, // bounds auto-added discovery candidates
     });
+  });
+
+  it("decouples the idea cap from the hard daily ORDER cap (review ≠ order)", () => {
+    // The funnel is a preference, larger than the order rail; the order cap is
+    // the hard rail and is unchanged. They must not coincide by accident — that
+    // would re-couple the review queue to the execution limit.
+    expect(DISCOVERY_LIMITS.ideaCap).toBeGreaterThan(
+      RISK_LIMITS.maxOrdersPerDay,
+    );
+    expect(DISCOVERY_LIMITS.maxIdeaCap).toBeGreaterThanOrEqual(
+      DISCOVERY_LIMITS.ideaCap,
+    );
   });
 });

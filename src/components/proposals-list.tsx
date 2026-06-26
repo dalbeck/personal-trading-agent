@@ -13,6 +13,8 @@ import { Term } from "@/components/term";
 import { ChevronRightIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { confidenceBucket } from "@/lib/confidence";
+import { CONVICTION_TIERS, compareByConviction } from "@/lib/conviction";
+import { convictionTierStyle } from "@/lib/conviction-style";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { redTeamVerdictStyle } from "@/lib/red-team-style";
 import { groupProposalsByDay } from "@/lib/proposal-grouping";
@@ -96,12 +98,39 @@ export function ProposalsList({
   }>({ loading: false, result: null });
   const [overrideComment, setOverrideComment] = useState("");
 
+  // Optional conviction filter (M1) — a **view** preference, default "all" so
+  // nothing is hidden by default. Raising it removes only proposals explicitly
+  // tiered below the threshold; untiered (unscored / legacy / manual) proposals
+  // always stay visible — the filter never silently drops something it didn't
+  // rank low. The persisted default lives in the discovery settings (M3).
+  const [tierFilter, setTierFilter] = useState<"all" | "moderate" | "high">(
+    "all",
+  );
+  const hasTiers = useMemo(
+    () => proposals.some((p) => p.convictionTier !== null),
+    [proposals],
+  );
+  const visible = useMemo(() => {
+    if (tierFilter === "all") return proposals;
+    const minRank = tierFilter === "high" ? 0 : 1; // high → 0, moderate → 1
+    return proposals.filter((p) => {
+      if (p.convictionTier === null) return true; // never hide the unscored
+      return CONVICTION_TIERS.indexOf(p.convictionTier) <= minRank;
+    });
+  }, [proposals, tierFilter]);
+
   // The "Today"/"Yesterday" boundary is captured once per mount so date headers
   // stay stable through re-renders (router.refresh, status updates).
   const [nowMs] = useState(() => Date.now());
+  // Within each day, sort high-conviction first (sorting, not hiding — all tiers
+  // render). Day order itself stays newest-first.
   const groups = useMemo(
-    () => groupProposalsByDay(proposals, nowMs),
-    [proposals, nowMs],
+    () =>
+      groupProposalsByDay(visible, nowMs).map((g) => ({
+        ...g,
+        items: [...g.items].sort(compareByConviction),
+      })),
+    [visible, nowMs],
   );
 
   const statusOf = (p: TradeProposal): Status => {
@@ -300,7 +329,47 @@ export function ProposalsList({
 
   return (
     <>
+      {hasTiers ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-fg-muted">
+            Sorted by conviction · all tiers shown
+          </span>
+          <div
+            className="ml-auto inline-flex overflow-hidden rounded-pill border border-line"
+            role="group"
+            aria-label="Filter by conviction tier"
+          >
+            {(
+              [
+                ["all", "All tiers"],
+                ["moderate", "Moderate+"],
+                ["high", "High only"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={tierFilter === value}
+                onClick={() => setTierFilter(value)}
+                className={`px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
+                  tierFilter === value
+                    ? "bg-accent/15 text-fg"
+                    : "text-fg-muted hover:bg-surface-overlay hover:text-fg"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-7">
+        {groups.length === 0 ? (
+          <p className="rounded-card border border-dashed border-line px-4 py-6 text-center text-sm text-fg-muted">
+            No proposals at this conviction level. Lower the filter to “All
+            tiers” to see every candidate.
+          </p>
+        ) : null}
         {groups.map((group) => (
           <section key={group.key}>
             <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
@@ -547,6 +616,11 @@ function ProposalRow({
         <span className="font-serif text-base font-semibold text-fg">
           {p.symbol}
         </span>
+        {p.convictionTier ? (
+          <Badge tone={convictionTierStyle[p.convictionTier].tone}>
+            {convictionTierStyle[p.convictionTier].label}
+          </Badge>
+        ) : null}
         {advisory ? (
           <span className="hidden items-center rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-fg sm:inline-flex">
             {ADVISORY_TAG}

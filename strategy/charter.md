@@ -89,16 +89,34 @@ The agent can never raise them; both gates plus per-trade approval still apply.
 
 ## Discovery caps (Phase 3 — autonomous idea generation)
 
-Bounds on what a single research/discovery run may produce, so a scan can never
-flood the review queue or the tracked universe. Enforced in code
-(`charter.config.ts` `DISCOVERY_LIMITS`); the agent can never raise them.
-Discovery output is always **review candidates, never auto-acted** — the human
-places every trade — and auto-added watchlist symbols are **tracking-only** (no
-order, no execution path).
+Bounds on what a single research/discovery run may produce. Mirrored in code
+(`charter.config.ts` `DISCOVERY_LIMITS`). Discovery output is always **review
+candidates, never auto-acted** — the human places every trade — and auto-added
+watchlist symbols are **tracking-only** (no order, no execution path).
 
-- **Max new proposals per run:** at most **6** new trade ideas per discovery run
-  (tracks the daily order cap so the queue can never exceed what a day could act
-  on). Each still clears the risk rails and the red-team prosecutor.
+> **These are a review-funnel PREFERENCE, not a safety rail.** They shape the
+> *size and mix of the review queue*, and are **decoupled from — and far more
+> generous than — the hard `maxOrdersPerDay` rail (6, unchanged).** A larger
+> funnel of candidates never loosens execution: every proposal, of every
+> conviction tier, still clears the risk rails **and** the red-team prosecutor,
+> only **≤6 orders a day** can ever be placed, and discovery output stays
+> review-only. The human tunes the funnel preferences (idea cap, per-sector cap,
+> minimum conviction to surface) from the Risk-settings discovery panel, bounded
+> by the hard ceilings below; the agent can never raise the ceilings.
+
+- **Idea cap (`DISCOVERY_IDEA_CAP`):** a single run surfaces up to **~20** ranked
+  trade ideas by default (the human may tune this, up to a hard ceiling of
+  **40**). This is the *review-funnel* cap — **separate from the 6-order/day hard
+  rail** — so the desk casts a wide net and the human chooses. Never a quota: the
+  run never fabricates filler when genuine setups don't exist.
+- **Best-in-sector / per-sector cap:** at most **3** proposals from any single
+  sector per run, and the run aims to represent **≥3 sectors** when the setups
+  exist, so the queue is a sector-diversified mix rather than one hot sector.
+  This is a trend / relative-strength desk, so diversification means the
+  *strongest setup within each sector*, never buying laggards.
+- **Conviction tiers:** every idea is scored and tagged **`high` / `moderate` /
+  `watch`**; the queue **sorts strongest-first but shows all tiers by default**
+  (the tier drives sort + an optional filter, never hiding by default).
 - **Watchlist ceiling:** the tracked universe's watchlist holds at most **20**
   symbols; discovery auto-adds stop at the ceiling. The human can prune freely.
 
@@ -132,6 +150,22 @@ order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-06-26** — **Diversified-discovery funnel (proposal-gen M1).** Decoupled
+  the discovery **idea cap** from the daily ORDER cap and made it a generous,
+  human-tunable **review-funnel preference** rather than a safety rail: a single
+  run now surfaces up to **~20** ranked ideas by default (hard ceiling **40**),
+  spread **best-in-sector** across sectors (≤**3** per sector, ≥**3** sectors
+  targeted) and tagged by **conviction tier** (`high` / `moderate` / `watch`,
+  sorted strongest-first, all tiers shown by default). The owner is **explicitly
+  authorizing the larger funnel** — more opportunities surfaced, the human
+  filters only if overloaded. Mirrored in `charter.config.ts` (`DISCOVERY_LIMITS`
+  → `ideaCap` 20 / `maxIdeaCap` 40 / `maxProposalsPerSector` 3 / `minSectorsTarget`
+  3 / `maxWatchlistSymbols` 20), tripwired by `charter-config.test.ts`. **No hard
+  rail or cap changed:** the **6-order/day** rail, the risk rails, and the
+  red-team gate are untouched — every candidate of every tier still clears them,
+  and only ≤6 orders a day can ever be placed. Rationale: a wider, ranked,
+  sector-diversified net surfaces more real setups without weakening any
+  execution boundary. See `planning/proposal-generation-enhancement-spec.md`.
 - **2026-06-25** — **Analytical identity declared (strategy coherence M1).**
   Added the **Analytical identity** section stating plainly that this is a
   **technical trend-following desk**: technical evidence drives entry, exit,
