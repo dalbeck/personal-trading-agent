@@ -106,6 +106,13 @@ export const GLOSSARY = {
     caveat:
       "Self-rated and uncalibrated — one input alongside the risk rails and red-team, not a probability.",
   },
+  "risk-posture": {
+    label: "risk posture",
+    definition:
+      "A 0–100 reading of how aggressively the book is currently positioned (Conservative ↔ Aggressive), blended from real signals: capital deployed vs cash, top-name concentration, open positions vs the 5-cap, average risk-per-trade vs the 2% rail, drawdown vs the −10% halt, and whether a rail has been loosened.",
+    caveat:
+      "A snapshot of current positioning — not a prediction, a recommendation, or a safety rating. A higher reading just means more exposure, not a worse account.",
+  },
   "perplexity-finance": {
     label: "Perplexity Finance",
     definition:

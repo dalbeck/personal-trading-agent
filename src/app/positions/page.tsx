@@ -4,10 +4,13 @@ import { LiveRefreshButton } from "@/components/live-refresh-button";
 import { ViewingBadge } from "@/components/mode-scope";
 import { PositionsTable } from "@/components/positions-table";
 import { Card, PageTitle } from "@/components/page-shell";
+import { RiskPostureCompact } from "@/components/risk-posture-card";
 import { formatCurrency, toneForValue } from "@/lib/format";
 import { MODE_LABEL, otherMode } from "@/lib/mode";
 import { getLiveAccount, getPaperAccount } from "@/lib/server/account";
 import { getViewMode } from "@/lib/server/mode";
+import { getEffectiveRiskConfig } from "@/lib/server/risk-settings";
+import { riskPostureFromSnapshot } from "@/lib/risk-posture";
 import type { Position } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +19,11 @@ export default async function PositionsPage() {
   // Both books resolve independently (both engines run); the view mode only
   // picks which one is the primary section. Paper = Alpaca/seed; live =
   // Robinhood Agentic, read-only.
-  const [paper, live, mode] = await Promise.all([
+  const [paper, live, mode, riskConfig] = await Promise.all([
     getPaperAccount(),
     getLiveAccount(),
     getViewMode(),
+    getEffectiveRiskConfig(),
   ]);
   const isLive = mode === "live";
   const otherLabel = MODE_LABEL[otherMode(mode)];
@@ -35,6 +39,11 @@ export default async function PositionsPage() {
     (s, p) => s + p.unrealizedPl,
     0,
   );
+  const posture = activeSnap
+    ? riskPostureFromSnapshot(activeSnap, {
+        railsLoosened: riskConfig.skipRules.length > 0,
+      })
+    : null;
 
   return (
     <div className="space-y-8">
@@ -77,6 +86,8 @@ export default async function PositionsPage() {
           </div>
         </HeroCard>
       ) : null}
+
+      {posture ? <RiskPostureCompact posture={posture} /> : null}
 
       {isLive ? (
         <section>
