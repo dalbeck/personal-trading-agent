@@ -66,7 +66,6 @@ export default async function ProposalsPage() {
       ) : (
         <ProposalsList
           proposals={proposals}
-          liveEnabled={liveEnabled}
           initialMinTier={discoverySettings.minConvictionTier}
         />
       )}

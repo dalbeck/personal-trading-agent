@@ -43,7 +43,7 @@ export function AwaitingReview({
       ) : (
         <>
           <SampleDataBanner show={anySample(proposals)} />
-          <ProposalsList proposals={proposals} liveEnabled={liveEnabled} />
+          <ProposalsList proposals={proposals} />
           {more > 0 ? (
             <p className="mt-3 text-xs text-fg-muted">
               + {more} more pending on the Proposals page.
