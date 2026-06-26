@@ -115,25 +115,25 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
                 key={p.symbol}
                 className="border-b border-line last:border-0 hover:bg-surface-overlay"
               >
-                <td className="px-4 py-3 font-medium text-fg">
+                <td className="px-4 py-4 font-medium text-fg">
                   <TickerLink symbol={p.symbol} />
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-fg">
+                <td className="px-4 py-4 text-right tabular-nums text-fg">
                   {formatQty(p.qty)}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-fg">
+                <td className="px-4 py-4 text-right tabular-nums text-fg">
                   {formatCurrency(p.avgCost)}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-fg">
+                <td className="px-4 py-4 text-right tabular-nums text-fg">
                   {formatCurrency(p.lastPrice)}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-fg">
+                <td className="px-4 py-4 text-right tabular-nums text-fg">
                   {formatCurrency(p.marketValue)}
                 </td>
-                <td className={`px-4 py-3 text-right tabular-nums ${toneClass}`}>
+                <td className={`px-4 py-4 text-right tabular-nums ${toneClass}`}>
                   {formatCurrency(p.unrealizedPl, { signed: true })}
                 </td>
-                <td className={`px-4 py-3 text-right tabular-nums ${toneClass}`}>
+                <td className={`px-4 py-4 text-right tabular-nums ${toneClass}`}>
                   {formatPercent(p.unrealizedPlPct)}
                 </td>
               </tr>

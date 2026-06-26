@@ -24,6 +24,7 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
+  X,
   Zap,
 } from "lucide-react";
 
@@ -82,3 +83,4 @@ export const TrendingUpIcon = lucideIcon(TrendingUp);
 export const TrendingDownIcon = lucideIcon(TrendingDown);
 export const ArrowUpRightIcon = lucideIcon(ArrowUpRight);
 export const ArrowDownRightIcon = lucideIcon(ArrowDownRight);
+export const XIcon = lucideIcon(X);

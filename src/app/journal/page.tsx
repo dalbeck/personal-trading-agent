@@ -3,7 +3,13 @@ import { ViewingBadge } from "@/components/mode-scope";
 import { Card, PageTitle } from "@/components/page-shell";
 import { TickerLink } from "@/components/ticker-link";
 import { Badge } from "@/components/ui/badge";
+import {
+  TrendingDownIcon,
+  TrendingUpIcon,
+  XIcon,
+} from "@/components/icons";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { groupByDay } from "@/lib/group";
 import { readJournal } from "@/lib/server/data";
 import { getViewMode } from "@/lib/server/mode";
 import type { JournalEntry } from "@/lib/types";
@@ -18,30 +24,39 @@ const rejectedByLabel: Record<string, string> = {
 
 function EntryCard({ entry }: { entry: JournalEntry }) {
   const isTrade = entry.kind === "trade";
+  const buy = isTrade && entry.action === "buy";
+  const Icon = !isTrade ? XIcon : buy ? TrendingUpIcon : TrendingDownIcon;
+  const tint = !isTrade
+    ? "bg-fg-muted/10 text-fg-muted"
+    : buy
+      ? "bg-gain/12 text-gain"
+      : "bg-loss/12 text-loss";
   return (
     <Card>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {isTrade ? (
-            <Badge tone={entry.action === "buy" ? "gain" : "loss"}>
-              {entry.action.toUpperCase()}
-            </Badge>
-          ) : (
-            <Badge tone="muted">REJECTED</Badge>
-          )}
-          {isTrade && entry.manual ? (
-            <Badge tone="muted">manual · live</Badge>
-          ) : null}
-          <TickerLink symbol={entry.symbol} className="font-semibold text-fg" />
-          {isTrade ? (
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className={`grid size-9 shrink-0 place-items-center rounded-[12px] ${tint}`}
+          >
+            <Icon className="size-[18px]" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <TickerLink
+                symbol={entry.symbol}
+                className="font-semibold text-fg"
+              />
+              {isTrade && entry.manual ? (
+                <Badge tone="muted">manual · live</Badge>
+              ) : null}
+            </div>
             <span className="text-sm tabular-nums text-fg-muted">
-              {entry.qty} @ {formatCurrency(entry.price)}
+              {isTrade
+                ? `${entry.action.toUpperCase()} ${entry.qty} @ ${formatCurrency(entry.price)}`
+                : `Rejected · ${entry.proposedAction} · ${rejectedByLabel[entry.rejectedBy]}`}
             </span>
-          ) : (
-            <span className="text-sm text-fg-muted">
-              {entry.proposedAction} · {rejectedByLabel[entry.rejectedBy]}
-            </span>
-          )}
+          </div>
         </div>
         <time className="text-xs text-fg-muted" dateTime={entry.timestamp}>
           {formatDateTime(entry.timestamp)}
@@ -109,9 +124,18 @@ export default async function JournalPage() {
           </p>
         </Card>
       ) : (
-        <div className="flex flex-col gap-4">
-          {entries.map((e) => (
-            <EntryCard key={e.id} entry={e} />
+        <div className="flex flex-col gap-8">
+          {groupByDay(entries, (e) => e.timestamp).map(({ key, items }) => (
+            <section key={key}>
+              <h2 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                {formatDate(key)}
+              </h2>
+              <div className="flex flex-col gap-4">
+                {items.map((e) => (
+                  <EntryCard key={e.id} entry={e} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
