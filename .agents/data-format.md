@@ -75,7 +75,14 @@ internal state file — written directly, not a `data/` artifact contract.
 `data/control/market-conditions.json` (`{ vix, fetchedAt }`) is the **short-TTL
 VIX cache** (~10 min) so the slow Robinhood `get_index_quotes` spawn doesn't
 block every approval — likewise an internal state file
-(`src/lib/server/market-conditions.ts`). The **research cache**
+(`src/lib/server/market-conditions.ts`).
+`data/control/regime.json` (the `RegimeContext` plus a `fetchedAt`) is the
+**advisory market-regime cache** (M4, ~60-min TTL) — SPY trend, VIX band, and
+sector-ETF rotation, computed from Alpaca daily bars and shared by the dashboard
+strip and the pre-market routine (`/api/regime`). **Advisory context only** — it
+is not a rail or a gate and sizes nothing; fail-soft to a neutral read on any
+data gap. Another internal state file (`src/lib/server/regime.ts`) — written
+directly, not a `data/` artifact contract. The **research cache**
 (`data/research/cache/<SYMBOL>.json`) is now keyed by symbol (not symbol+date)
 and carries a `fetchedAt` stamp: `getSymbolResearch` serves it unless older than
 a soft max-age (`RESEARCH_MAX_AGE_DAYS`, default 7) or a manual refresh forces a

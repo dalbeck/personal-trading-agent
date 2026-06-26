@@ -37,6 +37,16 @@ approve → place. (Ignore the paper book entirely.)
   universe (holdings + watchlist); weigh them when reviewing positions and ideas.
 
 ## Do
+0. **Read the market regime first (advisory context).** Fetch the regime read so
+   your ideas lean with where money is rotating, not against it. It is
+   **advisory only** — never a rail or a reason to force/skip a trade — but a
+   candidate fighting the regime (e.g. a long in a lagging sector while SPY is in
+   a downtrend) deserves extra scrutiny. Include the one-line `summary` in your
+   end-of-run output.
+
+   ```bash
+   curl -fsS "http://127.0.0.1:${PORT:-3000}/api/regime" | tail -c 600
+   ```
 1. **Scan for ideas across sources**, not just current holdings:
    - `data/news/` (the scout's material headlines for the tracked universe),
    - per-symbol Alpaca news for names of interest (the symbol view's free feed),
@@ -132,5 +142,6 @@ entry so we can later assess whether it helped.
 - Equities only. SPY is the benchmark, never a holding.
 - Be concise and honest. Prefer fewer high-quality proposals over many weak ones.
 
-End with a one-line summary: how many **paper** and **live** proposals you wrote
-and how many tickers you added to the watchlist.
+End with a one-line summary: the **market-regime** line (from `/api/regime`),
+then how many **paper** and **live** proposals you wrote and how many tickers you
+added to the watchlist.

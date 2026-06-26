@@ -5,6 +5,7 @@ import { AttentionStrip } from "@/components/overview/attention-strip";
 import { AwaitingReview } from "@/components/overview/awaiting-review";
 import { EvalSnapshotModule } from "@/components/overview/eval-snapshot";
 import { GuardrailHeadroom } from "@/components/overview/guardrail-headroom";
+import { RegimeContextStrip } from "@/components/overview/regime-context";
 import { RoutinesHealthModule } from "@/components/overview/routines-health";
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import { liveDrawdown } from "@/lib/server/live-guards";
 import { getViewMode } from "@/lib/server/mode";
 import { getTrackedUniverse } from "@/lib/server/universe";
 import { getOverviewModules } from "@/lib/server/overview";
+import { getRegimeContext } from "@/lib/server/regime";
 import { LIVE_LIMITS } from "@strategy/charter.config";
 
 // Reads live paper data / mutable local files; never cache at build time.
@@ -30,11 +32,12 @@ export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const { snapshot: snap, source, notice } = await getPaperAccount();
-  const [live, gate, modules, mode] = await Promise.all([
+  const [live, gate, modules, mode, regime] = await Promise.all([
     getLiveAccount(),
     getLiveTradingStatus(),
     getOverviewModules(snap),
     getViewMode(),
+    getRegimeContext(),
   ]);
   const universe = await getTrackedUniverse(mode);
 
@@ -93,6 +96,8 @@ export default async function OverviewPage() {
       </div>
 
       <AttentionStrip attention={modules.attention} />
+
+      <RegimeContextStrip regime={regime} />
 
       <DeskScopeNote mode={mode} />
 
