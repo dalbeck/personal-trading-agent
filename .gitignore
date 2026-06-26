@@ -37,3 +37,9 @@ Thumbs.db
 
 # Playwright MCP scratch output (milestone screenshots, snapshots, console logs)
 .playwright-mcp/
+
+# Locally-installed agent skills (added via `npx skills add`) — tooling, not
+# project source; reinstall locally rather than vendoring into the repo
+.agents/skills/
+.claude/skills/
+skills-lock.json
