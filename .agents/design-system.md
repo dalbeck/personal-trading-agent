@@ -55,6 +55,9 @@ The target is *premium, calm, "nonsense-free" clarity* — not a busy dashboard.
 | gain | #22C55E | #0A7A33 |
 | loss | #FF6B3D | #C93600 |
 
+### Categorical palette (composition charts ONLY)
+`chart-1 … chart-6` (`bg-chart-1`, `stroke-chart-1`, …) — a restrained six-hue set for **true composition charts only** (portfolio/sector mix donuts via `CompositionRing`). **Never** for status, KPIs, or general decoration; everything else stays blue accent + neutrals + gain/loss. Dark: blue / violet / amber / teal / rose / slate, lifted for the dark surface; light: the same hues deepened.
+
 - The **light** blue/green/red are intentionally deeper than the dark theme's so they clear **≥4.5:1 as text** on white — the spec's raw light values (`#2F7DB0`/`#00A301`/`#E03A00`) fail that bar; contrast wins. Dark values are exactly as specced.
 - Accent (blue) = primary actions (as a **fill**), links, and focus **only** — never a surface, and **never to convey status** (see below).
 - **Link text uses the `link` token, NOT raw `accent`.** Use `text-link` / `hover:text-link-hover` for anchor text. `text-accent` stays valid for an accent **fill**, the focus ring, or a hover on dark surfaces.

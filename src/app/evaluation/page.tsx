@@ -1,4 +1,5 @@
 import { Card, PageTitle, StatCard } from "@/components/page-shell";
+import { ProgressBar } from "@/components/ui/progress";
 import { formatCurrency, formatPercent, toneForValue } from "@/lib/format";
 import { getEvaluationScorecard, getLiveBookPerformance } from "@/lib/server/eval";
 import { getGovernanceScorecard } from "@/lib/server/governance";
@@ -312,19 +313,33 @@ export default async function EvaluationPage() {
         title="Window"
         note="Sample window derived from the latest paper snapshot's equity curve."
       >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Start" value={window.startDate ?? DASH} />
-          <StatCard label="End" value={window.endDate ?? DASH} />
-          <StatCard label="Equity points" value={String(window.points)} />
-          <StatCard
-            label="Equity"
-            value={
-              window.startingEquity === null || window.endingEquity === null
-                ? DASH
-                : `${window.startingEquity.toLocaleString()} → ${window.endingEquity.toLocaleString()}`
+        <Card className="flex flex-col gap-5">
+          <ProgressBar
+            label="Evaluation window"
+            valueText={`${window.points} / 30 sessions`}
+            value={window.points}
+            max={30}
+            tone={window.points >= 30 ? "gain" : "accent"}
+            caption={
+              window.points >= 30
+                ? "Full evaluation window reached."
+                : `${Math.max(0, 30 - window.points)} more equity points to a full 30-session window.`
             }
           />
-        </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Start" value={window.startDate ?? DASH} />
+            <StatCard label="End" value={window.endDate ?? DASH} />
+            <StatCard label="Equity points" value={String(window.points)} />
+            <StatCard
+              label="Equity"
+              value={
+                window.startingEquity === null || window.endingEquity === null
+                  ? DASH
+                  : `${window.startingEquity.toLocaleString()} → ${window.endingEquity.toLocaleString()}`
+              }
+            />
+          </div>
+        </Card>
       </Section>
 
       <Section

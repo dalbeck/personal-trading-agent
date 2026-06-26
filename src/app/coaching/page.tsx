@@ -24,7 +24,9 @@ function EntryCard({ entry }: { entry: CoachingEntry }) {
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Badge tone={gradeTone[entry.grade]}>Grade {entry.grade}</Badge>
+          <Badge tone={gradeTone[entry.grade]} solid>
+            Grade {entry.grade}
+          </Badge>
           <span className="text-sm text-fg-muted capitalize">
             {entry.period}
           </span>
@@ -105,7 +107,7 @@ export default async function CoachingPage() {
           />
         </Card>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           {entries.map((e) => (
             <EntryCard key={e.id} entry={e} />
           ))}

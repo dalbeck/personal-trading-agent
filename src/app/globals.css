@@ -42,6 +42,14 @@
   --danger-surface: #fbe7df;
   --danger-border: #f1c2ad;
   --overlay-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
+  /* Restrained categorical palette — ONLY for true composition charts
+     (sector / portfolio mix). Never for status or general decoration. */
+  --chart-1: #2a72a3;
+  --chart-2: #6e5fd0;
+  --chart-3: #b9791f;
+  --chart-4: #1f9c8a;
+  --chart-5: #c2526e;
+  --chart-6: #5b6b7a;
 }
 
 .dark {
@@ -72,6 +80,13 @@
   --danger-surface: #2a130c;
   --danger-border: #5a2a1c;
   --overlay-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.6);
+  /* Categorical palette (composition charts only) — slightly lifted for dark. */
+  --chart-1: #7fb4d5;
+  --chart-2: #a9a2f6;
+  --chart-3: #f4b860;
+  --chart-4: #6fd6c4;
+  --chart-5: #e6829b;
+  --chart-6: #9aa6b2;
 }
 
 /* Map design tokens into Tailwind's theme so utilities resolve to the CSS vars
@@ -101,6 +116,12 @@
   --color-danger: var(--danger-fg);
   --color-danger-surface: var(--danger-surface);
   --color-danger-border: var(--danger-border);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
