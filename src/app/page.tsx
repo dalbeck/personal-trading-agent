@@ -237,7 +237,10 @@ export default async function OverviewPage() {
           />
         </div>
 
-        {/* SIDEBAR */}
+        {/* SIDEBAR — an at-a-glance rail: what needs you, how the book is
+            positioned, and what just happened. The activity feed rides here
+            (a compact vertical list) so the sidebar tracks the taller main
+            column instead of leaving dead space below the gauge. */}
         <div className="flex flex-col gap-5">
           <NeedsYouCard attention={modules.attention} />
           {posture ? (
@@ -247,22 +250,21 @@ export default async function OverviewPage() {
               scopeLabel={`${MODE_LABEL[mode]} book`}
             />
           ) : null}
+          <ActivityFeed activity={modules.activity} universe={universe} />
         </div>
       </div>
 
       <SectionTitle
         title="Desk health"
-        note="The guardrails the desk runs inside, its evaluation standing, recent activity, and routine status."
+        note="The guardrails the desk runs inside, its evaluation standing, and routine status."
       />
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         <GuardrailHeadroom guardrails={modules.guardrails} />
         <EvalSnapshotModule evaluation={modules.evaluation} mode={mode} />
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <ActivityFeed activity={modules.activity} universe={universe} />
-        <RoutinesHealthModule health={modules.routinesHealth} />
+        <div className="lg:col-span-2 xl:col-span-1">
+          <RoutinesHealthModule health={modules.routinesHealth} />
+        </div>
       </section>
 
       <SectionTitle
