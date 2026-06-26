@@ -80,10 +80,18 @@ more real setups are there.
    (3) sectors represented**, but **skip a sector with no decent setup** rather
    than forcing one.
 3. **Respect the discovery caps (review-funnel preferences, NOT safety rails).**
-   - **Idea cap:** emit at most `DISCOVERY_LIMITS.ideaCap` (~20) NEW proposals,
-     minus what is already pending in `data/proposals/` for the live account.
-   - **Per-sector cap:** at most `DISCOVERY_LIMITS.maxProposalsPerSector` (3)
+   The charter `DISCOVERY_LIMITS` are the defaults, but the human may have tuned
+   the funnel — **read `data/control/discovery-settings.json` if it exists** and
+   use its values in place of the defaults (a missing file or field = the charter
+   default; the values are already clamped to the charter ceilings, so never
+   exceed idea cap **40** / per-sector regardless):
+   - **Idea cap:** emit at most the effective `ideaCap` (default `DISCOVERY_LIMITS.ideaCap`
+     ~20) NEW proposals, minus what is already pending in `data/proposals/` for
+     the live account.
+   - **Per-sector cap:** at most the effective `maxProposalsPerSector` (default 3)
      proposals from any single sector, so the queue is a diversified mix.
+   - **Sector spread:** aim for the effective `minSectorsTarget` (default 3)
+     sectors when the setups exist.
    These bound the *review queue*; the hard **6-order/day** cap is separate and
    unchanged. A larger funnel never loosens execution.
 4. For each genuine candidate, size it stop-first per the charter (≤2% risk,

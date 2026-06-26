@@ -80,9 +80,14 @@ interface PrecheckResult {
 export function ProposalsList({
   proposals,
   liveEnabled,
+  initialMinTier = "watch",
 }: {
   proposals: TradeProposal[];
   liveEnabled: boolean;
+  /** The persisted "minimum conviction to surface" preference (M3) — the queue's
+   *  default filter. `watch` = show all (the default). A view preference: the
+   *  human can still change the filter for the session. */
+  initialMinTier?: "high" | "moderate" | "watch";
 }) {
   const router = useRouter();
   const [results, setResults] = useState<Record<string, DecisionResult>>({});
@@ -103,8 +108,16 @@ export function ProposalsList({
   // tiered below the threshold; untiered (unscored / legacy / manual) proposals
   // always stay visible — the filter never silently drops something it didn't
   // rank low. The persisted default lives in the discovery settings (M3).
+  // The default filter comes from the persisted "minimum conviction to surface"
+  // preference (M3): watch → all, moderate → moderate+, high → high only. The
+  // human can still change it for the session — it never hides anything the
+  // discovery run didn't explicitly rank below the threshold.
   const [tierFilter, setTierFilter] = useState<"all" | "moderate" | "high">(
-    "all",
+    initialMinTier === "high"
+      ? "high"
+      : initialMinTier === "moderate"
+        ? "moderate"
+        : "all",
   );
   const hasTiers = useMemo(
     () => proposals.some((p) => p.convictionTier !== null),

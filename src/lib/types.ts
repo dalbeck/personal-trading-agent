@@ -3,6 +3,7 @@ import type {
   AccountKind,
   BenchmarkSchema,
   CoachingEntrySchema,
+  DiscoverySettingsSchema,
   EquityPointSchema,
   JournalEntrySchema,
   MaterialNewsItemSchema,
@@ -50,3 +51,4 @@ export type WatchlistEntry = z.infer<typeof WatchlistEntrySchema>;
 
 export type RiskRailSetting = z.infer<typeof RiskRailSettingSchema>;
 export type RiskSettings = z.infer<typeof RiskSettingsSchema>;
+export type DiscoverySettings = z.infer<typeof DiscoverySettingsSchema>;
