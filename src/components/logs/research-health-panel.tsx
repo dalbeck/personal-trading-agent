@@ -4,11 +4,13 @@ import {
   type ResearchDiagnostic,
 } from "@/lib/server/research/diagnostics";
 
-/** One-line summary of a research call for the health panel. Pure (tested). */
+/** One-line summary of a research call for the health panel. Pure (tested).
+ *  Prefixed with the provider so perplexity vs fmp are distinguishable
+ *  (fundamentals-fallback-fmp M2). */
 export function formatDiagnosticLine(d: ResearchDiagnostic): string {
   const reason = researchReasonText(d);
   const cost = d.cost != null ? ` · $${d.cost.toFixed(4)}` : "";
-  return `${d.symbol} · ${reason ?? "ok"} · ${d.latencyMs}ms${cost}`;
+  return `${d.provider} · ${d.symbol} · ${reason ?? "ok"} · ${d.latencyMs}ms${cost}`;
 }
 
 /** Format the RFC3339 `at` timestamp as a compact "h:mm AM/PM ET" string. Pure. */

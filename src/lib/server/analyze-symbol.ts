@@ -138,6 +138,10 @@ async function defaultResearch(
       perplexityCatalysts: r.catalysts,
       perplexityStatus: r.perplexity,
     });
+    // fundamentals-fallback-fmp M2: FMP-supplied value data counts as available.
+    // If cashFlow or dividend is present from ANY provider (Perplexity or FMP),
+    // the quality data is verified-available and researchStatus is "ok".
+    const valueDataPresent = Boolean(r.cashFlow || r.dividend);
     return {
       sector: r.profile?.sector ?? null,
       catalyst: captured.catalyst,
@@ -146,8 +150,8 @@ async function defaultResearch(
       catalystState: captured.state,
       cashFlow: r.cashFlow ?? null,
       dividend: r.dividend ?? null,
-      researchStatus: r.perplexity,
-      researchStatusReason: r.perplexityReason,
+      researchStatus: valueDataPresent ? "ok" : r.perplexity,
+      researchStatusReason: valueDataPresent ? null : r.perplexityReason,
       usedPerplexity: r.perplexity === "ok",
     };
   } catch {
@@ -400,10 +404,13 @@ export async function analyzeSymbol(
   // Attached to the value lens + briefed to the value red-team only.
   const cashFlow = research.cashFlow;
   const dividend = research.dividend;
-  // Research availability (research-unavailable-state M3) — when off/capped/failed
-  // the value-quality fields are "data unavailable" (explicit, not a silent —).
-  const researchStatus = research.researchStatus;
-  const researchStatusReason = research.researchStatusReason;
+  // Research availability (research-unavailable-state M3 / fundamentals-fallback-fmp M2):
+  // when off/capped/failed the value-quality fields are "data unavailable" (explicit,
+  // not a silent —). However, if cashFlow or dividend is present from ANY provider
+  // (Perplexity OR FMP), the quality data is verified-available → "ok".
+  const valueDataPresent = Boolean(cashFlow || dividend);
+  const researchStatus = valueDataPresent ? "ok" : research.researchStatus;
+  const researchStatusReason = valueDataPresent ? null : research.researchStatusReason;
   // The catalyst's sources (catalyst-news-sources M1) are the symbol's news —
   // shared across both lenses, briefed to each red-team, and persisted per lens.
   const catalystSources = research.catalystSources;

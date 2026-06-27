@@ -542,6 +542,81 @@ describe("analyzeSymbol", () => {
     expect(files.length).toBe(2);
   });
 
+  it("treats FMP-supplied cashFlow as available even when Perplexity is unavailable (fundamentals-fallback-fmp M2)", async () => {
+    // RED→GREEN: when Perplexity is down but FMP filled cashFlow,
+    // the value lens researchStatus must be "ok" and researchStatusReason null.
+    // Use a deep downtrend so the value lens is the active one (tie-breaks trend).
+    const cashFlow = {
+      operatingCashFlow: 3_000_000_000,
+      freeCashFlow: 2_500_000_000,
+      fcfTrend: "growing" as const,
+      fcfYield: 0.04,
+      netDebt: null,
+      debtToEquity: 0.5,
+      interestCoverage: 15,
+    };
+    const res = await analyzeSymbol("AAPL", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(220, 200, -0.3), // deep downtrend → value lens active
+      readSnapshot: snapshotSeam,
+      fetchResearch: async () => ({
+        sector: "Information Technology",
+        catalyst: null,
+        catalystType: null,
+        // Perplexity was unavailable but FMP supplied cashFlow
+        cashFlow,
+        dividend: null,
+        researchStatus: "unavailable" as const,
+        researchStatusReason: "HTTP 402 (check API billing)",
+        catalystSources: [],
+        catalystState: "none" as const,
+        usedPerplexity: false,
+      }),
+      redTeamExec: approveExec,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // The value lens always carries the research status and must show "ok" (FMP data present)
+    const valueLens = res.proposal.lenses.find((l) => l.strategy === "value");
+    expect(valueLens?.researchStatus).toBe("ok");
+    expect(valueLens?.researchStatusReason).toBeNull();
+    expect(valueLens?.cashFlow).toEqual(cashFlow);
+    // When the value lens is active (deep downtrend), the top-level status also reflects "ok"
+    if (res.proposal.strategy === "value") {
+      expect(res.proposal.researchStatus).toBe("ok");
+      expect(res.proposal.researchStatusReason).toBeNull();
+    }
+  });
+
+  it("falls through to perplexity status when neither cashFlow nor dividend is present (fundamentals-fallback-fmp M2)", async () => {
+    // When FMP also has no value data, the perplexity status is the fallback.
+    const res = await analyzeSymbol("XYZ", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(60, 50, 1),
+      readSnapshot: snapshotSeam,
+      fetchResearch: async () => ({
+        sector: null,
+        catalyst: null,
+        catalystType: null,
+        cashFlow: null,
+        dividend: null,
+        researchStatus: "capped" as const,
+        researchStatusReason: null as string | null,
+        catalystSources: [],
+        catalystState: "none" as const,
+        usedPerplexity: false,
+      }),
+      redTeamExec: approveExec,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const valueLens = res.proposal.lenses.find((l) => l.strategy === "value");
+    // Neither cashFlow nor dividend → mirrors the perplexity status ("capped")
+    expect(valueLens?.researchStatus).toBe("capped");
+  });
+
   it("rejects an invalid ticker before doing any work", async () => {
     const res = await analyzeSymbol("not a ticker!", { dataDir: dir });
     expect(res.ok).toBe(false);
