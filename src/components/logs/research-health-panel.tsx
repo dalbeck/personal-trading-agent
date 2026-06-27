@@ -1,3 +1,4 @@
+import "server-only";
 import {
   researchReasonText,
   type ResearchDiagnostic,
