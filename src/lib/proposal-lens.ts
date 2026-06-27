@@ -43,6 +43,7 @@ function singleLensFromTopLevel(p: TradeProposal): ProposalLensBreakdown {
     reasoning: p.reasoning,
     redTeam: p.redTeam,
     cashFlow: p.cashFlow,
+    dividend: p.dividend,
   };
 }
 

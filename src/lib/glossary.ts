@@ -137,6 +137,23 @@ export const GLOSSARY = {
     definition:
       "Operating earnings divided by interest expense — how many times over the company can cover its interest. Thin coverage (rising leverage) is a value-trap warning; comfortable coverage supports the floor.",
   },
+  "dividend-yield": {
+    label: "dividend yield",
+    definition:
+      "The annual dividend as a percentage of the share price — what you're paid to hold. For a value play a safe yield is the 'paid to wait' part of a floor.",
+  },
+  "payout-ratio": {
+    label: "payout ratio",
+    definition:
+      "The share of earnings (or free cash flow) paid out as dividends. A comfortable payout leaves room to keep paying and growing; a stretched one (near or above 100%) is a cut-risk warning.",
+  },
+  "dividend-coverage": {
+    label: "FCF dividend coverage",
+    definition:
+      "How many times free cash flow covers the dividend (FCF ÷ dividends). Comfortably above 1× means the dividend is funded from real cash — a credible floor; below 1× means it's being funded from elsewhere, a value-trap flag.",
+    caveat:
+      "A floor isn't a buy signal — a covered dividend can still coexist with a falling price. Evidence to weigh, not a verdict.",
+  },
   "staged-entry": {
     label: "staged entry (DCA)",
     definition:

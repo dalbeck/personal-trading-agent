@@ -4,6 +4,7 @@ import type {
   BenchmarkSchema,
   CashFlowQualitySchema,
   CoachingEntrySchema,
+  DividendSignalsSchema,
   DiscoverySettingsSchema,
   EquityPointSchema,
   JournalEntrySchema,
@@ -41,6 +42,7 @@ export type RejectionJournalEntry = z.infer<typeof RejectionJournalEntrySchema>;
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 
 export type CashFlowQuality = z.infer<typeof CashFlowQualitySchema>;
+export type DividendSignals = z.infer<typeof DividendSignalsSchema>;
 export type RedTeamFactor = z.infer<typeof RedTeamFactorSchema>;
 export type RedTeamVerdict = z.infer<typeof RedTeamVerdictSchema>;
 export type ProposalLensBreakdown = z.infer<typeof ProposalLensSchema>;

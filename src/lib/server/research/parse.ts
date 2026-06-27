@@ -9,7 +9,7 @@
  * No side effects, no `server-only` — unit-tested directly (`parse.test.ts`).
  */
 
-import type { CashFlowQuality } from "@/lib/types";
+import type { CashFlowQuality, DividendSignals } from "@/lib/types";
 import type {
   EarningsQuarter,
   ResearchConsensus,
@@ -335,6 +335,43 @@ export function coerceCashFlow(
   return hasAny ? result : null;
 }
 
+/**
+ * Coerce the dividend-sustainability block (dividend-floor M1) — the value lens's
+ * floor tell. Percent fields (`dividendYield` / `payoutRatio` / `fcfPayout` /
+ * `dividendCagr`) read as fractions; `fcfCoverage` is a multiple. The two
+ * coverage views are mutually derived (coverage ↔ 1/payout) so whichever the
+ * model gives, both are populated; `dividendYield` falls back to the parsed
+ * fundamentals yield. Returns null when there is no usable figure.
+ */
+export function coerceDividend(
+  raw: unknown,
+  opts?: { dividendYield?: number | null },
+): DividendSignals | null {
+  const d = asRecord(raw);
+  if (!d) return null;
+
+  let fcfPayout = coercePercentLike(d.fcfPayout);
+  let fcfCoverage = coerceNumberLike(d.fcfCoverage);
+  if (fcfCoverage === null && fcfPayout !== null && fcfPayout > 0) {
+    fcfCoverage = 1 / fcfPayout;
+  }
+  if (fcfPayout === null && fcfCoverage !== null && fcfCoverage > 0) {
+    fcfPayout = 1 / fcfCoverage;
+  }
+
+  const result: DividendSignals = {
+    dividendYield: coercePercentLike(d.dividendYield) ?? opts?.dividendYield ?? null,
+    payoutRatio: coercePercentLike(d.payoutRatio),
+    fcfPayout,
+    fcfCoverage,
+    growthStreakYears: coerceIntLike(d.growthStreakYears),
+    dividendCagr: coercePercentLike(d.dividendCagr),
+  };
+
+  const hasAny = Object.values(result).some((v) => v !== null);
+  return hasAny ? result : null;
+}
+
 function coerceConsensus(raw: unknown): ResearchConsensus | null {
   const c = asRecord(raw);
   if (!c) return null;
@@ -360,6 +397,7 @@ export function parseStructuredResearch(text: string): {
   earnings: EarningsQuarter[];
   catalysts: string[];
   cashFlow: CashFlowQuality | null;
+  dividend: DividendSignals | null;
   summary: string;
 } {
   const { json, cleaned } = extractJsonBlock(text);
@@ -375,6 +413,10 @@ export function parseStructuredResearch(text: string): {
     // give one — the parser stays the single source of the yield math.
     cashFlow: obj
       ? coerceCashFlow(obj.cashFlow, { marketCap: fundamentals?.marketCap })
+      : null,
+    // Dividend signals fall back to the fundamentals yield when the block omits it.
+    dividend: obj
+      ? coerceDividend(obj.dividend, { dividendYield: fundamentals?.dividendYield })
       : null,
     summary: cleaned,
   };

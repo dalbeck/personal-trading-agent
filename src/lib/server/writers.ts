@@ -583,6 +583,9 @@ export interface AdvisoryProposalInput {
   // lens at the top level. Schema-backed + default null, so a trend proposal may
   // omit it. See `.agents/data-format.md`.
   cashFlow?: TradeProposal["cashFlow"];
+  // Dividend-sustainability signals (dividend-floor M1) — value lens only, mirrors
+  // the active lens. Schema-backed + default null.
+  dividend?: TradeProposal["dividend"];
   // When the levels were anchored to the live quote (fresh-entry-levels M1).
   // Schema-backed + default null, so a caller may omit it (older records).
   pricedAt?: TradeProposal["pricedAt"];

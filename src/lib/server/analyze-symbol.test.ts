@@ -27,6 +27,7 @@ const researchSeam = () =>
     catalyst: "New product cycle",
     catalystType: "product_news" as const,
     cashFlow: null,
+    dividend: null,
     usedPerplexity: false,
   });
 
@@ -92,6 +93,7 @@ describe("analyzeSymbol", () => {
           catalyst: null,
           catalystType: null,
           cashFlow: null,
+          dividend: null,
           usedPerplexity: false,
         }),
       redTeamExec: rejectExec,
@@ -181,6 +183,7 @@ describe("analyzeSymbol", () => {
         catalyst: "Dividend support",
         catalystType: "other" as const,
         cashFlow,
+        dividend: null,
         usedPerplexity: true,
       }),
       redTeamExec: async (p) => {
@@ -203,6 +206,90 @@ describe("analyzeSymbol", () => {
     expect(valuePrompt).toMatch(/Cash-flow quality/i);
     expect(valuePrompt).toMatch(/FCF yield/i);
     expect(trendPrompt).not.toMatch(/Cash-flow quality/i);
+  });
+
+  it("registers a durable dividend as the value lens's named floor + briefs the value red-team", async () => {
+    const prompts: string[] = [];
+    const dividend = {
+      dividendYield: 0.031,
+      payoutRatio: 0.45,
+      fcfPayout: 1 / 2.4,
+      fcfCoverage: 2.4,
+      growthStreakYears: 14,
+      dividendCagr: 0.11,
+    };
+    const res = await analyzeSymbol("JKHY", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(220, 160, -0.5), // counter-trend value entry
+      readSnapshot: snapshotSeam,
+      // No AI-summary catalyst → the dividend floor fills the "Unspecified" gap.
+      fetchResearch: async () => ({
+        sector: "Technology Services",
+        catalyst: null,
+        catalystType: null,
+        cashFlow: null,
+        dividend,
+        usedPerplexity: true,
+      }),
+      redTeamExec: async (p) => {
+        prompts.push(p);
+        return approveExec();
+      },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    const valueLens = res.proposal.lenses.find((l) => l.strategy === "value");
+    const trendLens = res.proposal.lenses.find((l) => l.strategy === "trend");
+    // The value lens carries the dividend block; the trend lens does not.
+    expect(valueLens?.dividend).toEqual(dividend);
+    expect(trendLens?.dividend).toBeNull();
+    // The concrete floor is registered as the value catalyst (not "Unspecified").
+    expect(valueLens?.catalyst).toBe(
+      "Dividend floor: FCF covers 2.4×, 14-yr growth streak",
+    );
+    expect(valueLens?.catalystType).toBe("other");
+    // The trend lens is untouched — no floor injected into it.
+    expect(trendLens?.catalyst).toBeNull();
+
+    // The value prosecutor is briefed with the dividend floor; trend is not.
+    const valuePrompt = prompts.find((p) => /VALUE \/ MEAN-REVERSION/.test(p));
+    const trendPrompt = prompts.find((p) => /TREND mandate/.test(p));
+    expect(valuePrompt).toMatch(/Dividend sustainability \(pass/i);
+    expect(trendPrompt).not.toMatch(/Dividend sustainability/i);
+  });
+
+  it("does NOT register a floor for an uncovered/at-risk dividend (no false floor)", async () => {
+    const res = await analyzeSymbol("XYZ", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(220, 160, -0.5),
+      readSnapshot: snapshotSeam,
+      fetchResearch: async () => ({
+        sector: "Energy",
+        catalyst: null,
+        catalystType: null,
+        cashFlow: null,
+        dividend: {
+          dividendYield: 0.09,
+          payoutRatio: null,
+          fcfPayout: null,
+          fcfCoverage: 0.6, // FCF doesn't cover the dividend
+          growthStreakYears: null,
+          dividendCagr: null,
+        },
+        usedPerplexity: true,
+      }),
+      redTeamExec: approveExec,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const valueLens = res.proposal.lenses.find((l) => l.strategy === "value");
+    // No floor registered — the catalyst stays absent (flagged weak by the checklist).
+    expect(valueLens?.catalyst).toBeNull();
+    // But the at-risk dividend block IS carried for the red-team / stat block.
+    expect(valueLens?.dividend?.fcfCoverage).toBe(0.6);
   });
 
   it("fetches research ONCE for both lenses (respects the Perplexity cap)", async () => {

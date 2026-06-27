@@ -4,7 +4,7 @@
  * never order pricing or execution (Alpaca is the source of truth for prices).
  */
 
-import type { CashFlowQuality } from "@/lib/types";
+import type { CashFlowQuality, DividendSignals } from "@/lib/types";
 
 export interface ResearchQuery {
   symbol: string;
@@ -132,6 +132,9 @@ export interface ResearchResult {
   /** Cash-flow quality for the value lens (FCF level/trend/yield, leverage); null
    *  when none was returned. Folded into this one capped fetch — no extra call. */
   cashFlow?: CashFlowQuality | null;
+  /** Dividend-sustainability signals for the value lens (yield, payout, coverage,
+   *  growth streak); null when none. Folded into the same capped fetch. */
+  dividend?: DividendSignals | null;
   /** Real per-call cost in USD, when the Agent API reports it. */
   cost?: number;
 }
@@ -174,6 +177,11 @@ export interface SymbolResearch {
    *  it); null when unavailable. Drives the value checklist + red-team + stat
    *  block. Folded into the one capped value research fetch — no extra call. */
   cashFlow: CashFlowQuality | null;
+  /** Dividend-sustainability signals for the value lens (dividend-floor M1) —
+   *  yield, payout ratio, FCF coverage, growth streak. Perplexity-supplied; null
+   *  when unavailable. Drives the dividend floor (catalyst) + red-team + stat
+   *  block + conviction. Folded into the same capped value fetch — no extra call. */
+  dividend: DividendSignals | null;
   /** Raw finance_results blocks (kept for back-compat / debugging). */
   finance: ResearchFinanceResult[];
   /**
