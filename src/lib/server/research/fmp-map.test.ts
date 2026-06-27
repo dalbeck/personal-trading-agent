@@ -408,3 +408,73 @@ describe("dividendStreakAndCagr — empty / 1-entry history", () => {
     expect(result.dividendCagr).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// dividendStreakAndCagr — partial current year handling
+// ---------------------------------------------------------------------------
+
+describe("dividendStreakAndCagr — partial current year dropped", () => {
+  it("drops newest year when it has fewer payments than the prior full year", () => {
+    // 2024 has only 2 payments (partial), 2023/2022/2021 each have 4.
+    // After dropping 2024, the streak should be computed on 2023→2022→2021 (rising).
+    const partial = {
+      historical: [
+        // 2024: only 2 payments so far (partial year)
+        { date: "2024-05-10", dividend: 0.26 },
+        { date: "2024-02-09", dividend: 0.26 },
+        // 2023: 4 payments (full year), total = 0.95
+        { date: "2023-11-10", dividend: 0.24 },
+        { date: "2023-08-11", dividend: 0.24 },
+        { date: "2023-05-12", dividend: 0.24 },
+        { date: "2023-02-10", dividend: 0.23 },
+        // 2022: 4 payments (full year), total = 0.91
+        { date: "2022-11-04", dividend: 0.23 },
+        { date: "2022-08-05", dividend: 0.23 },
+        { date: "2022-05-06", dividend: 0.23 },
+        { date: "2022-02-04", dividend: 0.22 },
+        // 2021: 4 payments (full year), total = 0.865
+        { date: "2021-11-05", dividend: 0.22 },
+        { date: "2021-08-06", dividend: 0.22 },
+        { date: "2021-05-07", dividend: 0.22 },
+        { date: "2021-02-05", dividend: 0.205 },
+      ],
+    };
+    const result = dividendStreakAndCagr(partial);
+    // Streak should be 2 (2023 >= 2022, 2022 >= 2021), not broken by partial 2024
+    expect(result.growthStreakYears).not.toBeNull();
+    expect(result.growthStreakYears!).toBeGreaterThanOrEqual(2);
+    // CAGR should be positive (2023 > 2021)
+    expect(result.dividendCagr).not.toBeNull();
+    expect(result.dividendCagr!).toBeGreaterThan(0);
+  });
+
+  it("does NOT drop newest year when it has the same payment count as the prior year (full year)", () => {
+    // Both 2024 and 2023 have 4 payments → 2024 is treated as complete, NOT dropped.
+    const complete = {
+      historical: [
+        // 2024: 4 payments (full year), total = 1.00
+        { date: "2024-11-08", dividend: 0.25 },
+        { date: "2024-08-09", dividend: 0.25 },
+        { date: "2024-05-10", dividend: 0.25 },
+        { date: "2024-02-09", dividend: 0.25 },
+        // 2023: 4 payments (full year), total = 0.95
+        { date: "2023-11-10", dividend: 0.24 },
+        { date: "2023-08-11", dividend: 0.24 },
+        { date: "2023-05-12", dividend: 0.24 },
+        { date: "2023-02-10", dividend: 0.23 },
+        // 2022: 4 payments (full year), total = 0.91
+        { date: "2022-11-04", dividend: 0.23 },
+        { date: "2022-08-05", dividend: 0.23 },
+        { date: "2022-05-06", dividend: 0.23 },
+        { date: "2022-02-04", dividend: 0.22 },
+      ],
+    };
+    const result = dividendStreakAndCagr(complete);
+    // 2024 should be included; streak covers 2024→2023→2022 (all rising)
+    expect(result.growthStreakYears).not.toBeNull();
+    expect(result.growthStreakYears!).toBeGreaterThanOrEqual(2);
+    // CAGR computed from 2024 (newest full year), positive
+    expect(result.dividendCagr).not.toBeNull();
+    expect(result.dividendCagr!).toBeGreaterThan(0);
+  });
+});

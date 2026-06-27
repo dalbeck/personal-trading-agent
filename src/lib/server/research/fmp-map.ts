@@ -108,8 +108,8 @@ export function dividendStreakAndCagr(historical: unknown): {
   const h = historical as Record<string, unknown>;
   if (!Array.isArray(h.historical)) return nil;
 
-  // Sum dividends per calendar year
-  const byYear = new Map<number, number>();
+  // Sum dividends and count payments per calendar year
+  const byYear = new Map<number, { total: number; count: number }>();
   for (const entry of h.historical) {
     if (!entry || typeof entry !== "object") continue;
     const e = entry as Record<string, unknown>;
@@ -118,19 +118,32 @@ export function dividendStreakAndCagr(historical: unknown): {
     if (!dateStr || amount === null) continue;
     const year = parseInt(dateStr.slice(0, 4), 10);
     if (!Number.isFinite(year)) continue;
-    byYear.set(year, (byYear.get(year) ?? 0) + amount);
+    const existing = byYear.get(year) ?? { total: 0, count: 0 };
+    byYear.set(year, { total: existing.total + amount, count: existing.count + 1 });
   }
 
   if (byYear.size < 2) return nil;
 
-  // Sort years descending so [0] = most recent full year
+  // Sort years descending so [0] = most recent year
   const years = Array.from(byYear.keys()).sort((a, b) => b - a);
+
+  // Drop the newest year if it has fewer payments than the next-older year
+  // (indicates a partial/incomplete current year mid-stream).
+  if (
+    years.length >= 2 &&
+    byYear.get(years[0])!.count < byYear.get(years[1])!.count
+  ) {
+    byYear.delete(years[0]);
+    years.shift();
+  }
+
+  if (years.length < 2) return nil;
 
   // Compute growth streak (consecutive years where total[y] >= total[y+1])
   let streak = 0;
   for (let i = 0; i < years.length - 1; i++) {
-    const current = byYear.get(years[i])!;
-    const older = byYear.get(years[i + 1])!;
+    const current = byYear.get(years[i])!.total;
+    const older = byYear.get(years[i + 1])!.total;
     if (current >= older) {
       streak++;
     } else {
@@ -142,8 +155,8 @@ export function dividendStreakAndCagr(historical: unknown): {
   const cagr = (() => {
     if (years.length < 2) return null;
     const span = Math.min(years.length - 1, 5);
-    const latestTotal = byYear.get(years[0])!;
-    const oldestTotal = byYear.get(years[span])!;
+    const latestTotal = byYear.get(years[0])!.total;
+    const oldestTotal = byYear.get(years[span])!.total;
     if (latestTotal <= 0 || oldestTotal <= 0) return null;
     return Math.pow(latestTotal / oldestTotal, 1 / span) - 1;
   })();
