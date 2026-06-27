@@ -28,6 +28,7 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     catalyst: null,
     catalystType: null,
     catalystSources: [],
+    catalystState: null,
     riskPct: 0.01,
     confidence: null,
     convictionScore: null,

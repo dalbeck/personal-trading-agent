@@ -6,7 +6,9 @@ import {
 } from "./conviction";
 import { atr, sma, type Ohlc } from "./indicators";
 import { resolveStopPrice } from "./risk/validators";
+import { resolveCatalystState } from "./catalyst-state";
 import type { Strategy } from "./strategy";
+import type { CatalystState } from "./types";
 import { computeRelativeVolume } from "./volume";
 
 /**
@@ -58,6 +60,10 @@ export interface BuildManualProposalInput {
   sector?: string | null;
   catalyst?: string | null;
   catalystType?: BuilderCatalystType | null;
+  /** The catalyst capture state (catalyst-state-honesty M2) — drives the thesis
+   *  wording so a failed fetch reads "data unavailable", not a flat "no catalyst".
+   *  Null/absent → derived from catalyst presence (older callers). */
+  catalystState?: CatalystState | null;
   /** Dividend floor signal for the VALUE lens (dividend-floor M1) — a durable,
    *  well-covered dividend lifts conviction; an uncovered / at-risk one drags.
    *  Ignored for trend. Null/absent when there's no dividend signal. */
@@ -195,11 +201,19 @@ export function buildManualProposalDraft(
         : relVol <= 0.8
           ? `quiet volume (${relVol.toFixed(2)}×)`
           : `average volume (${relVol.toFixed(2)}×)`;
+  // Catalyst wording reflects the THREE-state capture (catalyst-state-honesty M2):
+  // a failed fetch reads "data unavailable — retry", never a flat "no catalyst".
+  const catalystStateResolved = resolveCatalystState({
+    catalyst,
+    catalystState: input.catalystState,
+  });
   const catalystWord = catalyst
     ? `Catalyst: ${catalyst}.`
-    : strategy === "value"
-      ? "No named catalyst or floor (the value red-team flags this weak — 'cheap' alone is a value trap)."
-      : "No named catalyst (trend-only — the red-team flags this weak).";
+    : catalystStateResolved === "unavailable"
+      ? "Catalyst data unavailable — the news/research fetch failed (flagged for retry, NOT treated as catalyst-free)."
+      : strategy === "value"
+        ? "No catalyst or floor found (the value red-team flags this weak — 'cheap' alone is a value trap)."
+        : "No catalyst found (trend-only — the red-team flags this weak).";
 
   const thesis =
     `${input.symbol} long at ${entry.toFixed(2)}: price ${trendWord}, ${volWord}. ` +

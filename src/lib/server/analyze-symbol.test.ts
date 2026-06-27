@@ -30,6 +30,7 @@ const researchSeam = () =>
     dividend: null,
     researchStatus: "ok" as const,
     catalystSources: [],
+    catalystState: "found" as const,
     usedPerplexity: false,
   });
 
@@ -107,6 +108,7 @@ describe("analyzeSymbol", () => {
           dividend: null,
           researchStatus: "ok" as const,
           catalystSources: sources,
+          catalystState: "found" as const,
           usedPerplexity: true,
         }),
       redTeamExec: approveExec,
@@ -127,6 +129,41 @@ describe("analyzeSymbol", () => {
     expect(p.catalystSources).toEqual(sources);
   });
 
+  it("a failed catalyst fetch carries 'unavailable' (never a silent 'no catalyst') onto the proposal + lenses (catalyst-state-honesty M2)", async () => {
+    const res = await analyzeSymbol("lly", {
+      account: "live",
+      dataDir: dir,
+      now: () => new Date("2026-06-26T09:00:00-04:00"),
+      fetchBars: async () => ramp(60, 50, 1),
+      readSnapshot: snapshotSeam,
+      fetchResearch: () =>
+        Promise.resolve({
+          sector: null,
+          catalyst: null,
+          catalystType: null,
+          cashFlow: null,
+          dividend: null,
+          researchStatus: "unavailable" as const,
+          catalystSources: [],
+          catalystState: "unavailable" as const,
+          usedPerplexity: false,
+        }),
+      redTeamExec: approveExec,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.proposal.catalystState).toBe("unavailable");
+    // The trend lens (no dividend floor) inherits the unavailable state.
+    const trendLens = res.proposal.lenses.find((l) => l.strategy === "trend");
+    expect(trendLens?.catalystState).toBe("unavailable");
+    // Persisted with the unavailable state.
+    const files = await readdir(path.join(dir, "proposals"));
+    const p = TradeProposalSchema.parse(
+      JSON.parse(await readFile(path.join(dir, "proposals", files[0]), "utf8")),
+    );
+    expect(p.catalystState).toBe("unavailable");
+  });
+
   it("does NOT rubber-stamp a weak pick — a red-team reject is surfaced, not hidden", async () => {
     const res = await analyzeSymbol("xyz", {
       account: "paper",
@@ -142,6 +179,7 @@ describe("analyzeSymbol", () => {
           dividend: null,
           researchStatus: "ok" as const,
           catalystSources: [],
+          catalystState: "none" as const,
           usedPerplexity: false,
         }),
       redTeamExec: rejectExec,
@@ -170,6 +208,7 @@ describe("analyzeSymbol", () => {
         dividend: null,
         researchStatus: "ok" as const,
         catalystSources: [],
+        catalystState: "none" as const,
         usedPerplexity: false,
       }),
       redTeamExec: approveExec,
@@ -197,6 +236,7 @@ describe("analyzeSymbol", () => {
         dividend: null,
         researchStatus: "capped" as const,
         catalystSources: [],
+        catalystState: "none" as const,
         usedPerplexity: false,
       }),
       redTeamExec: async (p) => {
@@ -298,6 +338,7 @@ describe("analyzeSymbol", () => {
         dividend: null,
         researchStatus: "ok" as const,
         catalystSources: [],
+        catalystState: "found" as const,
         usedPerplexity: true,
       }),
       redTeamExec: async (p) => {
@@ -346,6 +387,7 @@ describe("analyzeSymbol", () => {
         dividend,
         researchStatus: "ok" as const,
         catalystSources: [],
+        catalystState: "none" as const,
         usedPerplexity: true,
       }),
       redTeamExec: async (p) => {
@@ -397,6 +439,7 @@ describe("analyzeSymbol", () => {
         },
         researchStatus: "ok" as const,
         catalystSources: [],
+        catalystState: "none" as const,
         usedPerplexity: true,
       }),
       redTeamExec: approveExec,

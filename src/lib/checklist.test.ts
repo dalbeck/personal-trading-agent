@@ -40,6 +40,45 @@ describe("buildChecklist — trend mandate", () => {
   });
 });
 
+describe("catalyst state — three distinct states (catalyst-state-honesty M2)", () => {
+  it("found: a named catalyst passes", () => {
+    const list = buildChecklist(
+      makeProposal({ catalyst: "Q3 beat-and-raise", catalystType: "earnings_momentum", catalystState: "found" }),
+    );
+    expect(item(list, "Catalyst — why now")?.status).toBe("pass");
+  });
+
+  it("none: searched but nothing material flags 'No catalyst found' (not 'unavailable')", () => {
+    const it_ = item(
+      buildChecklist(
+        makeProposal({ catalyst: null, catalystType: null, catalystState: "none" }),
+      ),
+      "Catalyst — why now",
+    );
+    expect(it_?.status).toBe("flag");
+    expect(it_?.detail).toBe("No catalyst found");
+  });
+
+  it("unavailable: a failed fetch flags 'Data unavailable — retry', NEVER 'no catalyst'", () => {
+    const it_ = item(
+      buildChecklist(
+        makeProposal({ catalyst: null, catalystType: null, catalystState: "unavailable" }),
+      ),
+      "Catalyst — why now",
+    );
+    expect(it_?.status).toBe("flag");
+    expect(it_?.detail).toBe("Data unavailable — retry");
+    expect(it_?.detail).not.toMatch(/no catalyst/i);
+  });
+
+  it("older records (null state) derive from catalyst presence, never 'unavailable'", () => {
+    expect(
+      item(buildChecklist(makeProposal({ catalyst: null, catalystType: null })), "Catalyst — why now")
+        ?.detail,
+    ).toBe("No catalyst found");
+  });
+});
+
 describe("buildChecklist — value mandate", () => {
   it("reframes stop/target/catalyst for value and drops breakout volume", () => {
     const list = buildChecklist(makeProposal({ strategy: "value" }));

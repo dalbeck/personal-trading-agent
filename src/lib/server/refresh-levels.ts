@@ -150,6 +150,13 @@ export async function refreshProposalLevels(
     if (lens) return lens.catalystSources ?? [];
     return proposal.strategy === strategy ? proposal.catalystSources ?? [] : [];
   };
+  // Preserve the catalyst capture state (catalyst-state-honesty M2) across a
+  // refresh — found / none / unavailable is research state, not a price level.
+  const existingCatalystState = (strategy: Strategy) => {
+    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
+    if (lens) return lens.catalystState ?? null;
+    return proposal.strategy === strategy ? proposal.catalystState ?? null : null;
+  };
 
   const strategies = strategiesOf(proposal);
   const drafts = strategies.map((strategy) => {
@@ -189,6 +196,7 @@ export async function refreshProposalLevels(
           existingDividend(d.strategy),
           existingResearchStatus(d.strategy),
           existingCatalystSources(d.strategy),
+          existingCatalystState(d.strategy),
         ),
         { exec: opts.redTeamExec },
       ),
@@ -205,6 +213,7 @@ export async function refreshProposalLevels(
           existingDividend(d.strategy),
           existingResearchStatus(d.strategy),
           existingCatalystSources(d.strategy),
+          existingCatalystState(d.strategy),
         ),
       )
     : [];
@@ -237,11 +246,12 @@ export async function refreshProposalLevels(
     reasoning: active.reasoning,
     redTeam: verdicts[activeIdx],
     lenses,
-    // Top-level cash-flow + dividend + research status mirror the active lens
-    // (preserved on refresh — research data, not price levels).
+    // Top-level cash-flow + dividend + research status + catalyst state mirror the
+    // active lens (preserved on refresh — research data, not price levels).
     cashFlow: existingCashFlow(active.strategy),
     dividend: existingDividend(active.strategy),
     researchStatus: existingResearchStatus(active.strategy),
+    catalystState: existingCatalystState(active.strategy),
     // Stamp the new anchor time so the freshness indicator + staleness guard reset.
     pricedAt: now.toISOString(),
   });

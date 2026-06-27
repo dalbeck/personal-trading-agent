@@ -13,6 +13,7 @@ import { researchUnavailableLabel } from "@/lib/research-availability";
 import type {
   CashFlowQuality,
   CatalystSource,
+  CatalystState,
   DividendSignals,
   RedTeamVerdict,
   ResearchStatus,
@@ -57,6 +58,10 @@ export interface RedTeamProposal {
    *  prosecutor sees the catalyst is backed by real, datable news (so it can't
    *  reject a catalyst-rich name as "catalyst-free" on a clean fetch). */
   catalystSources?: CatalystSource[] | null;
+  /** The catalyst capture state (catalyst-state-honesty M2). On `unavailable`
+   *  (the fetch FAILED) the prosecutor is told the catalyst is UNVERIFIED, not
+   *  absent, and must NOT reject for "no catalyst" — flag it for retry instead. */
+  catalystState?: CatalystState | null;
   /** Cash-flow quality for the VALUE mandate (value-cashflow M1) — the prosecutor
    *  weighs durable/positive FCF as floor support and negative/declining FCF +
    *  rising leverage as a value-trap red flag. Value lens only; null/absent for
@@ -173,6 +178,12 @@ export type RedTeamOutcome = "allow" | "downsize" | "block";
 
 export function buildProsecutorPrompt(p: RedTeamProposal): string {
   const isValue = p.strategy === "value";
+  // catalyst-state-honesty M2: a FAILED fetch is "unavailable", NOT a real
+  // "no catalyst" — the prosecutor must not reject on that basis.
+  const catalystUnavailable = p.catalystState === "unavailable";
+  const catalystLine = catalystUnavailable
+    ? "- Catalyst: DATA UNAVAILABLE — the catalyst/news fetch FAILED (UNVERIFIED, NOT absent)"
+    : `- Catalyst: ${p.catalyst ? p.catalyst : "none stated"} (${p.catalystType ?? "unspecified"})`;
   const lines = [
     `You are a HOSTILE RED-TEAM PROSECUTOR reviewing a proposed PAPER swing trade, judged under the desk's ${isValue ? "VALUE / MEAN-REVERSION" : "TREND"} mandate.`,
     "You are a different model family from the one that proposed it. Your job is to REFUTE the thesis, not to agree.",
@@ -188,10 +199,17 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     `- Qty: ${p.qty} @ limit ${p.limitPrice}`,
     `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"} (${p.targetType ?? "unspecified"})`,
     `- Relative volume: ${p.relativeVolume != null ? `${p.relativeVolume.toFixed(2)}x avg` : "unknown"}`,
-    `- Catalyst: ${p.catalyst ? p.catalyst : "none stated"} (${p.catalystType ?? "unspecified"})`,
+    catalystLine,
   ];
   const sourcesLine = catalystSourcesBriefing(p.catalystSources);
   if (sourcesLine) lines.push(sourcesLine);
+  // The unavailable override is authoritative — placed BEFORE the mandate guidance
+  // so the prosecutor never treats a failed fetch as "no catalyst".
+  if (catalystUnavailable) {
+    lines.push(
+      "- CATALYST DATA UNAVAILABLE — IMPORTANT: the catalyst/news fetch FAILED, so the catalyst is UNVERIFIED, NOT confirmed-absent. Do NOT treat this as 'no catalyst' / 'catalyst-free' and do NOT reject or flag on that basis. Note the data should be re-fetched, and judge the rest of the thesis (trend, stop, reward/risk, structure) on its merits.",
+    );
+  }
   // Cash-flow quality + dividend sustainability are VALUE-lens signals only —
   // surface the figures in the order block so the prosecutor weighs the
   // floor-vs-trap tell and recognizes a real dividend floor.
@@ -212,7 +230,9 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     );
   } else {
     lines.push(
-      "CATALYST (why NOW): a sound entry names a catalyst — earnings momentum, product news, sector rotation, guidance, etc. A proposal with NO named catalyst (catalyst_type 'none' / trend alone) is a momentum chase with nothing behind it — WEAK. Flag a missing or 'none' catalyst in the Edge factor and lean toward concern.",
+      catalystUnavailable
+        ? "CATALYST (why NOW): the catalyst data is UNAVAILABLE (the fetch failed) — treat it as unverified, NOT confirmed-absent. Do NOT flag 'no catalyst' or reject on that basis here; note it should be re-fetched and weigh the technical thesis."
+        : "CATALYST (why NOW): a sound entry names a catalyst — earnings momentum, product news, sector rotation, guidance, etc. A proposal with NO named catalyst (catalyst_type 'none' / trend alone) is a momentum chase with nothing behind it — WEAK. Flag a missing or 'none' catalyst in the Edge factor and lean toward concern.",
       "VOLUME CONFIRMATION (soft signal — weigh it, do not treat as a hard rail): a breakout/momentum entry should come on ABOVE-AVERAGE relative volume (~1.3x or more); a pullback/reset entry should come on DECLINING / below-average volume. Relative volume well below 1x on a breakout, or a volume spike on a pullback, is a weakness — call it out in the Entry factor. Unknown volume is not itself a strike, but a breakout claim with no volume confirmation is weaker.",
       "This is a TECHNICAL trend-following desk. The thesis must be PRIMARILY technical (trend, momentum, relative strength, volume, price structure). If the primary rationale is fundamental or valuation ('cheap', 'undervalued', 'earnings growth', 'analyst upgrade') rather than price/trend evidence, it is OUT OF MANDATE — penalize it in the Edge factor and lean toward reject or concern. Fundamentals are only a catalyst-check / disqualifier, never the primary reason to enter.",
       "A target anchored to a sell-side analyst_price — or left unspecified — is WEAK (the desk is borrowing someone else's number, not its own thesis); call it out in the Target factor.",

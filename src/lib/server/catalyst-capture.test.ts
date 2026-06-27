@@ -27,6 +27,7 @@ describe("captureCatalyst — multi-source with fallback chain", () => {
     expect(got.source).toBe("alpaca-news");
     expect(got.catalyst).toContain("CHMP");
     expect(got.catalystType).toBe("product_news");
+    expect(got.state).toBe("found");
     expect(got.sources).toHaveLength(2);
     expect(got.sources[0].publisher).toBe("Benzinga");
   });
@@ -84,21 +85,48 @@ describe("captureCatalyst — multi-source with fallback chain", () => {
     expect(got.catalyst).toContain("Oversold");
   });
 
-  it("returns a null catalyst with empty sources when BOTH sources are empty", async () => {
+  it("state 'none' — sources SEARCHED but nothing material (not a failure)", async () => {
     const got = await captureCatalyst({
       symbol: "LLY",
       perplexityCatalysts: [],
-      fetchNews: async () => [],
+      perplexityStatus: "ok",
+      fetchNews: async () => [], // searched, returned nothing
     });
     expect(got).toEqual({
       catalyst: null,
       catalystType: null,
       sources: [],
       source: null,
+      state: "none",
     });
   });
 
-  it("does not throw when BOTH sources fail — yields a null catalyst", async () => {
+  it("state 'none' when news searched (empty) even if Perplexity was off", async () => {
+    const got = await captureCatalyst({
+      symbol: "LLY",
+      perplexityCatalysts: null,
+      perplexityStatus: "off",
+      fetchNews: async () => [],
+    });
+    expect(got.state).toBe("none");
+  });
+
+  it("state 'unavailable' when EVERY source's fetch FAILED — never conflated with 'none'", async () => {
+    const got = await captureCatalyst({
+      symbol: "LLY",
+      perplexityCatalysts: null,
+      perplexityStatus: "unavailable", // Perplexity fetch failed too
+      fetchNews: async () => {
+        throw new Error("alpaca down");
+      },
+      newsRetries: 0,
+    });
+    expect(got.catalyst).toBeNull();
+    expect(got.source).toBeNull();
+    expect(got.state).toBe("unavailable");
+  });
+
+  it("does not throw when BOTH sources fail — yields an 'unavailable' catalyst", async () => {
     const got = await captureCatalyst({
       symbol: "LLY",
       perplexityCatalysts: null,
@@ -109,5 +137,6 @@ describe("captureCatalyst — multi-source with fallback chain", () => {
     });
     expect(got.catalyst).toBeNull();
     expect(got.source).toBeNull();
+    expect(got.state).toBe("unavailable");
   });
 });

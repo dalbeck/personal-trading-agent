@@ -205,6 +205,19 @@ export const CatalystSourceSchema = z
   .strict();
 
 /**
+ * The **catalyst capture state** (catalyst-state-honesty M2) — three states that
+ * must never be conflated, because a failed fetch is not the same as a real
+ * "none." `found` — a named catalyst with sources (checklist ✓). `none` — the
+ * sources were searched and nothing material came back (checklist ⚑ "no catalyst
+ * found"). `unavailable` — the catalyst/news fetch FAILED (checklist ⚑ "data
+ * unavailable — retry"); the red-team is told the data is **unavailable, not
+ * absent**, and must NOT reject for "no catalyst" on a failed fetch. Nullable for
+ * back-compat: a null state is derived from catalyst presence (never fabricated as
+ * `unavailable`).
+ */
+export const CatalystState = z.enum(["found", "none", "unavailable"]);
+
+/**
  * Conviction tier for the diversified-discovery funnel (M1). A discovery run
  * surfaces a larger, ranked candidate set than the daily order cap; the tier
  * buckets a proposal's composite conviction so the queue can sort strongest
@@ -318,6 +331,11 @@ export const ProposalLensSchema = z
     // so the catalyst is verifiable. Empty when none/unavailable. Default keeps
     // older records valid.
     catalystSources: z.array(CatalystSourceSchema).default([]),
+    // The catalyst capture state (catalyst-state-honesty M2): found / none /
+    // unavailable — distinguishing "searched, none found" from "fetch failed" so a
+    // failure never reads as "no catalyst". Null (older records) → derived from
+    // catalyst presence, never fabricated as `unavailable`.
+    catalystState: CatalystState.nullable().default(null),
     convictionScore: z.number().min(0).max(1).nullable().default(null),
     convictionTier: ConvictionTier.nullable().default(null),
     confidence: z.number().min(0).max(1).nullable().default(null),
@@ -415,6 +433,10 @@ export const TradeProposalSchema = z
     // mirrors the active lens; surfaced on the proposal + export + red-team so the
     // catalyst is verifiable. Defaults to `[]` so older records still validate.
     catalystSources: z.array(CatalystSourceSchema).default([]),
+    // The catalyst capture state (catalyst-state-honesty M2) — mirrors the active
+    // lens. found / none / unavailable, kept distinct everywhere. Null (older
+    // records) → derived from catalyst presence.
+    catalystState: CatalystState.nullable().default(null),
     // Diversified-discovery ranking (M1). `convictionScore` is the 0–1 composite
     // of the playbook signals the discovery analyst assigns; `convictionTier`
     // (`high | moderate | watch`) is its labelled bucket, used to sort the queue

@@ -577,6 +577,9 @@ export interface AdvisoryProposalInput {
   // The headlines behind the catalyst (catalyst-news-sources M1) — schema-backed
   // + default []. A caller may carry them through for the proposal + export.
   catalystSources?: TradeProposal["catalystSources"];
+  // The catalyst capture state (catalyst-state-honesty M2) — found / none /
+  // unavailable. Schema-backed + default null.
+  catalystState?: TradeProposal["catalystState"];
   convictionScore?: number | null;
   convictionTier?: TradeProposal["convictionTier"];
   // Dual-lens breakdowns (dual-lens M1) — a manual analyze carries both the trend
