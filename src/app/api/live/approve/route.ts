@@ -1,6 +1,9 @@
 import { readProposals } from "@/lib/server/data";
 import { submitTradeApproval } from "@/lib/server/live-order";
-import { setProposalStatus } from "@/lib/server/writers";
+import {
+  markTrancheFilled,
+  setProposalStatus,
+} from "@/lib/server/writers";
 import { isAdvisoryProposal } from "@/lib/proposal-advisory";
 import { resolveActiveLens } from "@/lib/proposal-lens";
 
@@ -35,6 +38,11 @@ export async function POST(req: Request): Promise<Response> {
     // single-lens proposal. Never trust the client to widen scope — only the two
     // known strategies are honoured.
     actingLens?: string;
+    // Which staged-entry tranche the human is approving (staged-entry-plan M2).
+    // When present + valid, the order places that tranche's qty (a fraction of the
+    // full position) and that tranche is marked filled on success. Omitted →
+    // the whole position (a non-staged proposal, unchanged).
+    tranche?: number;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -96,6 +104,27 @@ export async function POST(req: Request): Promise<Response> {
   if (proposal.origin === "manual-request") tags.push("manual-request");
   if (isDual) tags.push(`lens:${lens.strategy}`);
 
+  // Staged-entry tranche (staged-entry-plan M2): when the human approves a
+  // specific tranche, the order places THAT tranche's qty (a fraction of the full
+  // position) — the risk rails + staleness guard re-check the accumulating book,
+  // so completing every tranche is never over-risked. Only an in-range pending
+  // tranche is honoured; anything else falls back to the full-position approve.
+  const plan = proposal.stagedPlan;
+  const trancheIdx =
+    decision === "approve" &&
+    plan &&
+    typeof body.tranche === "number" &&
+    Number.isInteger(body.tranche)
+      ? plan.tranches.find((t) => t.index === body.tranche && t.status === "pending")
+          ?.index ?? null
+      : null;
+  const tranche =
+    trancheIdx !== null ? plan!.tranches.find((t) => t.index === trancheIdx)! : null;
+  const orderQty = tranche ? tranche.qty : lens.qty;
+  if (tranche) {
+    tags.push(`tranche:${tranche.index + 1}/${plan!.tranches.length}`);
+  }
+
   let result;
   try {
     result = await submitTradeApproval({
@@ -103,10 +132,11 @@ export async function POST(req: Request): Promise<Response> {
       approver: "human",
       timestamp,
       reason: body.reason,
-      // Stable idempotency key = the proposal id, so a double-tap or retry of
-      // this approval places at most once (the per-request timestamp must NOT
-      // be the key — it changes every call).
-      idempotencyKey: proposalId,
+      // Stable idempotency key = the proposal id (or the proposal + tranche, so
+      // each tranche dedupes independently but a double-tap of ONE tranche places
+      // at most once). The per-request timestamp is never the key.
+      idempotencyKey:
+        tranche ? `${proposalId}#t${tranche.index}` : proposalId,
       // A non-empty override comment lets the human override a red-team reject
       // and/or a rail violation; the server re-checks the comment is non-empty
       // (`hasValidOverride`), so a blank comment never bypasses a block.
@@ -118,7 +148,7 @@ export async function POST(req: Request): Promise<Response> {
         symbol: proposal.symbol,
         action: proposal.action,
         side: proposal.side,
-        qty: lens.qty,
+        qty: orderQty,
         limitPrice: lens.limitPrice,
         stopPrice: lens.stopPrice,
         takeProfit: lens.takeProfit,
@@ -147,13 +177,21 @@ export async function POST(req: Request): Promise<Response> {
   // A broker error leaves the proposal pending so it can be retried; any
   // resolved decision (approved / denied / blocked) updates the queue.
   if (result.outcome !== "error") {
-    await setProposalStatus(
-      proposalId,
-      result.outcome === "approved" ? "approved" : "rejected",
-    ).catch(() => null);
+    if (tranche && result.outcome === "approved") {
+      // Mark just THIS tranche filled — the proposal only flips to `approved`
+      // once every tranche is filled (the staged entry is complete). A blocked
+      // tranche leaves the plan untouched so the human can refresh/retry it.
+      await markTrancheFilled(proposalId, tranche.index).catch(() => null);
+    } else if (!tranche) {
+      await setProposalStatus(
+        proposalId,
+        result.outcome === "approved" ? "approved" : "rejected",
+      ).catch(() => null);
+    }
   }
 
-  return Response.json(result, {
-    status: result.outcome === "error" ? 502 : 200,
-  });
+  return Response.json(
+    { ...result, tranche: tranche ? tranche.index : undefined },
+    { status: result.outcome === "error" ? 502 : 200 },
+  );
 }

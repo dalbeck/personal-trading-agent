@@ -6,6 +6,7 @@ import {
   proposalToMarkdown,
 } from "./proposal-export";
 import { parseFrontmatter } from "@/lib/server/frontmatter";
+import { buildStagedEntryPlan } from "./staged-entry";
 import { TradeProposalSchema } from "./schemas";
 import type { RedTeamVerdict, TradeProposal } from "./types";
 
@@ -99,6 +100,24 @@ describe("proposalToMarkdown", () => {
     expect(proposalToMarkdown(makeProposal(), opts)).toBe(md);
   });
 
+  it("omits the staged-entry section when there is no plan", () => {
+    expect(md).not.toContain("## Staged entry");
+  });
+
+  it("renders the staged-entry tranche table when a plan is attached", () => {
+    const staged = proposalToMarkdown(
+      makeProposal({
+        stagedPlan: buildStagedEntryPlan({ fullQty: 9, trancheCount: 3 }),
+      }),
+      opts,
+    );
+    expect(staged).toContain("## Staged entry (DCA / scale-in)");
+    expect(staged).toContain("| Tranche | Size | When & condition | Status |");
+    expect(staged).toContain("1/3");
+    expect(staged).toContain("Enter now");
+    expect(staged).toMatch(/risk is sized on the \*\*full\*\* position/i);
+  });
+
   it("handles a trend proposal (trend checklist + no value framing)", () => {
     const trendMd = proposalToMarkdown(
       makeProposal({ strategy: "trend" }),
@@ -124,6 +143,18 @@ describe("buildProposalPdfDocDefinition", () => {
   it("carries a deterministic creation date from the export stamp", () => {
     expect(doc.info?.creationDate).toEqual(new Date(opts.generatedAt));
     expect(doc.pageSize).toBe("LETTER");
+  });
+
+  it("includes the staged-entry section in the PDF when a plan is attached", () => {
+    const staged = buildProposalPdfDocDefinition(
+      makeProposal({
+        stagedPlan: buildStagedEntryPlan({ fullQty: 9, trancheCount: 3 }),
+      }),
+      opts,
+    );
+    const flat = JSON.stringify(staged.content);
+    expect(flat).toContain("Staged entry (DCA / scale-in)");
+    expect(flat).toContain("When & condition");
   });
 
   it("includes the section headings + the snapshot/disclaimer footer", () => {

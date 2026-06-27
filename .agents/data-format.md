@@ -202,6 +202,26 @@ that, unlike a rail/red-team block, is **not** clearable by an override comment
 records → the UI falls back to `createdAt`. Defaults to null so older records
 still validate.
 
+**Proposal `stagedPlan` (staged-entry-plan M2).** A `TradeProposal` carries an
+optional **`stagedPlan`** (`StagedEntryPlanSchema`, nullable) — a DCA / scale-in
+plan that splits the **full intended position** into tranches. The block holds
+`trancheCount`, `intervalDays`, `driftBandPct` (the ±band vs the prior fill), and
+`tranches[]` (each `StagedTrancheSchema`: `index`, `fraction`, `qty`,
+`offsetDays`, `status` `pending|filled|skipped`). The tranche qtys **sum back to
+the proposal's full qty**, so **risk stays sized on the full position** — the stop
++ ≤2% rail bind the completed position. Built by the pure `buildStagedEntryPlan`
+(`src/lib/staged-entry.ts`, unit-tested; defaults `STAGED_ENTRY_DEFAULTS` =
+3 tranches / 5 days / ±5%), attached or removed via `POST /api/proposals/[id]/staged-plan`
+(`setStagedPlan`). **No auto-execution:** each tranche is a separate **gated
+per-trade human approval** — the approve route (`POST /api/live/approve`) accepts
+a `tranche` index, places **only that tranche's qty** (idempotency key
+`<id>#t<index>`, so each tranche dedupes independently), tags the journal
+`tranche:k/N`, and `markTrancheFilled` flips just that tranche to `filled`; the
+proposal only becomes `approved` once **every** tranche is filled. Each tranche
+still clears the staleness guard + risk rails + red-team, and counts against the
+6-order/day cap (per placement). Surfaced on the detail page (tranche table) and
+in the MD/PDF export. Defaults to null so older records still validate.
+
 **Proposal `lenses` (dual-lens M1).** A **manual** analyze-a-symbol proposal is
 evaluated under **both** the trend and value mandates and carries **both**
 breakdowns in **`lenses`** (an array of `ProposalLensSchema`: per-lens

@@ -496,6 +496,52 @@ export async function overwriteProposal(
   return null;
 }
 
+/**
+ * Attach (or clear) a proposal's staged-entry plan in place (staged-entry-plan
+ * M2), preserving every other field. Pass `null` to remove the plan. Returns the
+ * updated proposal, or `null` if no proposal matches the id.
+ */
+export async function setStagedPlan(
+  id: string,
+  plan: TradeProposal["stagedPlan"],
+  opts?: { dataDir?: string },
+): Promise<TradeProposal | null> {
+  const existing = await readProposalById(id, opts);
+  if (!existing) return null;
+  const updated = TradeProposalSchema.parse({ ...existing, stagedPlan: plan });
+  const written = await overwriteProposal(updated, opts);
+  return written ? updated : null;
+}
+
+/**
+ * Mark one tranche of a proposal's staged-entry plan as `filled` (staged-entry-plan
+ * M2), after that tranche's order placed. When every tranche is filled the
+ * proposal's `status` flips to `approved` (the staged entry is complete);
+ * otherwise it stays `pending` so the remaining tranches can still be approved.
+ * Idempotent — re-marking a filled tranche is a no-op. Returns the updated
+ * proposal, or `null` if no proposal / plan / tranche matches.
+ */
+export async function markTrancheFilled(
+  id: string,
+  trancheIndex: number,
+  opts?: { dataDir?: string },
+): Promise<TradeProposal | null> {
+  const existing = await readProposalById(id, opts);
+  if (!existing?.stagedPlan) return null;
+  const tranches = existing.stagedPlan.tranches.map((t) =>
+    t.index === trancheIndex ? { ...t, status: "filled" as const } : t,
+  );
+  if (!tranches.some((t) => t.index === trancheIndex)) return null;
+  const allFilled = tranches.every((t) => t.status === "filled");
+  const updated = TradeProposalSchema.parse({
+    ...existing,
+    stagedPlan: { ...existing.stagedPlan, tranches },
+    status: allFilled ? "approved" : existing.status,
+  });
+  const written = await overwriteProposal(updated, opts);
+  return written ? updated : null;
+}
+
 /** The fields a caller supplies to emit a live-advisory proposal. The
  *  account/advisory/status stamps are forced by the writer — a caller can never
  *  produce a paper or executable proposal through this path. */

@@ -8,6 +8,7 @@ import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
 import { ProposalLevelsFreshness } from "@/components/proposal-levels-freshness";
 import { ProposalActions } from "@/components/proposal-actions";
+import { StagedEntryPlanCard } from "@/components/staged-entry-plan";
 import { CheckIcon, FlagIcon, ChevronRightIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
@@ -229,6 +230,15 @@ export function ProposalDetailView({
               ))}
             </ul>
           </Section>
+
+          {!advisory ? (
+            <Section
+              title="Staged entry"
+              note="Optional DCA / scale-in — risk sized on the full position; each tranche a separate gated approval."
+            >
+              <StagedEntryPlanCard proposal={p} />
+            </Section>
+          ) : null}
 
           <Section title="Research">
             {lens.catalyst ? (
