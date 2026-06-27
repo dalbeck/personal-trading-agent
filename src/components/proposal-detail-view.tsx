@@ -26,6 +26,8 @@ import {
 } from "@/lib/proposal-lens";
 import { hasCashFlowData } from "@/lib/cash-flow";
 import { hasDividendData } from "@/lib/dividend";
+import { isResearchUnavailable } from "@/lib/research-availability";
+import { ResearchUnavailableNotice } from "@/components/research-unavailable-notice";
 import type { CheckStatus } from "@/lib/checklist";
 import {
   ADVISORY_TAG,
@@ -258,12 +260,21 @@ export function ProposalDetailView({
             </ul>
           </Section>
 
-          {lens.strategy === "value" && hasCashFlowData(lens.cashFlow) ? (
+          {lens.strategy === "value" &&
+          (hasCashFlowData(lens.cashFlow) ||
+            isResearchUnavailable(lens.researchStatus)) ? (
             <Section
               title="Cash-flow quality"
               note="The value floor-vs-trap signal — does the business fund itself?"
             >
-              <CashFlowBlock cashFlow={lens.cashFlow} />
+              {hasCashFlowData(lens.cashFlow) ? (
+                <CashFlowBlock cashFlow={lens.cashFlow} />
+              ) : (
+                <ResearchUnavailableNotice
+                  status={lens.researchStatus}
+                  field="Cash-flow quality"
+                />
+              )}
             </Section>
           ) : null}
 

@@ -138,6 +138,11 @@ export async function refreshProposalLevels(
     if (lens) return lens.dividend ?? null;
     return proposal.strategy === strategy ? proposal.dividend ?? null : null;
   };
+  const existingResearchStatus = (strategy: Strategy) => {
+    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
+    if (lens) return lens.researchStatus ?? null;
+    return proposal.strategy === strategy ? proposal.researchStatus ?? null : null;
+  };
 
   const strategies = strategiesOf(proposal);
   const drafts = strategies.map((strategy) => {
@@ -171,7 +176,12 @@ export async function refreshProposalLevels(
   const verdicts = await Promise.all(
     builtDrafts.map((d) =>
       runRedTeam(
-        redTeamInput(d, existingCashFlow(d.strategy), existingDividend(d.strategy)),
+        redTeamInput(
+          d,
+          existingCashFlow(d.strategy),
+          existingDividend(d.strategy),
+          existingResearchStatus(d.strategy),
+        ),
         { exec: opts.redTeamExec },
       ),
     ),
@@ -185,6 +195,7 @@ export async function refreshProposalLevels(
           verdicts[i],
           existingCashFlow(d.strategy),
           existingDividend(d.strategy),
+          existingResearchStatus(d.strategy),
         ),
       )
     : [];
@@ -217,9 +228,11 @@ export async function refreshProposalLevels(
     reasoning: active.reasoning,
     redTeam: verdicts[activeIdx],
     lenses,
-    // Top-level cash-flow + dividend mirror the active lens (preserved on refresh).
+    // Top-level cash-flow + dividend + research status mirror the active lens
+    // (preserved on refresh — research data, not price levels).
     cashFlow: existingCashFlow(active.strategy),
     dividend: existingDividend(active.strategy),
+    researchStatus: existingResearchStatus(active.strategy),
     // Stamp the new anchor time so the freshness indicator + staleness guard reset.
     pricedAt: now.toISOString(),
   });

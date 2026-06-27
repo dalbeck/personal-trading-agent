@@ -586,6 +586,9 @@ export interface AdvisoryProposalInput {
   // Dividend-sustainability signals (dividend-floor M1) — value lens only, mirrors
   // the active lens. Schema-backed + default null.
   dividend?: TradeProposal["dividend"];
+  // Research availability for the value-quality data (research-unavailable-state
+  // M3) — mirrors the active lens. Schema-backed + default null.
+  researchStatus?: TradeProposal["researchStatus"];
   // When the levels were anchored to the live quote (fresh-entry-levels M1).
   // Schema-backed + default null, so a caller may omit it (older records).
   pricedAt?: TradeProposal["pricedAt"];

@@ -28,6 +28,7 @@ const researchSeam = () =>
     catalystType: "product_news" as const,
     cashFlow: null,
     dividend: null,
+    researchStatus: "ok" as const,
     usedPerplexity: false,
   });
 
@@ -94,6 +95,7 @@ describe("analyzeSymbol", () => {
           catalystType: null,
           cashFlow: null,
           dividend: null,
+          researchStatus: "ok" as const,
           usedPerplexity: false,
         }),
       redTeamExec: rejectExec,
@@ -120,6 +122,7 @@ describe("analyzeSymbol", () => {
         catalystType: null,
         cashFlow: null, // UNKNOWN quality data
         dividend: null,
+        researchStatus: "ok" as const,
         usedPerplexity: false,
       }),
       redTeamExec: approveExec,
@@ -129,6 +132,42 @@ describe("analyzeSymbol", () => {
     const valueLens = res.proposal.lenses.find((l) => l.strategy === "value")!;
     expect(valueLens.convictionTier).not.toBe("high");
     expect(valueLens.convictionScore as number).toBeLessThan(0.7);
+  });
+
+  it("records an explicit 'unavailable' research status that drags conviction + briefs the red-team (M3)", async () => {
+    const prompts: string[] = [];
+    const res = await analyzeSymbol("JKHY", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(220, 200, -0.3),
+      readSnapshot: snapshotSeam,
+      // Research was CAPPED → no cash-flow data, and we say so explicitly.
+      fetchResearch: async () => ({
+        sector: "Technology Services",
+        catalyst: null,
+        catalystType: null,
+        cashFlow: null,
+        dividend: null,
+        researchStatus: "capped" as const,
+        usedPerplexity: false,
+      }),
+      redTeamExec: async (p) => {
+        prompts.push(p);
+        return approveExec();
+      },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    const valueLens = res.proposal.lenses.find((l) => l.strategy === "value")!;
+    // The status is stored explicitly (not a silent null) on the value lens…
+    expect(valueLens.researchStatus).toBe("capped");
+    // …drags conviction below high (the M1 penalty, fed by the unavailable data)…
+    expect(valueLens.convictionTier).not.toBe("high");
+    // …and the value red-team is told the quality is DATA UNAVAILABLE, not verified.
+    const valuePrompt = prompts.find((p) => /VALUE \/ MEAN-REVERSION/.test(p))!;
+    expect(valuePrompt).toMatch(/DATA UNAVAILABLE/);
+    expect(valuePrompt).toMatch(/cap/i);
   });
 
   it("evaluates BOTH lenses → one proposal holding both breakdowns", async () => {
@@ -209,6 +248,7 @@ describe("analyzeSymbol", () => {
         catalystType: "other" as const,
         cashFlow,
         dividend: null,
+        researchStatus: "ok" as const,
         usedPerplexity: true,
       }),
       redTeamExec: async (p) => {
@@ -255,6 +295,7 @@ describe("analyzeSymbol", () => {
         catalystType: null,
         cashFlow: null,
         dividend,
+        researchStatus: "ok" as const,
         usedPerplexity: true,
       }),
       redTeamExec: async (p) => {
@@ -304,6 +345,7 @@ describe("analyzeSymbol", () => {
           growthStreakYears: null,
           dividendCagr: null,
         },
+        researchStatus: "ok" as const,
         usedPerplexity: true,
       }),
       redTeamExec: approveExec,

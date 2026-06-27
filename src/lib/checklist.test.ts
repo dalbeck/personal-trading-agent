@@ -117,6 +117,20 @@ describe("buildChecklist — value mandate", () => {
   it("leaves Cash-flow quality as na (never a false pass) with no data", () => {
     const list = buildChecklist(makeProposal({ strategy: "value" }));
     expect(item(list, "Cash-flow quality")?.status).toBe("na");
+    // With no research-status context, the detail is a bare "—".
+    expect(item(list, "Cash-flow quality")?.detail).toBe("—");
+  });
+
+  it("says 'Data unavailable' (not a silent —) when research was off/capped/failed (M3)", () => {
+    for (const status of ["off", "capped", "unavailable"] as const) {
+      const list = buildChecklist(
+        makeProposal({ strategy: "value", researchStatus: status }),
+      );
+      const cf = item(list, "Cash-flow quality");
+      expect(cf?.status).toBe("na");
+      expect(cf?.detail).toMatch(/Data unavailable/i);
+      expect(cf?.detail).not.toBe("—");
+    }
   });
 
   it("shares the hard rails — flags a thin reward/risk and an over-cap risk", () => {

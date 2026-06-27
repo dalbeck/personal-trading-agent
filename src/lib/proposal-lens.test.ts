@@ -43,6 +43,7 @@ function lens(
     redTeam: verdict(strategy === "value" ? "concern" : "reject"),
     cashFlow: null,
     dividend: null,
+    researchStatus: null,
     ...overrides,
   };
 }

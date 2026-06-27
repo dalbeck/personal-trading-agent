@@ -9,10 +9,12 @@ import {
   hasDividendData,
 } from "@/lib/dividend";
 import { formatCompactCurrency, formatPercent } from "@/lib/format";
+import { researchUnavailableLabel } from "@/lib/research-availability";
 import type {
   CashFlowQuality,
   DividendSignals,
   RedTeamVerdict,
+  ResearchStatus,
 } from "@/lib/types";
 
 /**
@@ -60,6 +62,10 @@ export interface RedTeamProposal {
    *  (and stops rejecting purely for "no floor"), but an uncovered / at-risk one
    *  as a value-trap flag. Value lens only; null/absent for trend. */
   dividend?: DividendSignals | null;
+  /** Research availability for the value-quality data (research-unavailable-state
+   *  M3). When off/capped/failed the quality is UNVERIFIED — flagged to the
+   *  prosecutor as a weakness, not a free pass. Value lens only. */
+  researchStatus?: ResearchStatus | null;
   thesis: string;
   reasoning?: string;
   research?: string;
@@ -68,9 +74,17 @@ export interface RedTeamProposal {
 /** A concise cash-flow descriptor for the value prosecutor, tagged with the
  *  pure pass/flag assessment. "unknown" when no usable FCF data was returned —
  *  itself a weakness for a value call (the floor can't be verified). */
-function cashFlowBriefing(cf: CashFlowQuality | null | undefined): string {
+function cashFlowBriefing(
+  cf: CashFlowQuality | null | undefined,
+  researchStatus?: ResearchStatus | null,
+): string {
   if (!hasCashFlowData(cf ?? null) || !cf) {
-    return "Cash-flow quality: unknown (no FCF / leverage data returned — the floor cannot be verified, treat the absence as a weakness)";
+    // research-unavailable-state M3: distinguish "research off/capped/failed" from
+    // "ran but returned nothing" — either way the quality is UNVERIFIED.
+    const reason = researchUnavailableLabel(researchStatus);
+    return reason
+      ? `Cash-flow quality: DATA UNAVAILABLE (${reason}) — quality could NOT be verified; treat this as a weakness, not a free pass`
+      : "Cash-flow quality: unknown (no FCF / leverage data returned — the floor cannot be verified, treat the absence as a weakness)";
   }
   const bits: string[] = [];
   if (cf.freeCashFlow !== null) {
@@ -152,7 +166,7 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
   // surface the figures in the order block so the prosecutor weighs the
   // floor-vs-trap tell and recognizes a real dividend floor.
   if (isValue) {
-    lines.push(`- ${cashFlowBriefing(p.cashFlow)}`);
+    lines.push(`- ${cashFlowBriefing(p.cashFlow, p.researchStatus)}`);
     lines.push(`- ${dividendBriefing(p.dividend)}`);
   }
   lines.push(`- Thesis: ${p.thesis}`);
