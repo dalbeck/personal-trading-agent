@@ -104,6 +104,15 @@ describe("proposalToMarkdown", () => {
     expect(md).not.toContain("## Staged entry");
   });
 
+  it("reflects an explicit 'Data unavailable' cash-flow state when research was off/capped (M3)", () => {
+    const unavailable = proposalToMarkdown(
+      makeProposal({ strategy: "value", cashFlow: null, researchStatus: "capped" }),
+      opts,
+    );
+    expect(unavailable).toMatch(/Cash-flow quality — Data unavailable/i);
+    expect(unavailable).not.toMatch(/Cash-flow quality — —/); // never a silent dash
+  });
+
   it("renders the staged-entry tranche table when a plan is attached", () => {
     const staged = proposalToMarkdown(
       makeProposal({

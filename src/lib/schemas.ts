@@ -264,6 +264,17 @@ export const DividendSignalsSchema = z
   .strict();
 
 /**
+ * Whether the metered (Perplexity) research that backs a proposal's value-quality
+ * data was actually obtained (research-unavailable-state M3). `ok` — research ran
+ * and supplied data; `off` — the provider is disabled; `capped` — the daily call
+ * cap was hit; `unavailable` — the fetch failed / returned nothing. Anything but
+ * `ok` means the cash-flow / quality fields are **"data unavailable"** (rendered
+ * explicitly, never a silent `—`), drags conviction, and is flagged to the
+ * red-team as "quality unverified". Mirrors `PerplexityStatus`.
+ */
+export const ResearchStatus = z.enum(["ok", "off", "capped", "unavailable"]);
+
+/**
  * One **lens breakdown** carried by a dual-lens proposal (dual-lens M1). The
  * manual analyze-a-symbol pipeline now evaluates a ticker under **both** the
  * trend and value mandates and produces **one** proposal holding both
@@ -303,6 +314,10 @@ export const ProposalLensSchema = z
     // M1). Value lens only; when coverage is durable it registers a named dividend
     // floor in the catalyst, feeds the value red-team, and lifts conviction.
     dividend: DividendSignalsSchema.nullable().default(null),
+    // Whether the value-quality research was obtained (research-unavailable-state
+    // M3). Anything but `ok` → the cash-flow/quality fields are "data unavailable"
+    // (explicit, not a silent —). Value lens only; null for trend / older records.
+    researchStatus: ResearchStatus.nullable().default(null),
   })
   .strict();
 
@@ -424,6 +439,9 @@ export const TradeProposalSchema = z
     // Dividend-sustainability signals (dividend-floor M1) — mirrors the active
     // lens (carried only when value is active). Value lens only; null otherwise.
     dividend: DividendSignalsSchema.nullable().default(null),
+    // Research availability for the value-quality data (research-unavailable-state
+    // M3) — mirrors the active lens. Anything but `ok` → "data unavailable".
+    researchStatus: ResearchStatus.nullable().default(null),
     // When the levels (entry/stop/target/sizing) were anchored to the live Alpaca
     // quote (fresh-entry-levels M1). Set at analysis and updated on a "Refresh
     // levels" re-anchor; drives the "levels as of …" freshness indicator and the

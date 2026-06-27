@@ -34,6 +34,7 @@ import type {
   DividendSignals,
   ProposalLensBreakdown,
   RedTeamVerdict,
+  ResearchStatus,
   TradeProposal,
 } from "@/lib/types";
 
@@ -63,6 +64,9 @@ export interface ResearchContext {
   /** Dividend-sustainability signals for the value lens (dividend-floor M1) —
    *  same capped fetch. A durable, covered dividend registers a named floor. */
   dividend: DividendSignals | null;
+  /** Whether the metered research was obtained (research-unavailable-state M3).
+   *  Anything but `ok` → the value-quality fields are "data unavailable". */
+  researchStatus: ResearchStatus;
   /** True when the metered Perplexity provider supplied the context (for the
    *  caller to surface that a daily-capped call was spent). */
   usedPerplexity: boolean;
@@ -123,6 +127,7 @@ async function defaultResearch(
       catalystType: extracted?.catalystType ?? null,
       cashFlow: r.cashFlow ?? null,
       dividend: r.dividend ?? null,
+      researchStatus: r.perplexity,
       usedPerplexity: r.perplexity === "ok",
     };
   } catch {
@@ -132,6 +137,7 @@ async function defaultResearch(
       catalystType: null,
       cashFlow: null,
       dividend: null,
+      researchStatus: "unavailable",
       usedPerplexity: false,
     };
   }
@@ -180,6 +186,7 @@ export function redTeamInput(
   d: ManualProposalDraft,
   cashFlow: CashFlowQuality | null,
   dividend: DividendSignals | null = null,
+  researchStatus: ResearchStatus | null = null,
 ): RedTeamProposal {
   return {
     symbol: d.symbol,
@@ -196,6 +203,7 @@ export function redTeamInput(
     catalystType: d.catalystType,
     cashFlow: d.strategy === "value" ? cashFlow : null,
     dividend: d.strategy === "value" ? dividend : null,
+    researchStatus: d.strategy === "value" ? researchStatus : null,
     thesis: d.thesis,
     reasoning: d.reasoning,
   };
@@ -210,6 +218,7 @@ export function draftToLens(
   redTeam: RedTeamVerdict,
   cashFlow: CashFlowQuality | null,
   dividend: DividendSignals | null = null,
+  researchStatus: ResearchStatus | null = null,
 ): ProposalLensBreakdown {
   return {
     strategy: d.strategy,
@@ -230,6 +239,8 @@ export function draftToLens(
     redTeam,
     cashFlow: d.strategy === "value" ? cashFlow : null,
     dividend: d.strategy === "value" ? dividend : null,
+    // Research availability is a value-lens concern (its quality data); trend null.
+    researchStatus: d.strategy === "value" ? researchStatus : null,
   };
 }
 
@@ -330,16 +341,21 @@ export async function analyzeSymbol(
   // Attached to the value lens + briefed to the value red-team only.
   const cashFlow = research.cashFlow;
   const dividend = research.dividend;
+  // Research availability (research-unavailable-state M3) — when off/capped/failed
+  // the value-quality fields are "data unavailable" (explicit, not a silent —).
+  const researchStatus = research.researchStatus;
 
   // Run each lens's red-team under its matching mandate.
   const [trendRedTeam, valueRedTeam] = await Promise.all([
-    runRedTeam(redTeamInput(trendDraft, null, null), { exec: opts.redTeamExec }),
-    runRedTeam(redTeamInput(valueDraft, cashFlow, dividend), { exec: opts.redTeamExec }),
+    runRedTeam(redTeamInput(trendDraft, null, null, null), { exec: opts.redTeamExec }),
+    runRedTeam(redTeamInput(valueDraft, cashFlow, dividend, researchStatus), {
+      exec: opts.redTeamExec,
+    }),
   ]);
 
   const lenses: ProposalLensBreakdown[] = [
-    draftToLens(trendDraft, trendRedTeam, null, null),
-    draftToLens(valueDraft, valueRedTeam, cashFlow, dividend),
+    draftToLens(trendDraft, trendRedTeam, null, null, null),
+    draftToLens(valueDraft, valueRedTeam, cashFlow, dividend, researchStatus),
   ];
 
   // The proposal's top-level fields mirror the ACTIVE (default) lens — the
@@ -349,9 +365,11 @@ export async function analyzeSymbol(
     valueDraft.convictionScore > trendDraft.convictionScore
       ? { draft: valueDraft, redTeam: valueRedTeam }
       : { draft: trendDraft, redTeam: trendRedTeam };
-  // Top-level cash-flow + dividend mirror the active lens — only when value is active.
+  // Top-level cash-flow + dividend + research status mirror the active lens.
   const activeCashFlow = active.draft.strategy === "value" ? cashFlow : null;
   const activeDividend = active.draft.strategy === "value" ? dividend : null;
+  const activeResearchStatus =
+    active.draft.strategy === "value" ? researchStatus : null;
 
   const proposal: TradeProposal = TradeProposalSchema.parse({
     ...active.draft,
@@ -366,6 +384,7 @@ export async function analyzeSymbol(
     redTeam: active.redTeam,
     cashFlow: activeCashFlow,
     dividend: activeDividend,
+    researchStatus: activeResearchStatus,
     lenses,
   });
 
@@ -408,6 +427,7 @@ export async function analyzeSymbol(
       redTeam: active.redTeam,
       cashFlow: activeCashFlow,
       dividend: activeDividend,
+      researchStatus: activeResearchStatus,
       pricedAt: proposal.pricedAt,
       lenses,
     },

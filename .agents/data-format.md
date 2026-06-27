@@ -196,6 +196,22 @@ proposals come from the manual analyze-a-symbol **lens** picker (`strategy` in
 the `POST /api/proposals/analyze` body) and, when enabled, the discovery run (see
 `valueSleeveEnabled` below). Defaults to `trend` so older records still validate.
 
+**Proposal `researchStatus` (research-unavailable-state M3).** The **value lens's**
+research availability for its quality data — a `ResearchStatus`
+(`ok | off | capped | unavailable`, nullable; mirrors `PerplexityStatus`). Set
+from `getSymbolResearch`'s `perplexity` status at analyze time (a failed fetch →
+`unavailable`); preserved across a "Refresh levels" re-anchor; value lens only
+(trend null), mirrored at the top level. Anything but `ok` means the cash-flow /
+quality fields are **"data unavailable"** — rendered **explicitly** (never a
+silent `—`): the "Cash-flow quality" checklist item reads `Data unavailable ·
+<reason>` (`isResearchUnavailable` / `researchUnavailableLabel`,
+`src/lib/research-availability.ts`, pure + unit-tested), the detail page shows a
+`ResearchUnavailableNotice`, and the **export** reflects it. It also **drags
+conviction** (the same missing-cash-flow signal that caps value conviction below
+"high", conviction-honesty M1) and is **briefed to the value red-team** as
+quality "DATA UNAVAILABLE … unverified, not a free pass" (`cashFlowBriefing`).
+Defaults to null so older records still validate.
+
 **Proposal `dividend` (dividend-floor M1).** The **value lens's** dividend-floor
 signal — a `DividendSignalsSchema` block: `dividendYield` / `payoutRatio` /
 `fcfPayout` / `dividendCagr` (fractions), `fcfCoverage` (FCF ÷ dividends, a

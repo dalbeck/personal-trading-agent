@@ -27,13 +27,21 @@ import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
 import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
 import { assessCashFlowQuality } from "@/lib/cash-flow";
+import {
+  isResearchUnavailable,
+  researchUnavailableLabel,
+} from "@/lib/research-availability";
 import { formatRelativeVolume, REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { RISK_LIMITS } from "@strategy/charter.config";
 import type { Strategy } from "@/lib/strategy";
 import type { CatalystType } from "@/lib/catalyst";
 import type { TargetType } from "@/lib/target-type";
-import type { CashFlowQuality, RedTeamVerdict } from "@/lib/types";
+import type {
+  CashFlowQuality,
+  RedTeamVerdict,
+  ResearchStatus,
+} from "@/lib/types";
 
 export type CheckStatus = "pass" | "flag" | "na";
 
@@ -63,6 +71,9 @@ export interface ChecklistInput {
   /** Cash-flow quality — the value lens's floor-vs-trap signal (value-cashflow
    *  M1). Value mandate only; null/absent for trend lenses. */
   cashFlow?: CashFlowQuality | null;
+  /** Research availability (research-unavailable-state M3). When off/capped/failed
+   *  the cash-flow item reads "Data unavailable" instead of a silent "—". */
+  researchStatus?: ResearchStatus | null;
   redTeam: RedTeamVerdict | null;
 }
 
@@ -129,11 +140,23 @@ function catalystItem(p: ChecklistInput, label: string): CheckItem {
  * The value lens's cash-flow quality item (value-cashflow M1) — the floor-vs-trap
  * discriminator. **Pass** on durable, positive FCF with a healthy yield + manageable
  * leverage; **flag** on negative/declining FCF or rising leverage; **na** when
- * there's no usable cash-flow data (honest "—", never a false pass). The
- * pass/flag logic is the pure `assessCashFlowQuality`.
+ * there's no usable cash-flow data. The pass/flag logic is the pure
+ * `assessCashFlowQuality`.
+ *
+ * research-unavailable-state M3: when the data is absent BECAUSE the research was
+ * off/capped/failed, the detail reads an explicit **"Data unavailable (reason)"**
+ * instead of a silent "—" that reads like "verified, nothing there".
  */
 function cashFlowItem(p: ChecklistInput): CheckItem {
   const { status, detail } = assessCashFlowQuality(p.cashFlow ?? null);
+  if (status === "na" && isResearchUnavailable(p.researchStatus)) {
+    const reason = researchUnavailableLabel(p.researchStatus);
+    return {
+      label: "Cash-flow quality",
+      status: "na",
+      detail: reason ? `Data unavailable · ${reason}` : "Data unavailable",
+    };
+  }
   return { label: "Cash-flow quality", status, detail };
 }
 
