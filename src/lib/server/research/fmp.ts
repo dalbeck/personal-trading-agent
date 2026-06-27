@@ -155,8 +155,7 @@ export function createFmpProvider(opts?: FmpOpts): ResearchProvider {
           });
           return null;
         }
-        // All rejected paths handled above; if somehow we reach here, fall
-        // through to the all-rejected branch logic.
+        // Defensive fallback: no successful response and no http-error status (all-rejected case already handled above).
         await emit(query.symbol, "network-error", startedAt);
         return null;
       }

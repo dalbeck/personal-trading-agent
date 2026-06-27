@@ -247,8 +247,9 @@ the `POST /api/proposals/analyze` body) and, when enabled, the discovery run (se
 research availability for its quality data — a `ResearchStatus`
 (`ok | off | capped | unavailable`, nullable; mirrors `PerplexityStatus`). Set
 from `getSymbolResearch`'s `perplexity` status at analyze time (a failed fetch →
-`unavailable`); preserved across a "Refresh levels" re-anchor; value lens only
-(trend null), mirrored at the top level. Anything but `ok` means the cash-flow /
+`unavailable`); or `ok` when FMP supplied the value-quality data even though
+Perplexity was unavailable (fundamentals-fallback-fmp M2). Preserved across a
+"Refresh levels" re-anchor; value lens only (trend null), mirrored at the top level. Anything but `ok` means the cash-flow /
 quality fields are **"data unavailable"** — rendered **explicitly** (never a
 silent `—`): the "Cash-flow quality" checklist item reads `Data unavailable ·
 <reason>` (`isResearchUnavailable` / `researchUnavailableLabel`,
