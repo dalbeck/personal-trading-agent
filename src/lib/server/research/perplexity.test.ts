@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPerplexityProvider } from "./perplexity";
 import { readResearchDiagnostics } from "./diagnostics";
+import { getResearchCallCount } from "./usage";
 
 let dir: string;
 const clock = () => new Date("2026-06-27T12:00:00.000Z");
@@ -95,5 +96,6 @@ describe("createPerplexityProvider diagnostics", () => {
     });
     expect(await p.research({ symbol: "LLY" })).not.toBeNull();
     expect(p.lastDiagnostic?.()?.outcome).toBe("ok");
+    expect(await getResearchCallCount("2026-06-27", { dataDir: dir })).toBe(1);
   });
 });
