@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Fraunces } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { Header } from "@/components/header";
 import { LiveBanner } from "@/components/live-banner";
@@ -43,7 +44,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="bg-surface text-fg">
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/* No-flash theme bootstrap. `beforeInteractive` injects this into the
+            initial server HTML so it runs before paint — keeping the no-flash
+            behavior — while avoiding React 19's inline-<script> warning that a
+            raw <script> in the component tree triggers on client renders. */}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {themeInitScript}
+        </Script>
         <div className="flex h-dvh overflow-hidden">
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
