@@ -130,6 +130,61 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).not.toMatch(/cash-flow quality/i);
   });
 
+  it("recognizes a durable dividend as a real FLOOR in the VALUE lens", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      strategy: "value",
+      catalyst: "Dividend floor: FCF covers 2.4×, 14-yr growth streak",
+      catalystType: "other",
+      dividend: {
+        dividendYield: 0.031,
+        payoutRatio: 0.45,
+        fcfPayout: 1 / 2.4,
+        fcfCoverage: 2.4,
+        growthStreakYears: 14,
+        dividendCagr: 0.11,
+      },
+    });
+    expect(prompt).toMatch(/Dividend sustainability \(pass/i);
+    expect(prompt).toMatch(/FCF covers 2\.4x/i);
+    // The instruction that a real floor satisfies the why-now/floor requirement…
+    expect(prompt).toMatch(/SATISFIES the why-now\/floor requirement/i);
+    // …but does NOT auto-approve (the discipline guardrail).
+    expect(prompt).toMatch(/NOT automatically a why-now price catalyst/i);
+  });
+
+  it("frames an uncovered dividend as a value-trap flag, not a floor", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      strategy: "value",
+      dividend: {
+        dividendYield: 0.07,
+        payoutRatio: null,
+        fcfPayout: null,
+        fcfCoverage: 0.6,
+        growthStreakYears: null,
+        dividendCagr: null,
+      },
+    });
+    expect(prompt).toMatch(/Dividend sustainability \(flag/i);
+    expect(prompt).toMatch(/value.trap flag, NOT a floor/i);
+  });
+
+  it("does NOT brief dividend in the TREND lens (value-lens only)", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      dividend: {
+        dividendYield: 0.03,
+        payoutRatio: 0.4,
+        fcfPayout: 0.4,
+        fcfCoverage: 2.5,
+        growthStreakYears: 10,
+        dividendCagr: 0.08,
+      },
+    });
+    expect(prompt).not.toMatch(/Dividend sustainability/i);
+  });
+
   it("keeps the shared hard rails in BOTH lenses", () => {
     for (const strategy of ["trend", "value"] as const) {
       const prompt = buildProsecutorPrompt({ ...proposal, strategy });

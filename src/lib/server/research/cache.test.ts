@@ -33,6 +33,7 @@ function payload(): SymbolResearch {
     earnings: [],
     catalysts: [],
     cashFlow: null,
+    dividend: null,
     finance: [],
     sections: [],
     categories: [],

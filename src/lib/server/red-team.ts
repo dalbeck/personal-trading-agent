@@ -3,8 +3,17 @@ import "server-only";
 import { spawn } from "node:child_process";
 import { RedTeamVerdictSchema } from "@/lib/schemas";
 import { assessCashFlowQuality, hasCashFlowData } from "@/lib/cash-flow";
+import {
+  assessDividendFloor,
+  dividendCoverage,
+  hasDividendData,
+} from "@/lib/dividend";
 import { formatCompactCurrency, formatPercent } from "@/lib/format";
-import type { CashFlowQuality, RedTeamVerdict } from "@/lib/types";
+import type {
+  CashFlowQuality,
+  DividendSignals,
+  RedTeamVerdict,
+} from "@/lib/types";
 
 /**
  * Red-team gate. After the primary model proposes a trade, a **different model
@@ -46,6 +55,11 @@ export interface RedTeamProposal {
    *  rising leverage as a value-trap red flag. Value lens only; null/absent for
    *  trend (the trend prompt never mentions it). */
   cashFlow?: CashFlowQuality | null;
+  /** Dividend-sustainability signals for the VALUE mandate (dividend-floor M1) —
+   *  the prosecutor recognizes a durable, well-covered dividend as a real FLOOR
+   *  (and stops rejecting purely for "no floor"), but an uncovered / at-risk one
+   *  as a value-trap flag. Value lens only; null/absent for trend. */
+  dividend?: DividendSignals | null;
   thesis: string;
   reasoning?: string;
   research?: string;
@@ -80,6 +94,38 @@ function cashFlowBriefing(cf: CashFlowQuality | null | undefined): string {
   return `Cash-flow quality (${status}): ${bits.join(", ")}`;
 }
 
+/** A concise dividend descriptor for the value prosecutor (dividend-floor M1),
+ *  tagged with the pure floor assessment so it can recognize a real floor vs. an
+ *  at-risk dividend. "no dividend / unknown" when the company pays none. */
+function dividendBriefing(d: DividendSignals | null | undefined): string {
+  if (!hasDividendData(d ?? null) || !d) {
+    return "Dividend: none / unknown (no dividend floor to credit here)";
+  }
+  const bits: string[] = [];
+  if (d.dividendYield !== null) {
+    bits.push(`yield ${formatPercent(d.dividendYield, { signed: false })}`);
+  }
+  if (d.payoutRatio !== null) {
+    bits.push(`payout ${formatPercent(d.payoutRatio, { signed: false })}`);
+  }
+  const coverage = dividendCoverage(d);
+  if (coverage !== null) bits.push(`FCF covers ${coverage.toFixed(1)}x`);
+  if (d.growthStreakYears !== null) {
+    bits.push(`${d.growthStreakYears}-yr growth streak`);
+  }
+  if (d.dividendCagr !== null) {
+    bits.push(`${formatPercent(d.dividendCagr, { signed: false })} CAGR`);
+  }
+  const { status } = assessDividendFloor(d);
+  const verdict =
+    status === "pass"
+      ? "a durable, covered dividend = a REAL floor"
+      : status === "flag"
+        ? "uncovered / at-risk — a value-trap flag, NOT a floor"
+        : "pays a dividend but coverage unconfirmed";
+  return `Dividend sustainability (${status} — ${verdict}): ${bits.join(", ")}`;
+}
+
 export type RedTeamExec = (prompt: string) => Promise<string>;
 export type RedTeamOutcome = "allow" | "downsize" | "block";
 
@@ -102,10 +148,12 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     `- Relative volume: ${p.relativeVolume != null ? `${p.relativeVolume.toFixed(2)}x avg` : "unknown"}`,
     `- Catalyst: ${p.catalyst ? p.catalyst : "none stated"} (${p.catalystType ?? "unspecified"})`,
   ];
-  // Cash-flow quality is a VALUE-lens signal only — surface the figures in the
-  // order block so the prosecutor weighs the floor-vs-trap tell.
+  // Cash-flow quality + dividend sustainability are VALUE-lens signals only —
+  // surface the figures in the order block so the prosecutor weighs the
+  // floor-vs-trap tell and recognizes a real dividend floor.
   if (isValue) {
     lines.push(`- ${cashFlowBriefing(p.cashFlow)}`);
+    lines.push(`- ${dividendBriefing(p.dividend)}`);
   }
   lines.push(`- Thesis: ${p.thesis}`);
   if (isValue) {
@@ -115,6 +163,7 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
       "FUNDAMENTALS LEAD. Judge QUALITY first: is this a profitable, durable business with a sound balance sheet, trading at a genuine discount (cheap vs its own history / peers, near a multi-year or 52-week low)? A fundamental / valuation rationale is IN MANDATE for this sleeve.",
       "HUNT THE VALUE TRAP — this is your real job. REJECT (or at least flag concern) for: deteriorating fundamentals (falling revenue / margins, cut guidance, slashed analyst targets), NO real catalyst or floor, a falling-knife / structurally broken business, or an unrealistic target. A valid why-now is a dividend support or hike, an analyst-target floor, insider buying, fundamental stabilization, OR a technical mean-reversion signal (oversold RSI, long-term support, capitulation volume, basing). 'It's just cheap' with no catalyst or floor is WEAK — flag it in the Edge factor.",
       "CASH FLOW IS THE FLOOR-VS-TRAP TELL. Weigh the Cash-flow quality line above: strong, positive, stable/growing free cash flow with a healthy FCF yield and manageable leverage SUPPORTS the floor thesis (a business that funds itself rarely keeps falling) — lean toward giving the value call a fair hearing. Conversely, NEGATIVE or DECLINING free cash flow, a deteriorating OCF, or RISING / heavy leverage (high debt-to-equity, thin interest coverage) is a STRONG value-trap red flag — a cheap stock bleeding cash with a stretched balance sheet is a falling knife, not a floor; REJECT or flag concern and say so in the Edge factor. Unknown cash flow means the floor is unverified — a weakness, not a free pass. Good cash flow alone does NOT make it a buy; its absence/deterioration is a strong disqualifier.",
+      "DIVIDEND SUSTAINABILITY CAN BE THE FLOOR. Weigh the Dividend sustainability line above. A durable, well-covered dividend (FCF comfortably covers it, payout not stretched, a multi-year growth streak) IS a real value floor — downside protection that pays you to wait. When such a floor is present (it will be stated in the Catalyst line as a 'Dividend floor: …'), it SATISFIES the why-now/floor requirement: do NOT reject merely for 'no catalyst or floor.' BUT a safe dividend is NOT automatically a why-now price catalyst — a covered dividend can coexist with a multi-year price decline (a value trap that pays you to wait), so you MAY still reasonably weigh timing/why-now and land on concern. Do NOT let 'safe dividend' alone force an approve. An UNCOVERED or at-risk dividend (FCF doesn't cover it, payout stretched, cut risk) is a value-trap red flag, NOT a floor — call it out in the Edge factor.",
       "A target anchored to FUNDAMENTAL value is APPROPRIATE for this sleeve (do NOT call it weak). A sell-side analyst_price target is still weak (borrowed conviction); an unspecified target is weak. Note this in the Target factor.",
     );
   } else {

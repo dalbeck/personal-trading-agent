@@ -242,6 +242,28 @@ export const CashFlowQualitySchema = z
   .strict();
 
 /**
+ * Dividend-sustainability signals — the value lens's "is the dividend a real
+ * floor?" tell (dividend-floor M1). A durable, well-covered dividend is a value
+ * **floor** (downside protection / paid to wait); an uncovered or stretched one
+ * is a value-trap red flag. Pulled in the SAME capped value research fetch (no
+ * extra call). `dividendYield` / `payoutRatio` / `fcfPayout` / `dividendCagr`
+ * are **fractions** (0.031 === 3.1%); `fcfCoverage` is a multiple (FCF ÷
+ * dividends, 2.4 === 2.4×, derived from `fcfPayout` when absent);
+ * `growthStreakYears` is the count of consecutive annual increases. Every field
+ * nullable; value lens only; defaults to null so older records still validate.
+ */
+export const DividendSignalsSchema = z
+  .object({
+    dividendYield: ratio.nullable().default(null),
+    payoutRatio: ratio.nullable().default(null),
+    fcfPayout: ratio.nullable().default(null),
+    fcfCoverage: z.number().finite().nullable().default(null),
+    growthStreakYears: z.number().int().nonnegative().nullable().default(null),
+    dividendCagr: ratio.nullable().default(null),
+  })
+  .strict();
+
+/**
  * One **lens breakdown** carried by a dual-lens proposal (dual-lens M1). The
  * manual analyze-a-symbol pipeline now evaluates a ticker under **both** the
  * trend and value mandates and produces **one** proposal holding both
@@ -277,6 +299,10 @@ export const ProposalLensSchema = z
     // cash-flow stat block. Defaults to null so trend lenses + older records
     // still validate.
     cashFlow: CashFlowQualitySchema.nullable().default(null),
+    // Dividend-sustainability signals — the value lens's floor tell (dividend-floor
+    // M1). Value lens only; when coverage is durable it registers a named dividend
+    // floor in the catalyst, feeds the value red-team, and lifts conviction.
+    dividend: DividendSignalsSchema.nullable().default(null),
   })
   .strict();
 
@@ -395,6 +421,9 @@ export const TradeProposalSchema = z
     // trend-active one carries null. Value lens only. Defaults to null so older
     // records still validate.
     cashFlow: CashFlowQualitySchema.nullable().default(null),
+    // Dividend-sustainability signals (dividend-floor M1) — mirrors the active
+    // lens (carried only when value is active). Value lens only; null otherwise.
+    dividend: DividendSignalsSchema.nullable().default(null),
     // When the levels (entry/stop/target/sizing) were anchored to the live Alpaca
     // quote (fresh-entry-levels M1). Set at analysis and updated on a "Refresh
     // levels" re-anchor; drives the "levels as of …" freshness indicator and the

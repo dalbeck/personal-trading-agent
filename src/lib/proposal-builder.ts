@@ -53,6 +53,10 @@ export interface BuildManualProposalInput {
   sector?: string | null;
   catalyst?: string | null;
   catalystType?: BuilderCatalystType | null;
+  /** Dividend floor signal for the VALUE lens (dividend-floor M1) — a durable,
+   *  well-covered dividend lifts conviction; an uncovered / at-risk one drags.
+   *  Ignored for trend. Null/absent when there's no dividend signal. */
+  dividendFloor?: { covered: boolean; atRisk: boolean } | null;
   /** Fractional shares allowed (charter: yes). Default true. */
   allowFractional?: boolean;
   riskLimits?: { perPositionRiskPct?: number; perPositionSizePct?: number };
@@ -147,6 +151,7 @@ export function buildManualProposalDraft(
           high52w: priorHigh,
           rewardRisk,
           hasCatalyst,
+          dividendFloor: input.dividendFloor ?? null,
         })
       : scoreConviction({
           entry,
@@ -272,8 +277,9 @@ function scoreValueConviction(s: {
   high52w: number;
   rewardRisk: number;
   hasCatalyst: boolean;
+  dividendFloor: { covered: boolean; atRisk: boolean } | null;
 }): number {
-  // Discount (0.4): cheap relative to the long-term trend is the value zone.
+  // Discount (0.35): cheap relative to the long-term trend is the value zone.
   // Below the 200-day scores full; modestly above is neutral; well above is poor
   // value (it isn't a discount). Below-MA is rewarded, never punished.
   let discount: number;
@@ -282,17 +288,28 @@ function scoreValueConviction(s: {
   else if (s.entry <= s.sma200 * 1.05) discount = 0.6;
   else discount = 0.3;
 
-  // Off-the-high (0.2): nearer a 52-week/multi-year low is a deeper discount.
+  // Off-the-high (0.15): nearer a 52-week/multi-year low is a deeper discount.
   const drawdown = s.high52w > 0 ? (s.high52w - s.entry) / s.high52w : 0;
   const offHigh = clamp01(drawdown / 0.4); // ≥40% off the high → full
 
-  // Reward/risk (0.3): 1:1 → 0, 2:1 → 0.5, ≥3:1 → 1.
+  // Reward/risk (0.25): 1:1 → 0, 2:1 → 0.5, ≥3:1 → 1.
   const rr = clamp01((s.rewardRisk - 1) / 2);
 
   // Catalyst or floor (0.1).
   const catalyst = s.hasCatalyst ? 1 : 0.3;
 
-  const score = 0.4 * discount + 0.2 * offHigh + 0.3 * rr + 0.1 * catalyst;
+  // Dividend floor (0.15): a covered dividend is downside protection (lifts); an
+  // uncovered / at-risk one is a value-trap weight (drags); unknown stays neutral.
+  const dividend = s.dividendFloor
+    ? s.dividendFloor.covered
+      ? 1
+      : s.dividendFloor.atRisk
+        ? 0.1
+        : 0.5
+    : 0.5;
+
+  const score =
+    0.35 * discount + 0.15 * offHigh + 0.25 * rr + 0.1 * catalyst + 0.15 * dividend;
   return clamp01(score);
 }
 

@@ -141,6 +141,7 @@ function normalize(symbol: string, json: unknown, usedAt: string): ResearchResul
     earnings: structured.earnings,
     catalysts: structured.catalysts,
     cashFlow: structured.cashFlow,
+    dividend: structured.dividend,
   };
   const cost = extractCost(obj.usage);
   if (cost != null) result.cost = cost;
@@ -197,10 +198,12 @@ export function createPerplexityProvider(
             '"consensus":{"rating":string|null,"targetMean":number|null,"targetHigh":number|null,"targetLow":number|null,"analystCount":number|null},' +
             '"earnings":[{"period":string,"epsActual":number|null,"epsEstimate":number|null,"surprisePct":string|null,"priceMovePct":string|null}],' +
             '"catalysts":[string],' +
-            '"cashFlow":{"operatingCashFlow":string|null,"freeCashFlow":string|null,"fcfTrend":"growing"|"stable"|"declining"|null,"fcfYield":string|null,"netDebt":string|null,"debtToEquity":number|null,"interestCoverage":number|null}}',
+            '"cashFlow":{"operatingCashFlow":string|null,"freeCashFlow":string|null,"fcfTrend":"growing"|"stable"|"declining"|null,"fcfYield":string|null,"netDebt":string|null,"debtToEquity":number|null,"interestCoverage":number|null},' +
+            '"dividend":{"dividendYield":string|null,"payoutRatio":string|null,"fcfPayout":string|null,"fcfCoverage":number|null,"growthStreakYears":number|null,"dividendCagr":string|null}}',
           "name is the official company name (e.g. \"Apple, Inc.\"); domain is the primary website host only (e.g. \"apple.com\"); marketCap may use a suffix (e.g. \"3.1T\"); dividendYield as a percent string (e.g. \"0.72%\"); ipoDate as YYYY-MM-DD; exchange like \"NASDAQ\"/\"NYSE\"; country like \"United States\"; description one sentence.",
           "earnings is the last up-to-4 reported quarters oldest-first (period like \"Q1 FY26\"; surprisePct and priceMovePct as percent strings like \"+4.3%\"/\"-2.1%\"). catalysts is up to 6 short upcoming-catalyst phrases (e.g. \"Q2 earnings Jul 24\"). Omit either array if you have nothing verifiable.",
           "cashFlow is trailing-twelve-month cash-flow quality: operatingCashFlow and freeCashFlow as money (suffix ok, e.g. \"1.2B\"); fcfTrend is the recent direction of free cash flow; fcfYield as a percent string (FCF ÷ market cap, e.g. \"4.1%\") — omit it and it will be derived from FCF and market cap; netDebt as money (negative = net cash); debtToEquity and interestCoverage as plain numbers. Use null for anything you cannot verify.",
+          "dividend is dividend sustainability (null the whole block if the company pays no dividend): dividendYield, payoutRatio (dividends ÷ earnings), fcfPayout (dividends ÷ FCF) and dividendCagr as percent strings (e.g. \"45%\"); fcfCoverage as a plain multiple (FCF ÷ dividends, e.g. 2.4) — give fcfPayout OR fcfCoverage and the other is derived; growthStreakYears as the count of consecutive annual dividend increases. Use null for anything you cannot verify.",
         ].join("\n");
 
       try {

@@ -32,6 +32,7 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     redTeam: null,
     lenses: [],
     cashFlow: null,
+    dividend: null,
     pricedAt: null,
     stagedPlan: null,
     reviewByDate: null,

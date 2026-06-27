@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   coerceCashFlow,
   coerceCatalysts,
+  coerceDividend,
   coerceDomain,
   coerceEarnings,
   coerceIntLike,
@@ -247,6 +248,49 @@ describe("coerceCashFlow", () => {
   });
 });
 
+describe("coerceDividend", () => {
+  it("coerces a full dividend block, reading percent fields as fractions", () => {
+    const d = coerceDividend({
+      dividendYield: "3.1%",
+      payoutRatio: "45%",
+      fcfPayout: "42%",
+      fcfCoverage: 2.4,
+      growthStreakYears: 14,
+      dividendCagr: "11%",
+    });
+    expect(d).not.toBeNull();
+    expect(d!.dividendYield).toBeCloseTo(0.031);
+    expect(d!.payoutRatio).toBeCloseTo(0.45);
+    expect(d!.fcfPayout).toBeCloseTo(0.42);
+    expect(d!.fcfCoverage).toBeCloseTo(2.4);
+    expect(d!.growthStreakYears).toBe(14);
+    expect(d!.dividendCagr).toBeCloseTo(0.11);
+  });
+
+  it("derives FCF coverage from FCF payout when coverage is absent", () => {
+    const d = coerceDividend({ dividendYield: "3%", fcfPayout: "40%" });
+    expect(d!.fcfCoverage).toBeCloseTo(2.5); // 1 / 0.40
+  });
+
+  it("derives FCF payout from coverage when payout is absent", () => {
+    const d = coerceDividend({ dividendYield: "3%", fcfCoverage: 4 });
+    expect(d!.fcfPayout).toBeCloseTo(0.25); // 1 / 4
+  });
+
+  it("falls back to the fundamentals dividend yield when the block omits it", () => {
+    const d = coerceDividend(
+      { fcfCoverage: 2 },
+      { dividendYield: 0.027 },
+    );
+    expect(d!.dividendYield).toBeCloseTo(0.027);
+  });
+
+  it("returns null for a non-object or an all-null/empty block", () => {
+    expect(coerceDividend(null)).toBeNull();
+    expect(coerceDividend({ dividendYield: "n/a", payoutRatio: "unknown" })).toBeNull();
+  });
+});
+
 describe("parseStructuredResearch", () => {
   it("coerces a full structured block into profile/fundamentals/consensus", () => {
     const text = [
@@ -370,6 +414,7 @@ describe("parseStructuredResearch", () => {
       earnings,
       catalysts,
       cashFlow,
+      dividend,
       summary,
     } = parseStructuredResearch("Only prose here.");
     expect(profile).toBeNull();
@@ -378,7 +423,30 @@ describe("parseStructuredResearch", () => {
     expect(earnings).toEqual([]);
     expect(catalysts).toEqual([]);
     expect(cashFlow).toBeNull();
+    expect(dividend).toBeNull();
     expect(summary).toBe("Only prose here.");
+  });
+
+  it("lifts the dividend block, falling back to the fundamentals yield", () => {
+    const text = [
+      "Aristocrat compounder; payout well covered.",
+      "```json",
+      JSON.stringify({
+        fundamentals: { dividendYield: "3.0%" },
+        dividend: {
+          payoutRatio: "45%",
+          fcfPayout: "40%",
+          growthStreakYears: 14,
+        },
+      }),
+      "```",
+    ].join("\n");
+    const { dividend } = parseStructuredResearch(text);
+    expect(dividend).not.toBeNull();
+    // Yield filled from fundamentals; coverage derived from FCF payout (1/0.40).
+    expect(dividend!.dividendYield).toBeCloseTo(0.03);
+    expect(dividend!.fcfCoverage).toBeCloseTo(2.5);
+    expect(dividend!.growthStreakYears).toBe(14);
   });
 
   it("keeps partial fields and nulls the unknown ones", () => {

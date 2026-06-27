@@ -103,6 +103,7 @@ export function mergeSymbolResearch(args: {
     earnings: perplexity?.earnings ?? [],
     catalysts: perplexity?.catalysts ?? [],
     cashFlow: perplexity?.cashFlow ?? null,
+    dividend: perplexity?.dividend ?? null,
     finance: perplexity?.finance ?? [],
     sections: buildFinanceSections(perplexity?.finance ?? []),
     categories: perplexity?.categories ?? [],

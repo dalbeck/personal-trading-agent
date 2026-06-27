@@ -6,6 +6,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { CashFlowBlock } from "@/components/cash-flow-block";
+import { DividendBlock } from "@/components/dividend-block";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
 import { ProposalLevelsFreshness } from "@/components/proposal-levels-freshness";
 import { ProposalActions } from "@/components/proposal-actions";
@@ -23,6 +24,7 @@ import {
   isDualLens,
 } from "@/lib/proposal-lens";
 import { hasCashFlowData } from "@/lib/cash-flow";
+import { hasDividendData } from "@/lib/dividend";
 import type { CheckStatus } from "@/lib/checklist";
 import {
   ADVISORY_TAG,
@@ -239,6 +241,15 @@ export function ProposalDetailView({
               note="The value floor-vs-trap signal — does the business fund itself?"
             >
               <CashFlowBlock cashFlow={lens.cashFlow} />
+            </Section>
+          ) : null}
+
+          {lens.strategy === "value" && hasDividendData(lens.dividend) ? (
+            <Section
+              title="Dividend sustainability"
+              note="Is the dividend a real floor — paid to wait, or a value trap?"
+            >
+              <DividendBlock dividend={lens.dividend} />
             </Section>
           ) : null}
 

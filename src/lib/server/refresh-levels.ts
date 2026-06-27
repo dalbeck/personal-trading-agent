@@ -19,6 +19,7 @@ import {
   type ManualProposalDraft,
 } from "@/lib/proposal-builder";
 import { TradeProposalSchema } from "@/lib/schemas";
+import { assessDividendFloor } from "@/lib/dividend";
 import type { Ohlc } from "@/lib/indicators";
 import type { Strategy } from "@/lib/strategy";
 import type { ProposalLensBreakdown, TradeProposal } from "@/lib/types";
@@ -122,10 +123,36 @@ export async function refreshProposalLevels(
     catalyst: proposal.catalyst,
     catalystType: (proposal.catalystType ?? null) as BuilderCatalystType | null,
   };
+  // Preserve the existing per-lens cash-flow quality + dividend signals
+  // (value-cashflow / dividend-floor M1) across a level re-anchor — they are
+  // research data, not price levels, so refreshing the levels must not wipe them.
+  // Looked up by strategy from the prior lens (or the top-level mirror).
+  const existingCashFlow = (strategy: Strategy) => {
+    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
+    if (lens) return lens.cashFlow ?? null;
+    return proposal.strategy === strategy ? proposal.cashFlow ?? null : null;
+  };
+  const existingDividend = (strategy: Strategy) => {
+    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
+    if (lens) return lens.dividend ?? null;
+    return proposal.strategy === strategy ? proposal.dividend ?? null : null;
+  };
+
   const strategies = strategiesOf(proposal);
-  const drafts = strategies.map((strategy) =>
-    buildManualProposalDraft({ ...shared, strategy }),
-  );
+  const drafts = strategies.map((strategy) => {
+    // Keep the dividend floor's conviction contribution stable across a refresh.
+    const floor =
+      strategy === "value"
+        ? assessDividendFloor(existingDividend("value"))
+        : null;
+    return buildManualProposalDraft({
+      ...shared,
+      strategy,
+      ...(floor
+        ? { dividendFloor: { covered: floor.covered, atRisk: floor.atRisk } }
+        : {}),
+    });
+  });
   if (drafts.some((d) => d === null)) {
     return {
       ok: false,
@@ -135,29 +162,25 @@ export async function refreshProposalLevels(
   }
   const builtDrafts = drafts as ManualProposalDraft[];
 
-  // Preserve the existing per-lens cash-flow quality (value-cashflow M1) across a
-  // level re-anchor — it is research data, not a price level, so refreshing the
-  // levels must not wipe it. Looked up by strategy from the prior lens (or the
-  // top-level mirror for a single-lens proposal).
-  const existingCashFlow = (strategy: Strategy) => {
-    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
-    if (lens) return lens.cashFlow ?? null;
-    return proposal.strategy === strategy ? proposal.cashFlow ?? null : null;
-  };
-
   // Re-run each lens's red-team — the prior verdict judged the stale entry.
   const verdicts = await Promise.all(
     builtDrafts.map((d) =>
-      runRedTeam(redTeamInput(d, existingCashFlow(d.strategy)), {
-        exec: opts.redTeamExec,
-      }),
+      runRedTeam(
+        redTeamInput(d, existingCashFlow(d.strategy), existingDividend(d.strategy)),
+        { exec: opts.redTeamExec },
+      ),
     ),
   );
 
   const dual = (proposal.lenses ?? []).length > 0;
   const lenses: ProposalLensBreakdown[] = dual
     ? builtDrafts.map((d, i) =>
-        draftToLens(d, verdicts[i], existingCashFlow(d.strategy)),
+        draftToLens(
+          d,
+          verdicts[i],
+          existingCashFlow(d.strategy),
+          existingDividend(d.strategy),
+        ),
       )
     : [];
 
@@ -189,8 +212,9 @@ export async function refreshProposalLevels(
     reasoning: active.reasoning,
     redTeam: verdicts[activeIdx],
     lenses,
-    // Top-level cash-flow mirrors the active lens (preserved across the refresh).
+    // Top-level cash-flow + dividend mirror the active lens (preserved on refresh).
     cashFlow: existingCashFlow(active.strategy),
+    dividend: existingDividend(active.strategy),
     // Stamp the new anchor time so the freshness indicator + staleness guard reset.
     pricedAt: now.toISOString(),
   });

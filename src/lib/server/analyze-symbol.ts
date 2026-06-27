@@ -26,8 +26,10 @@ import {
 import type { Ohlc } from "@/lib/indicators";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 import { TradeProposalSchema } from "@/lib/schemas";
+import { assessDividendFloor } from "@/lib/dividend";
 import type {
   CashFlowQuality,
+  DividendSignals,
   ProposalLensBreakdown,
   RedTeamVerdict,
   TradeProposal,
@@ -56,6 +58,9 @@ export interface ResearchContext {
    *  SAME capped research fetch (no extra call). Attached to the value lens only;
    *  null when off/capped/unavailable. */
   cashFlow: CashFlowQuality | null;
+  /** Dividend-sustainability signals for the value lens (dividend-floor M1) —
+   *  same capped fetch. A durable, covered dividend registers a named floor. */
+  dividend: DividendSignals | null;
   /** True when the metered Perplexity provider supplied the context (for the
    *  caller to surface that a daily-capped call was spent). */
   usedPerplexity: boolean;
@@ -114,6 +119,7 @@ async function defaultResearch(
       catalyst: summary ? summary.slice(0, 180) : null,
       catalystType: summary ? "other" : null,
       cashFlow: r.cashFlow ?? null,
+      dividend: r.dividend ?? null,
       usedPerplexity: r.perplexity === "ok",
     };
   } catch {
@@ -122,6 +128,7 @@ async function defaultResearch(
       catalyst: null,
       catalystType: null,
       cashFlow: null,
+      dividend: null,
       usedPerplexity: false,
     };
   }
@@ -169,6 +176,7 @@ function toOrder(p: TradeProposal): ProposedOrder {
 export function redTeamInput(
   d: ManualProposalDraft,
   cashFlow: CashFlowQuality | null,
+  dividend: DividendSignals | null = null,
 ): RedTeamProposal {
   return {
     symbol: d.symbol,
@@ -184,6 +192,7 @@ export function redTeamInput(
     catalyst: d.catalyst,
     catalystType: d.catalystType,
     cashFlow: d.strategy === "value" ? cashFlow : null,
+    dividend: d.strategy === "value" ? dividend : null,
     thesis: d.thesis,
     reasoning: d.reasoning,
   };
@@ -197,6 +206,7 @@ export function draftToLens(
   d: ManualProposalDraft,
   redTeam: RedTeamVerdict,
   cashFlow: CashFlowQuality | null,
+  dividend: DividendSignals | null = null,
 ): ProposalLensBreakdown {
   return {
     strategy: d.strategy,
@@ -216,6 +226,7 @@ export function draftToLens(
     reasoning: d.reasoning,
     redTeam,
     cashFlow: d.strategy === "value" ? cashFlow : null,
+    dividend: d.strategy === "value" ? dividend : null,
   };
 }
 
@@ -275,8 +286,25 @@ export async function analyzeSymbol(
     catalyst: research.catalyst,
     catalystType: research.catalystType,
   };
+
+  // Dividend floor (dividend-floor M1): a durable, well-covered dividend is a
+  // recognized VALUE floor. When covered AND the value lens has no other named
+  // catalyst, register the concrete floor as its "Catalyst or floor — why now"
+  // (instead of "Unspecified") and lift its conviction; an at-risk dividend
+  // drags. Value lens only — the floor never touches the trend draft.
+  const dividendFloor = assessDividendFloor(research.dividend);
+  const registerFloor = dividendFloor.covered && research.catalyst == null;
+  const valueInput = {
+    ...researchInput,
+    strategy: "value" as const,
+    ...(registerFloor
+      ? { catalyst: dividendFloor.floorText, catalystType: "other" as const }
+      : {}),
+    dividendFloor: { covered: dividendFloor.covered, atRisk: dividendFloor.atRisk },
+  };
+
   const trendDraft = buildManualProposalDraft({ ...researchInput, strategy: "trend" });
-  const valueDraft = buildManualProposalDraft({ ...researchInput, strategy: "value" });
+  const valueDraft = buildManualProposalDraft(valueInput);
   if (!trendDraft || !valueDraft) {
     return {
       ok: false,
@@ -291,20 +319,21 @@ export async function analyzeSymbol(
   const id = `manual-${symbol}-${createdAt.slice(0, 23).replace(/[-:.T]/g, "")}`;
   const advisory = false; // approvable; the gate (not this) is the money boundary
 
-  // Cash-flow quality (value-cashflow M1) — a VALUE-lens signal pulled from the
-  // shared research fetch (no extra call). Attached to the value lens + briefed
-  // to the value red-team only.
+  // Cash-flow quality (value-cashflow M1) + dividend signals (dividend-floor M1)
+  // — VALUE-lens signals pulled from the shared research fetch (no extra call).
+  // Attached to the value lens + briefed to the value red-team only.
   const cashFlow = research.cashFlow;
+  const dividend = research.dividend;
 
   // Run each lens's red-team under its matching mandate.
   const [trendRedTeam, valueRedTeam] = await Promise.all([
-    runRedTeam(redTeamInput(trendDraft, null), { exec: opts.redTeamExec }),
-    runRedTeam(redTeamInput(valueDraft, cashFlow), { exec: opts.redTeamExec }),
+    runRedTeam(redTeamInput(trendDraft, null, null), { exec: opts.redTeamExec }),
+    runRedTeam(redTeamInput(valueDraft, cashFlow, dividend), { exec: opts.redTeamExec }),
   ]);
 
   const lenses: ProposalLensBreakdown[] = [
-    draftToLens(trendDraft, trendRedTeam, null),
-    draftToLens(valueDraft, valueRedTeam, cashFlow),
+    draftToLens(trendDraft, trendRedTeam, null, null),
+    draftToLens(valueDraft, valueRedTeam, cashFlow, dividend),
   ];
 
   // The proposal's top-level fields mirror the ACTIVE (default) lens — the
@@ -314,8 +343,9 @@ export async function analyzeSymbol(
     valueDraft.convictionScore > trendDraft.convictionScore
       ? { draft: valueDraft, redTeam: valueRedTeam }
       : { draft: trendDraft, redTeam: trendRedTeam };
-  // Top-level cash-flow mirrors the active lens — only carried when value is active.
+  // Top-level cash-flow + dividend mirror the active lens — only when value is active.
   const activeCashFlow = active.draft.strategy === "value" ? cashFlow : null;
+  const activeDividend = active.draft.strategy === "value" ? dividend : null;
 
   const proposal: TradeProposal = TradeProposalSchema.parse({
     ...active.draft,
@@ -329,6 +359,7 @@ export async function analyzeSymbol(
     status: "pending",
     redTeam: active.redTeam,
     cashFlow: activeCashFlow,
+    dividend: activeDividend,
     lenses,
   });
 
@@ -370,6 +401,7 @@ export async function analyzeSymbol(
       reasoning: proposal.reasoning,
       redTeam: active.redTeam,
       cashFlow: activeCashFlow,
+      dividend: activeDividend,
       pricedAt: proposal.pricedAt,
       lenses,
     },

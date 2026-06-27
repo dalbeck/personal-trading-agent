@@ -184,6 +184,30 @@ proposals come from the manual analyze-a-symbol **lens** picker (`strategy` in
 the `POST /api/proposals/analyze` body) and, when enabled, the discovery run (see
 `valueSleeveEnabled` below). Defaults to `trend` so older records still validate.
 
+**Proposal `dividend` (dividend-floor M1).** The **value lens's** dividend-floor
+signal — a `DividendSignalsSchema` block: `dividendYield` / `payoutRatio` /
+`fcfPayout` / `dividendCagr` (fractions), `fcfCoverage` (FCF ÷ dividends, a
+multiple — the parser derives it from `fcfPayout` and vice-versa), and
+`growthStreakYears`. Value lens only (trend stays null); folded into the **same
+capped value research fetch** — no extra call: the Perplexity adapter requests a
+`dividend` key in its one JSON block and `coerceDividend`
+(`src/lib/server/research/parse.ts`, pure + unit-tested) parses it, falling back
+to the fundamentals yield. The pure `assessDividendFloor` (`src/lib/dividend.ts`)
+decides: a durable, **well-covered** dividend (FCF coverage ≥ healthy, payout not
+stretched) is a **registered value floor** — its concrete text (e.g. `Dividend
+floor: FCF covers 2.4×, 14-yr growth streak`) **populates the value lens's
+`catalyst`** (instead of "Unspecified", only when no other named catalyst exists)
+so the "Catalyst or floor" checklist item passes and the value red-team weighs a
+real floor; an **uncovered / at-risk** dividend (FCF doesn't cover it, payout
+stretched) is a value-trap flag, never a floor. It also **lifts (or, at-risk,
+drags) value conviction** (`scoreValueConviction` gains a dividend term) and is
+briefed to the value red-team (`dividendBriefing`). **Discipline:** a safe
+dividend *satisfies* the floor requirement but does **not** auto-approve — the
+red-team stays categorical and may still weigh timing. Surfaced as a dividend stat
+block (`src/components/dividend-block.tsx`, glossary tooltips). Mirrors the active
+lens at the top level; defaults to null so older records still validate. (Research
+cache `CACHE_VERSION` bumped to 7.)
+
 **Proposal `pricedAt` (fresh-entry-levels M1).** A `TradeProposal` carries
 **`pricedAt`** (ISO datetime, nullable) — when the levels (entry/stop/target/
 sizing) were **anchored to the live Alpaca quote**. The manual analyze pipeline
