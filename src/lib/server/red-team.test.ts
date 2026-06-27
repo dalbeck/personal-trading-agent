@@ -64,6 +64,39 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).toContain("earnings_momentum");
   });
 
+  it("briefs the catalyst's news sources so the catalyst is verifiable (catalyst-news-sources M1)", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      catalyst: "CHMP recommends EU approval of the GLP-1 drug",
+      catalystType: "product_news",
+      catalystSources: [
+        {
+          headline: "Eli Lilly wins CHMP recommendation for EU approval",
+          publisher: "Benzinga",
+          url: "https://example.com/lly",
+          publishedAt: "2026-06-26T13:30:00Z",
+        },
+        {
+          headline: "Morgan Stanley raises Eli Lilly price target to $1,100",
+          publisher: "Benzinga",
+          url: null,
+          publishedAt: "2026-06-26T11:00:00Z",
+        },
+      ],
+    });
+    expect(prompt).toMatch(/Catalyst sources/i);
+    expect(prompt).toContain("Eli Lilly wins CHMP recommendation for EU approval");
+    expect(prompt).toContain("Benzinga");
+    expect(prompt).toContain("2026-06-26");
+    // The prosecutor is told the catalyst is NOT catalyst-free.
+    expect(prompt).toMatch(/NOT catalyst-free/i);
+  });
+
+  it("omits the sources line when there are none", () => {
+    const prompt = buildProsecutorPrompt(proposal);
+    expect(prompt).not.toMatch(/Catalyst sources/i);
+  });
+
   it("defaults to the TREND lens and penalizes a fundamental-primary thesis", () => {
     // No `strategy` → trend mandate (back-compat with older records).
     const prompt = buildProsecutorPrompt(proposal);

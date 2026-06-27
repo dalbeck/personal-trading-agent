@@ -3,6 +3,7 @@ import type {
   AccountKind,
   BenchmarkSchema,
   CashFlowQualitySchema,
+  CatalystSourceSchema,
   CoachingEntrySchema,
   DividendSignalsSchema,
   DiscoverySettingsSchema,
@@ -42,6 +43,7 @@ export type RejectionJournalEntry = z.infer<typeof RejectionJournalEntrySchema>;
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 
 export type CashFlowQuality = z.infer<typeof CashFlowQualitySchema>;
+export type CatalystSource = z.infer<typeof CatalystSourceSchema>;
 export type DividendSignals = z.infer<typeof DividendSignalsSchema>;
 export type ResearchStatus = NonNullable<TradeProposal["researchStatus"]>;
 export type RedTeamFactor = z.infer<typeof RedTeamFactorSchema>;

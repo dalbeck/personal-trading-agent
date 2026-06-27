@@ -574,6 +574,9 @@ export interface AdvisoryProposalInput {
   relativeVolume?: number | null;
   catalyst?: string | null;
   catalystType?: TradeProposal["catalystType"];
+  // The headlines behind the catalyst (catalyst-news-sources M1) — schema-backed
+  // + default []. A caller may carry them through for the proposal + export.
+  catalystSources?: TradeProposal["catalystSources"];
   convictionScore?: number | null;
   convictionTier?: TradeProposal["convictionTier"];
   // Dual-lens breakdowns (dual-lens M1) — a manual analyze carries both the trend

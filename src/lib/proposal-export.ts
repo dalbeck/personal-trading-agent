@@ -26,6 +26,7 @@ import { formatCurrency, formatPercent, formatQty } from "@/lib/format";
 import { trancheConditionText } from "@/lib/staged-entry";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { confidenceBucket } from "@/lib/confidence";
+import { catalystSourceLine } from "@/lib/catalyst-source";
 import type { TradeProposal } from "@/lib/types";
 
 export const EXPORT_DISCLAIMER =
@@ -167,6 +168,13 @@ export function proposalToMarkdown(p: TradeProposal, opts: ExportOpts): string {
     p.catalyst ? p.catalyst.trim() : "No named catalyst recorded on this proposal.",
     "",
   );
+  if (p.catalystSources.length > 0) {
+    lines.push("**Catalyst sources**", "");
+    for (const s of p.catalystSources) {
+      lines.push(`- ${catalystSourceLine(s)}`);
+    }
+    lines.push("");
+  }
 
   for (const lens of lenses) {
     const label = STRATEGY_LABEL[lens.strategy];
@@ -272,6 +280,13 @@ export function buildProposalPdfDocDefinition(
       : "No named catalyst recorded on this proposal.",
     style: "body",
   });
+  if (p.catalystSources.length > 0) {
+    content.push({ text: "Catalyst sources", style: "body", bold: true });
+    content.push({
+      ul: p.catalystSources.map(catalystSourceLine),
+      style: "body",
+    });
+  }
 
   for (const lens of lenses) {
     content.push({

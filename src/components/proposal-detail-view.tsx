@@ -27,6 +27,7 @@ import {
 import { hasCashFlowData } from "@/lib/cash-flow";
 import { hasDividendData } from "@/lib/dividend";
 import { isResearchUnavailable } from "@/lib/research-availability";
+import { catalystSourceDate } from "@/lib/catalyst-source";
 import { ResearchUnavailableNotice } from "@/components/research-unavailable-notice";
 import type { CheckStatus } from "@/lib/checklist";
 import {
@@ -306,6 +307,38 @@ export function ProposalDetailView({
                 No named catalyst recorded on this proposal.
               </p>
             )}
+            {lens.catalystSources.length > 0 ? (
+              <div className="mt-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                  Catalyst sources
+                </p>
+                <ul className="mt-1.5 space-y-1.5">
+                  {lens.catalystSources.map((s, i) => {
+                    const date = catalystSourceDate(s);
+                    const meta = [s.publisher, date].filter(Boolean).join(" · ");
+                    return (
+                      <li key={`${s.url ?? s.headline}-${i}`} className="text-sm leading-snug">
+                        {s.url ? (
+                          <a
+                            href={s.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-link transition-colors hover:text-link-hover"
+                          >
+                            {s.headline}
+                          </a>
+                        ) : (
+                          <span className="text-fg">{s.headline}</span>
+                        )}
+                        {meta ? (
+                          <span className="text-fg-subtle"> — {meta}</span>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <ProposalResearchFreshness symbol={p.symbol} />
               <Link

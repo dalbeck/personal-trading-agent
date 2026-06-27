@@ -143,6 +143,13 @@ export async function refreshProposalLevels(
     if (lens) return lens.researchStatus ?? null;
     return proposal.strategy === strategy ? proposal.researchStatus ?? null : null;
   };
+  // Preserve the catalyst's sources (catalyst-news-sources M1) across a refresh —
+  // they are news evidence, not price levels, so re-anchoring must not wipe them.
+  const existingCatalystSources = (strategy: Strategy) => {
+    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
+    if (lens) return lens.catalystSources ?? [];
+    return proposal.strategy === strategy ? proposal.catalystSources ?? [] : [];
+  };
 
   const strategies = strategiesOf(proposal);
   const drafts = strategies.map((strategy) => {
@@ -181,6 +188,7 @@ export async function refreshProposalLevels(
           existingCashFlow(d.strategy),
           existingDividend(d.strategy),
           existingResearchStatus(d.strategy),
+          existingCatalystSources(d.strategy),
         ),
         { exec: opts.redTeamExec },
       ),
@@ -196,6 +204,7 @@ export async function refreshProposalLevels(
           existingCashFlow(d.strategy),
           existingDividend(d.strategy),
           existingResearchStatus(d.strategy),
+          existingCatalystSources(d.strategy),
         ),
       )
     : [];
