@@ -76,6 +76,8 @@ export interface ResearchContext {
   /** Whether the metered research was obtained (research-unavailable-state M3).
    *  Anything but `ok` → the value-quality fields are "data unavailable". */
   researchStatus: ResearchStatus;
+  /** Specific failure reason when research wasn't ok (research-observability M1). */
+  researchStatusReason: string | null;
   /** True when the metered Perplexity provider supplied the context (for the
    *  caller to surface that a daily-capped call was spent). */
   usedPerplexity: boolean;
@@ -145,6 +147,7 @@ async function defaultResearch(
       cashFlow: r.cashFlow ?? null,
       dividend: r.dividend ?? null,
       researchStatus: r.perplexity,
+      researchStatusReason: r.perplexityReason,
       usedPerplexity: r.perplexity === "ok",
     };
   } catch {
@@ -166,6 +169,7 @@ async function defaultResearch(
       cashFlow: null,
       dividend: null,
       researchStatus: "unavailable",
+      researchStatusReason: null,
       usedPerplexity: false,
     };
   }
@@ -257,6 +261,7 @@ export function draftToLens(
   researchStatus: ResearchStatus | null = null,
   catalystSources: CatalystSource[] = [],
   catalystState: CatalystState | null = null,
+  researchStatusReason: string | null = null,
 ): ProposalLensBreakdown {
   return {
     strategy: d.strategy,
@@ -285,6 +290,7 @@ export function draftToLens(
     dividend: d.strategy === "value" ? dividend : null,
     // Research availability is a value-lens concern (its quality data); trend null.
     researchStatus: d.strategy === "value" ? researchStatus : null,
+    researchStatusReason: d.strategy === "value" ? researchStatusReason : null,
   };
 }
 
@@ -397,6 +403,7 @@ export async function analyzeSymbol(
   // Research availability (research-unavailable-state M3) — when off/capped/failed
   // the value-quality fields are "data unavailable" (explicit, not a silent —).
   const researchStatus = research.researchStatus;
+  const researchStatusReason = research.researchStatusReason;
   // The catalyst's sources (catalyst-news-sources M1) are the symbol's news —
   // shared across both lenses, briefed to each red-team, and persisted per lens.
   const catalystSources = research.catalystSources;
@@ -432,6 +439,7 @@ export async function analyzeSymbol(
       null,
       catalystSources,
       catalystState,
+      null,
     ),
     draftToLens(
       valueDraft,
@@ -441,6 +449,7 @@ export async function analyzeSymbol(
       researchStatus,
       catalystSources,
       valueCatalystState,
+      researchStatusReason,
     ),
   ];
 
@@ -456,6 +465,8 @@ export async function analyzeSymbol(
   const activeDividend = active.draft.strategy === "value" ? dividend : null;
   const activeResearchStatus =
     active.draft.strategy === "value" ? researchStatus : null;
+  const activeResearchStatusReason =
+    active.draft.strategy === "value" ? researchStatusReason : null;
   // The top-level catalyst state mirrors the ACTIVE lens (the value lens may read
   // `found` via its dividend floor while the trend lens is none/unavailable).
   const activeCatalystState =
@@ -477,6 +488,7 @@ export async function analyzeSymbol(
     cashFlow: activeCashFlow,
     dividend: activeDividend,
     researchStatus: activeResearchStatus,
+    researchStatusReason: activeResearchStatusReason,
     lenses,
   });
 
@@ -522,6 +534,7 @@ export async function analyzeSymbol(
       cashFlow: activeCashFlow,
       dividend: activeDividend,
       researchStatus: activeResearchStatus,
+      researchStatusReason: activeResearchStatusReason,
       pricedAt: proposal.pricedAt,
       lenses,
     },

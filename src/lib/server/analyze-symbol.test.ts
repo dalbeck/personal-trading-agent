@@ -29,6 +29,7 @@ const researchSeam = () =>
     cashFlow: null,
     dividend: null,
     researchStatus: "ok" as const,
+    researchStatusReason: null as string | null,
     catalystSources: [],
     catalystState: "found" as const,
     usedPerplexity: false,
@@ -107,6 +108,7 @@ describe("analyzeSymbol", () => {
           cashFlow: null,
           dividend: null,
           researchStatus: "ok" as const,
+          researchStatusReason: null as string | null,
           catalystSources: sources,
           catalystState: "found" as const,
           usedPerplexity: true,
@@ -144,6 +146,7 @@ describe("analyzeSymbol", () => {
           cashFlow: null,
           dividend: null,
           researchStatus: "unavailable" as const,
+          researchStatusReason: null as string | null,
           catalystSources: [],
           catalystState: "unavailable" as const,
           usedPerplexity: false,
@@ -164,6 +167,44 @@ describe("analyzeSymbol", () => {
     expect(p.catalystState).toBe("unavailable");
   });
 
+  it("persists the specific research failure reason on the proposal and value lens (research-observability M1)", async () => {
+    // Use a deep downtrend so the value lens wins (higher conviction than trend),
+    // ensuring the top-level proposal.researchStatusReason mirrors the value lens.
+    const res = await analyzeSymbol("aapl", {
+      account: "live",
+      dataDir: dir,
+      now: () => new Date("2026-06-26T09:00:00-04:00"),
+      fetchBars: async () => ramp(220, 200, -0.3), // deep downtrend favors value
+      readSnapshot: snapshotSeam,
+      fetchResearch: () =>
+        Promise.resolve({
+          sector: "Information Technology",
+          catalyst: null,
+          catalystType: null,
+          cashFlow: null,
+          dividend: null,
+          researchStatus: "unavailable" as const,
+          researchStatusReason: "HTTP 402 (check API billing)",
+          catalystSources: [],
+          catalystState: "unavailable" as const,
+          usedPerplexity: false,
+        }),
+      redTeamExec: approveExec,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // The value lens always carries the reason.
+    const valueLens = res.proposal.lenses.find((l) => l.strategy === "value");
+    expect(valueLens?.researchStatusReason).toBe("HTTP 402 (check API billing)");
+    // When the value lens is the active one, the top-level reason mirrors it.
+    if (res.proposal.strategy === "value") {
+      expect(res.proposal.researchStatusReason).toBe("HTTP 402 (check API billing)");
+    } else {
+      // Trend is active (rare with deep downtrend) — top-level reason is null, lens still has it.
+      expect(res.proposal.researchStatusReason).toBeNull();
+    }
+  });
+
   it("does NOT rubber-stamp a weak pick — a red-team reject is surfaced, not hidden", async () => {
     const res = await analyzeSymbol("xyz", {
       account: "paper",
@@ -178,6 +219,7 @@ describe("analyzeSymbol", () => {
           cashFlow: null,
           dividend: null,
           researchStatus: "ok" as const,
+          researchStatusReason: null as string | null,
           catalystSources: [],
           catalystState: "none" as const,
           usedPerplexity: false,
@@ -207,6 +249,7 @@ describe("analyzeSymbol", () => {
         cashFlow: null, // UNKNOWN quality data
         dividend: null,
         researchStatus: "ok" as const,
+        researchStatusReason: null as string | null,
         catalystSources: [],
         catalystState: "none" as const,
         usedPerplexity: false,
@@ -235,6 +278,7 @@ describe("analyzeSymbol", () => {
         cashFlow: null,
         dividend: null,
         researchStatus: "capped" as const,
+        researchStatusReason: null as string | null,
         catalystSources: [],
         catalystState: "none" as const,
         usedPerplexity: false,
@@ -337,6 +381,7 @@ describe("analyzeSymbol", () => {
         cashFlow,
         dividend: null,
         researchStatus: "ok" as const,
+        researchStatusReason: null as string | null,
         catalystSources: [],
         catalystState: "found" as const,
         usedPerplexity: true,
@@ -386,6 +431,7 @@ describe("analyzeSymbol", () => {
         cashFlow: null,
         dividend,
         researchStatus: "ok" as const,
+        researchStatusReason: null as string | null,
         catalystSources: [],
         catalystState: "none" as const,
         usedPerplexity: true,
@@ -438,6 +484,7 @@ describe("analyzeSymbol", () => {
           dividendCagr: null,
         },
         researchStatus: "ok" as const,
+        researchStatusReason: null as string | null,
         catalystSources: [],
         catalystState: "none" as const,
         usedPerplexity: true,
