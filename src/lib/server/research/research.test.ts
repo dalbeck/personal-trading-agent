@@ -1,8 +1,8 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
-import { getResearchProvider } from "./index";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getFundamentalsFallbackProvider, getResearchProvider } from "./index";
 import { createPerplexityProvider } from "./perplexity";
 
 async function tmp(): Promise<string> {
@@ -234,5 +234,70 @@ describe("createPerplexityProvider", () => {
     });
     expect(await provider.research({ symbol: "MSFT" })).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FMP factory + getFundamentalsFallbackProvider
+// ---------------------------------------------------------------------------
+
+describe("getResearchProvider — fmp branch", () => {
+  it('returns an fmp provider when provider is "fmp"', () => {
+    const provider = getResearchProvider({ provider: "fmp", apiKey: "k" });
+    expect(provider.name).toBe("fmp");
+  });
+
+  it('returns the off provider when provider is "off"', () => {
+    const provider = getResearchProvider({ provider: "off" });
+    expect(provider.name).toBe("off");
+  });
+
+  it("defaults to off when no provider option is given and RESEARCH_PROVIDER is unset", () => {
+    const saved = process.env.RESEARCH_PROVIDER;
+    delete process.env.RESEARCH_PROVIDER;
+    try {
+      const provider = getResearchProvider();
+      expect(provider.name).toBe("off");
+    } finally {
+      if (saved !== undefined) process.env.RESEARCH_PROVIDER = saved;
+    }
+  });
+});
+
+describe("getFundamentalsFallbackProvider", () => {
+  let savedEnv: string | undefined;
+
+  beforeEach(() => {
+    savedEnv = process.env.FMP_API_KEY;
+    delete process.env.FMP_API_KEY;
+  });
+
+  afterEach(() => {
+    if (savedEnv !== undefined) {
+      process.env.FMP_API_KEY = savedEnv;
+    } else {
+      delete process.env.FMP_API_KEY;
+    }
+  });
+
+  it('returns an fmp provider when an apiKey is supplied via opts', () => {
+    const provider = getFundamentalsFallbackProvider({ apiKey: "k" });
+    expect(provider.name).toBe("fmp");
+  });
+
+  it('returns the off provider when apiKey is an empty string', () => {
+    const provider = getFundamentalsFallbackProvider({ apiKey: "" });
+    expect(provider.name).toBe("off");
+  });
+
+  it('returns the off provider when no opts are given and FMP_API_KEY is unset', () => {
+    const provider = getFundamentalsFallbackProvider();
+    expect(provider.name).toBe("off");
+  });
+
+  it('returns an fmp provider when FMP_API_KEY is set in the environment', () => {
+    process.env.FMP_API_KEY = "env-key";
+    const provider = getFundamentalsFallbackProvider();
+    expect(provider.name).toBe("fmp");
   });
 });
