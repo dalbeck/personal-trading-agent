@@ -26,6 +26,10 @@ export type ResearchOutcome =
   | "http-error"
   | "timeout"
   | "parse-error"
+  // The call succeeded + was billed, but the structured JSON block was cut off
+  // by the output-token budget before it closed (research-output-completes M1) —
+  // distinct from `parse-error` (malformed) so the cause is visible in the ring.
+  | "truncated"
   | "network-error";
 
 export interface ResearchDiagnostic {
@@ -68,6 +72,8 @@ export function researchReasonText(d: ResearchDiagnostic): string | null {
       return "timed out (35s)";
     case "parse-error":
       return "response parse error";
+    case "truncated":
+      return "response truncated (raised output cap; fell back to FMP)";
     case "network-error":
       return "network error";
   }
