@@ -143,6 +143,10 @@ export interface ResearchProvider {
   readonly name: string;
   /** Returns context, or `null` when off / capped / unavailable. Never throws. */
   research(query: ResearchQuery): Promise<ResearchResult | null>;
+  /** The diagnostic for the most recent `research()` call on this instance, or
+   *  null if it has not been called. Lets the orchestrator surface a specific
+   *  failure reason without changing `research()`'s return contract. */
+  lastDiagnostic?(): import("./diagnostics").ResearchDiagnostic | null;
 }
 
 /** Which source actually supplied a field group, for honest per-section tagging. */
@@ -198,6 +202,10 @@ export interface SymbolResearch {
   cost: number | null;
   robinhoodConnected: boolean;
   perplexity: PerplexityStatus;
+  /** A specific, human failure reason when `perplexity` is not "ok" — e.g.
+   *  "HTTP 402 (check API billing)" / "timed out (35s)" / "no API key
+   *  configured" (research-observability M1). Null when ok / off / unknown. */
+  perplexityReason: string | null;
   /** True when this payload was served from the cache (no fresh call). */
   cached: boolean;
   /** When this payload was fetched (ISO). Drives the "fetched N ago" freshness

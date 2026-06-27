@@ -38,7 +38,7 @@ export function CompanyProfileRail({ symbol }: { symbol: string }) {
 
   const note =
     research && !profile
-      ? (perplexityNote(research.perplexity) ??
+      ? (perplexityNote(research.perplexity, research.perplexityReason) ??
         "Company profile is unavailable for this symbol.")
       : null;
 

@@ -42,6 +42,7 @@ function payload(): SymbolResearch {
     cost: null,
     robinhoodConnected: true,
     perplexity: "off",
+    perplexityReason: null,
     cached: false,
     fetchedAt: null,
   };

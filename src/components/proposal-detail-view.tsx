@@ -279,6 +279,7 @@ export function ProposalDetailView({
               ) : (
                 <ResearchUnavailableNotice
                   status={lens.researchStatus}
+                  reason={lens.researchStatusReason}
                   field="Cash-flow quality"
                 />
               )}

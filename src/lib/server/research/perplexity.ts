@@ -2,6 +2,11 @@ import "server-only";
 
 import { parseStructuredResearch } from "./parse";
 import { bumpResearchCallCount, getResearchCallCount } from "./usage";
+import {
+  recordResearchDiagnostic,
+  type ResearchDiagnostic,
+  type ResearchOutcome,
+} from "./diagnostics";
 import type {
   ResearchFinanceResult,
   ResearchProvider,
@@ -36,7 +41,7 @@ export interface PerplexityOpts {
 
 const DEFAULT_URL =
   process.env.PERPLEXITY_API_URL ?? "https://api.perplexity.ai/v1/agent";
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 35_000;
 
 /** The Agent API expects a namespaced model id (e.g. `perplexity/sonar`). */
 function namespacedModel(model: string): string {
@@ -171,19 +176,51 @@ export function createPerplexityProvider(
   const doFetch = opts?.fetchImpl ?? fetch;
   const clock = opts?.now ?? (() => new Date());
 
+  let last: ResearchDiagnostic | null = null;
+
+  async function emit(
+    symbol: string,
+    outcome: ResearchOutcome,
+    startedAt: number,
+    extra?: { httpStatus?: number; bodySnippet?: string; cost?: number },
+  ): Promise<void> {
+    const d: ResearchDiagnostic = {
+      at: clock().toISOString(),
+      provider: "perplexity",
+      symbol,
+      outcome,
+      latencyMs: Math.max(0, Math.round(clock().getTime() - startedAt)),
+      ...(extra?.httpStatus != null ? { httpStatus: extra.httpStatus } : {}),
+      ...(extra?.bodySnippet ? { bodySnippet: extra.bodySnippet } : {}),
+      ...(extra?.cost != null ? { cost: extra.cost } : {}),
+    };
+    last = d;
+    if (outcome !== "ok") {
+      console.warn(
+        `[research] perplexity ${symbol}: ${outcome}` +
+          (extra?.httpStatus != null ? ` (HTTP ${extra.httpStatus})` : "") +
+          (extra?.bodySnippet ? ` — ${extra.bodySnippet}` : ""),
+      );
+    }
+    await recordResearchDiagnostic(d, { dataDir: opts?.dataDir });
+  }
+
   return {
     name: "perplexity",
+    lastDiagnostic: () => last,
     async research(query) {
-      if (!apiKey) return null; // misconfigured → behave as off
+      const startedAt = clock().getTime();
+      if (!apiKey) {
+        await emit(query.symbol, "no-api-key", startedAt);
+        return null; // misconfigured → behave as off
+      }
 
       const date = clock().toISOString().slice(0, 10);
 
       // HARD CAP — enforced before any request.
       const used = await getResearchCallCount(date, { dataDir: opts?.dataDir });
       if (used >= dailyCap) {
-        console.warn(
-          `[research] Perplexity daily cap (${dailyCap}) reached — refusing call for ${query.symbol}.`,
-        );
+        await emit(query.symbol, "daily-cap-reached", startedAt);
         return null;
       }
 
@@ -206,8 +243,9 @@ export function createPerplexityProvider(
           "dividend is dividend sustainability (null the whole block if the company pays no dividend): dividendYield, payoutRatio (dividends ÷ earnings), fcfPayout (dividends ÷ FCF) and dividendCagr as percent strings (e.g. \"45%\"); fcfCoverage as a plain multiple (FCF ÷ dividends, e.g. 2.4) — give fcfPayout OR fcfCoverage and the other is derived; growthStreakYears as the count of consecutive annual dividend increases. Use null for anything you cannot verify.",
         ].join("\n");
 
+      let res: Response;
       try {
-        const res = await doFetch(apiUrl, {
+        res = await doFetch(apiUrl, {
           method: "POST",
           headers: {
             authorization: `Bearer ${apiKey}`,
@@ -222,18 +260,44 @@ export function createPerplexityProvider(
           }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
-        if (!res.ok) return null; // research is optional — fail soft
-        const result = normalize(query.symbol, await res.json(), clock().toISOString());
-        // Only successful calls are metered. Record real cost for visibility;
-        // the count remains the hard daily cap.
-        await bumpResearchCallCount(date, {
-          dataDir: opts?.dataDir,
-          cost: result.cost,
-        });
-        return result;
-      } catch {
+      } catch (err) {
+        const timedOut =
+          err instanceof Error &&
+          (err.name === "TimeoutError" || err.name === "AbortError");
+        await emit(query.symbol, timedOut ? "timeout" : "network-error", startedAt);
         return null;
       }
+
+      if (!res.ok) {
+        let bodySnippet = "";
+        try {
+          bodySnippet = (await res.text()).slice(0, 200);
+        } catch {
+          // body unreadable — status alone is enough.
+        }
+        await emit(query.symbol, "http-error", startedAt, {
+          httpStatus: res.status,
+          bodySnippet,
+        });
+        return null; // research is optional — fail soft
+      }
+
+      let result: ResearchResult;
+      try {
+        result = normalize(query.symbol, await res.json(), clock().toISOString());
+      } catch {
+        await emit(query.symbol, "parse-error", startedAt);
+        return null;
+      }
+
+      // Only successful calls are metered. Record real cost for visibility;
+      // the count remains the hard daily cap.
+      await bumpResearchCallCount(date, {
+        dataDir: opts?.dataDir,
+        cost: result.cost,
+      });
+      await emit(query.symbol, "ok", startedAt, { cost: result.cost });
+      return result;
     },
   };
 }

@@ -28,6 +28,7 @@ interface Category {
   subdir: string;
   format: Format;
   schema: z.ZodType;
+  ignore?: readonly string[];
 }
 
 const CATEGORIES: Category[] = [
@@ -40,7 +41,7 @@ const CATEGORIES: Category[] = [
   { subdir: "logs", format: "json", schema: RunLogSchema },
   // Each news file is an array of material items.
   { subdir: "news", format: "json", schema: NewsFileSchema },
-  { subdir: "research", format: "json", schema: ResearchUsageSchema },
+  { subdir: "research", format: "json", schema: ResearchUsageSchema, ignore: ["diagnostics.json"] },
 ];
 
 export interface ValidationProblem {
@@ -68,7 +69,7 @@ export async function validateDataDir(
 ): Promise<ValidationProblem[]> {
   const problems: ValidationProblem[] = [];
 
-  for (const { subdir, format, schema } of CATEGORIES) {
+  for (const { subdir, format, schema, ignore } of CATEGORIES) {
     const dir = path.join(root, subdir);
     let names: string[];
     try {
@@ -83,6 +84,7 @@ export async function validateDataDir(
 
     for (const name of names.sort()) {
       if (name.startsWith(".")) continue; // .DS_Store etc.
+      if (ignore?.includes(name)) continue; // internal state, not a contract
       const rel = path.join(subdir, name);
 
       if (name.endsWith(wrongExt)) {

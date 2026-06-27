@@ -357,6 +357,10 @@ export const ProposalLensSchema = z
     // M3). Anything but `ok` → the cash-flow/quality fields are "data unavailable"
     // (explicit, not a silent —). Value lens only; null for trend / older records.
     researchStatus: ResearchStatus.nullable().default(null),
+    // The specific failure reason when research wasn't `ok` (research-observability
+    // M1) — e.g. "HTTP 402 (check API billing)". Surfaced on the detail view +
+    // export. Null when ok / older records.
+    researchStatusReason: z.string().nullable().default(null),
   })
   .strict();
 
@@ -489,6 +493,9 @@ export const TradeProposalSchema = z
     // Research availability for the value-quality data (research-unavailable-state
     // M3) — mirrors the active lens. Anything but `ok` → "data unavailable".
     researchStatus: ResearchStatus.nullable().default(null),
+    // The specific failure reason when research wasn't `ok` (research-observability
+    // M1) — mirrors the active lens. Null when ok / older records.
+    researchStatusReason: z.string().nullable().default(null),
     // When the levels (entry/stop/target/sizing) were anchored to the live Alpaca
     // quote (fresh-entry-levels M1). Set at analysis and updated on a "Refresh
     // levels" re-anchor; drives the "levels as of …" freshness indicator and the

@@ -3,11 +3,14 @@ import { LogsStats } from "@/components/logs/logs-stats";
 import { LogsList } from "@/components/logs/logs-list";
 import { LogsIcon } from "@/components/icons";
 import { readRunLogs } from "@/lib/server/data";
+import { ResearchHealthPanel } from "@/components/logs/research-health-panel";
+import { readResearchDiagnostics } from "@/lib/server/research/diagnostics";
 
 export const dynamic = "force-dynamic";
 
 export default async function LogsPage() {
   const logs = await readRunLogs();
+  const diagnostics = await readResearchDiagnostics();
 
   return (
     <div>
@@ -15,6 +18,10 @@ export default async function LogsPage() {
         title="Logs"
         subtitle="Structured run logs from the scheduled routines (data/logs/)."
       />
+
+      <div className="mb-8">
+        <ResearchHealthPanel diagnostics={diagnostics} />
+      </div>
 
       {logs.length === 0 ? (
         <div className="rounded-card border border-dashed border-line bg-surface-raised p-6">

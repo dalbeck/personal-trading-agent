@@ -78,6 +78,7 @@ describe("mergeSymbolResearch", () => {
       perplexity: pplxResult(),
       robinhoodConnected: true,
       perplexityStatus: "ok",
+      perplexityReason: null,
     });
     // Robinhood wins where it has data.
     expect(merged.fundamentals!.marketCap).toBe(4e12);
@@ -99,6 +100,7 @@ describe("mergeSymbolResearch", () => {
       perplexity: pplxResult(),
       robinhoodConnected: false,
       perplexityStatus: "ok",
+      perplexityReason: null,
     });
     expect(merged.fundamentalsSource).toBe("perplexity");
     expect(merged.profileSource).toBe("perplexity");
@@ -111,6 +113,7 @@ describe("mergeSymbolResearch", () => {
       perplexity: null,
       robinhoodConnected: false,
       perplexityStatus: "off",
+      perplexityReason: null,
     });
     expect(merged.fundamentals).toBeNull();
     expect(merged.profile).toBeNull();
@@ -262,6 +265,32 @@ describe("getSymbolResearch", () => {
       now: NOW,
     });
     expect(unavailable.perplexity).toBe("unavailable");
+  });
+});
+
+describe("perplexityReason", () => {
+  it("surfaces a specific perplexityReason from the provider diagnostic", async () => {
+    const dir = await tmp();
+    const provider = {
+      name: "perplexity",
+      research: async () => null,
+      lastDiagnostic: () => ({
+        at: "2026-06-27T12:00:00.000Z",
+        provider: "perplexity",
+        symbol: "LLY",
+        outcome: "http-error" as const,
+        httpStatus: 402,
+        latencyMs: 10,
+      }),
+    };
+    const res = await getSymbolResearch("LLY", {
+      provider,
+      robinhoodConnected: false,
+      dataDir: dir,
+      now: NOW,
+    });
+    expect(res.perplexity).toBe("unavailable");
+    expect(res.perplexityReason).toBe("HTTP 402 (check API billing)");
   });
 });
 

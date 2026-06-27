@@ -31,6 +31,7 @@ and routines must follow this. The runtime contracts live in
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
 | `data/research/` | `.json` | `ResearchUsageSchema` (per-day metered-API call counter) |
 | `data/research/cache/` | `.json` | symbol-research cache (`<SYMBOL>.json`, `fetchedAt`-stamped freshness, internal state — not a contract) |
+| `data/research/diagnostics.json` | `.json` | research-call diagnostics ring (array of diagnostic records, internal state — not a contract, excluded from validation) |
 
 **Tracked universe + account scoping (M2/M3).** The **watchlist** — the editable
 half of the tracked universe — is a small JSON state file

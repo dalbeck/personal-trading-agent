@@ -45,7 +45,7 @@ export function ResearchSummaryCard({
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
-  const note = research ? perplexityNote(research.perplexity) : null;
+  const note = research ? perplexityNote(research.perplexity, research.perplexityReason) : null;
   const hasContent =
     !!research &&
     ((research.summary?.length ?? 0) > 0 ||

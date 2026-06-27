@@ -224,10 +224,12 @@ describe("createPerplexityProvider", () => {
   });
 
   it("returns null without an API key", async () => {
+    const dir = await tmp();
     const fetchImpl = vi.fn(async () => financeSearchResponse());
     const provider = createPerplexityProvider({
       apiKey: "",
       fetchImpl,
+      dataDir: dir,
       now: () => new Date("2026-06-24T08:00:00Z"),
     });
     expect(await provider.research({ symbol: "MSFT" })).toBeNull();
