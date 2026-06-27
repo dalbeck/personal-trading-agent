@@ -88,4 +88,23 @@ describe("validateDataDir", () => {
     const problems = await validateDataDir(dir);
     expect(problems.every((p) => p.file.startsWith("snapshots"))).toBe(true);
   });
+
+  it("ignores the research diagnostics ring (internal state, not a contract)", async () => {
+    const ring = JSON.stringify([
+      {
+        at: "2026-06-24T08:00:00.000Z",
+        provider: "perplexity",
+        symbol: "MSFT",
+        outcome: "no-api-key",
+        latencyMs: 0,
+      },
+    ]);
+    const usage = JSON.stringify({ date: "2026-06-24", count: 1 });
+    const dir = await makeDir({
+      "research/diagnostics.json": ring,
+      "research/usage-2026-06-24.json": usage,
+    });
+    const problems = await validateDataDir(dir);
+    expect(problems).toEqual([]);
+  });
 });
