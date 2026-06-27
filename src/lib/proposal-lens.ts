@@ -37,6 +37,7 @@ function singleLensFromTopLevel(p: TradeProposal): ProposalLensBreakdown {
     catalyst: p.catalyst,
     catalystType: p.catalystType,
     catalystSources: p.catalystSources,
+    catalystState: p.catalystState,
     convictionScore: p.convictionScore,
     convictionTier: p.convictionTier,
     confidence: p.confidence,

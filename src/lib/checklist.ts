@@ -26,6 +26,11 @@
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
 import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
+import {
+  CATALYST_NONE_DETAIL,
+  CATALYST_UNAVAILABLE_DETAIL,
+  resolveCatalystState,
+} from "@/lib/catalyst-state";
 import { assessCashFlowQuality } from "@/lib/cash-flow";
 import {
   isResearchUnavailable,
@@ -39,6 +44,7 @@ import type { CatalystType } from "@/lib/catalyst";
 import type { TargetType } from "@/lib/target-type";
 import type {
   CashFlowQuality,
+  CatalystState,
   RedTeamVerdict,
   ResearchStatus,
 } from "@/lib/types";
@@ -67,6 +73,10 @@ export interface ChecklistInput {
   riskPct: number;
   catalyst: string | null;
   catalystType: CatalystType | null;
+  /** The catalyst capture state (catalyst-state-honesty M2) — distinguishes
+   *  "searched, none found" from "fetch failed" so the checklist never reads a
+   *  failure as a flat "no catalyst". Null → derived from catalyst presence. */
+  catalystState?: CatalystState | null;
   relativeVolume: number | null;
   /** Cash-flow quality — the value lens's floor-vs-trap signal (value-cashflow
    *  M1). Value mandate only; null/absent for trend lenses. */
@@ -127,7 +137,24 @@ function targetItem(p: ChecklistInput, label: string): CheckItem {
   };
 }
 
+/**
+ * Catalyst checklist item with the THREE distinct states (catalyst-state-honesty
+ * M2), never conflated: **found** → ✓ (the catalyst type); **none** (searched,
+ * nothing material) → ⚑ "No catalyst found"; **unavailable** (the fetch failed) →
+ * ⚑ "Data unavailable — retry" — NOT a flat "no catalyst". A weak/`none` catalyst
+ * type on an otherwise "found" record still flags (back-compat).
+ */
 function catalystItem(p: ChecklistInput, label: string): CheckItem {
+  const state = resolveCatalystState({
+    catalyst: p.catalyst,
+    catalystState: p.catalystState,
+  });
+  if (state === "unavailable") {
+    return { label, status: "flag", detail: CATALYST_UNAVAILABLE_DETAIL };
+  }
+  if (state === "none") {
+    return { label, status: "flag", detail: CATALYST_NONE_DETAIL };
+  }
   return {
     label,
     status:

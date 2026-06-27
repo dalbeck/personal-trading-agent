@@ -97,6 +97,32 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).not.toMatch(/Catalyst sources/i);
   });
 
+  it("on an UNAVAILABLE catalyst state tells the prosecutor it's unverified, not absent — do NOT reject for 'no catalyst' (catalyst-state-honesty M2)", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      catalyst: null,
+      catalystType: null,
+      catalystState: "unavailable",
+    });
+    // The catalyst line reflects the failed fetch, not "none stated".
+    expect(prompt).toMatch(/DATA UNAVAILABLE/);
+    expect(prompt).toMatch(/UNVERIFIED, NOT (confirmed-)?absent/i);
+    expect(prompt).toMatch(/do NOT (treat this as 'no catalyst'|reject)/i);
+    expect(prompt).not.toContain("none stated");
+  });
+
+  it("a 'none' (searched, none found) state keeps the normal weak-catalyst framing", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      catalyst: null,
+      catalystType: null,
+      catalystState: "none",
+    });
+    expect(prompt).toContain("none stated");
+    expect(prompt).not.toMatch(/DATA UNAVAILABLE/);
+    expect(prompt).toMatch(/NO named catalyst.*WEAK/);
+  });
+
   it("defaults to the TREND lens and penalizes a fundamental-primary thesis", () => {
     // No `strategy` → trend mandate (back-compat with older records).
     const prompt = buildProsecutorPrompt(proposal);

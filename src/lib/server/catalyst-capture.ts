@@ -7,7 +7,7 @@ import {
 } from "@/lib/catalyst-news";
 import { extractCatalyst } from "@/lib/catalyst-extract";
 import type { CatalystType } from "@/lib/catalyst";
-import type { CatalystSource } from "@/lib/types";
+import type { CatalystSource, CatalystState, ResearchStatus } from "@/lib/types";
 
 /**
  * Multi-source catalyst capture with a retry/fallback chain
@@ -24,8 +24,13 @@ import type { CatalystSource } from "@/lib/types";
  *
  * **A failed source never yields "no catalyst":** the news fetch is retried and,
  * on persistent failure, the chain falls through to Perplexity. The catalyst is
- * null only when BOTH sources genuinely had nothing material. Distinguishing a
- * failed fetch from a real "none found" is catalyst-state-honesty (M2).
+ * null only when BOTH sources genuinely had nothing material.
+ *
+ * **Three-state honesty (M2):** the capture also reports a `state` —
+ *   - `found` — a named catalyst (from either source);
+ *   - `none` — at least one source was successfully searched but nothing material;
+ *   - `unavailable` — every source's fetch FAILED, so the catalyst is unverified,
+ *     NOT absent. The red-team must not reject for "no catalyst" on `unavailable`.
  *
  * Side effects are isolated behind the injectable `fetchNews` seam so the chain
  * is unit-tested without the network.
@@ -41,12 +46,20 @@ export interface CapturedCatalyst {
   sources: CatalystSource[];
   /** Which source supplied the catalyst, or null when none did. */
   source: CatalystSourceName | null;
+  /** found / none / unavailable (catalyst-state-honesty M2) — a failed fetch is
+   *  `unavailable`, NEVER conflated with a real `none`. */
+  state: CatalystState;
 }
 
 export interface CaptureCatalystOpts {
   symbol: string;
   /** Perplexity's structured catalyst phrases (from `getSymbolResearch`). */
   perplexityCatalysts?: string[] | null;
+  /** Whether the Perplexity research itself was successfully obtained
+   *  (catalyst-state-honesty M2). Only `ok` counts as "Perplexity was searched";
+   *  off/capped/unavailable mean it did NOT search, so if news also failed the
+   *  state is `unavailable` (fetch failed), not `none` (searched, none found). */
+  perplexityStatus?: ResearchStatus | null;
   /** Injectable Alpaca News fetch (returns normalized items). Defaults to a live
    *  Alpaca read mapped from its payload. */
   fetchNews?: (symbol: string) => Promise<CatalystNewsItem[]>;
@@ -55,13 +68,6 @@ export interface CaptureCatalystOpts {
   /** How many recent headlines to pull from Alpaca News. */
   newsLimit?: number;
 }
-
-const EMPTY: CapturedCatalyst = {
-  catalyst: null,
-  catalystType: null,
-  sources: [],
-  source: null,
-};
 
 /** Default news seam: Alpaca's free News API, mapped into `CatalystNewsItem`. */
 async function defaultFetchNews(
@@ -103,7 +109,9 @@ export async function captureCatalyst(
     opts.fetchNews ?? ((s: string) => defaultFetchNews(s, limit));
 
   // 1) Alpaca News (primary catalyst source) — retried, then abandoned on failure.
+  //    `null` = the fetch FAILED (never searched); `[]` = searched, nothing there.
   const news = await fetchNewsWithRetry(fetchNews, opts.symbol, retries);
+  const newsSearched = news !== null;
   if (news) {
     const fromNews = extractCatalystFromNews(news);
     if (fromNews.catalyst) {
@@ -112,6 +120,7 @@ export async function captureCatalyst(
         catalystType: fromNews.catalystType,
         sources: fromNews.sources,
         source: "alpaca-news",
+        state: "found",
       };
     }
   }
@@ -125,10 +134,16 @@ export async function captureCatalyst(
       catalystType: fromPplx.catalystType,
       sources: [],
       source: "perplexity",
+      state: "found",
     };
   }
 
-  // Both sources were unavailable or immaterial — a null catalyst (M2 refines the
-  // "searched, none found" vs "fetch failed" distinction).
-  return EMPTY;
+  // Nothing material. Distinguish "searched, none found" from "fetch failed":
+  // a source counts as SEARCHED only if it actually returned (news fetch ok, or
+  // Perplexity status `ok`). If NEITHER searched, the catalyst is `unavailable`
+  // (a failed fetch) — NOT a real `none` — so the red-team isn't told "no catalyst".
+  const perplexitySearched = opts.perplexityStatus === "ok";
+  const state: CatalystState =
+    newsSearched || perplexitySearched ? "none" : "unavailable";
+  return { catalyst: null, catalystType: null, sources: [], source: null, state };
 }

@@ -4,6 +4,7 @@ import type {
   BenchmarkSchema,
   CashFlowQualitySchema,
   CatalystSourceSchema,
+  CatalystState as CatalystStateSchema,
   CoachingEntrySchema,
   DividendSignalsSchema,
   DiscoverySettingsSchema,
@@ -44,6 +45,7 @@ export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 
 export type CashFlowQuality = z.infer<typeof CashFlowQualitySchema>;
 export type CatalystSource = z.infer<typeof CatalystSourceSchema>;
+export type CatalystState = z.infer<typeof CatalystStateSchema>;
 export type DividendSignals = z.infer<typeof DividendSignalsSchema>;
 export type ResearchStatus = NonNullable<TradeProposal["researchStatus"]>;
 export type RedTeamFactor = z.infer<typeof RedTeamFactorSchema>;

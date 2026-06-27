@@ -107,6 +107,24 @@ describe("proposalToMarkdown", () => {
     expect(md).not.toContain("**Catalyst sources**");
   });
 
+  it("renders the three catalyst states distinctly in Research (catalyst-state-honesty M2)", () => {
+    const none = proposalToMarkdown(
+      makeProposal({ catalyst: null, catalystState: "none" }),
+      opts,
+    );
+    expect(none).toContain("No catalyst found");
+    expect(none).not.toMatch(/data unavailable/i);
+
+    const unavailable = proposalToMarkdown(
+      makeProposal({ catalyst: null, catalystState: "unavailable" }),
+      opts,
+    );
+    expect(unavailable).toMatch(/Catalyst data unavailable/i);
+    expect(unavailable).toMatch(/retry/i);
+    // A failed fetch is NEVER exported as a flat "no catalyst".
+    expect(unavailable).not.toMatch(/no catalyst found/i);
+  });
+
   it("uses the value checklist labels (mean-reversion framing)", () => {
     expect(md).toContain("Mean-reversion stop below support");
     expect(md).not.toContain("Volume confirms"); // trend-only item

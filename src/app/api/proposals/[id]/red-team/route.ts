@@ -38,6 +38,12 @@ export async function POST(
     relativeVolume: proposal.relativeVolume,
     catalyst: proposal.catalyst,
     catalystType: proposal.catalystType,
+    // Carry the catalyst evidence + state so a RE-RUN judges on the same briefing:
+    // the sources (catalyst-news-sources M1) and — critically — the capture state
+    // (catalyst-state-honesty M2), so an `unavailable` (failed-fetch) catalyst is
+    // never re-rejected as "no catalyst".
+    catalystSources: proposal.catalystSources,
+    catalystState: proposal.catalystState,
     thesis: proposal.thesis,
     reasoning: proposal.reasoning,
   });

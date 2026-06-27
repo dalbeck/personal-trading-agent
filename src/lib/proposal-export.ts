@@ -27,10 +27,24 @@ import { trancheConditionText } from "@/lib/staged-entry";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { confidenceBucket } from "@/lib/confidence";
 import { catalystSourceLine } from "@/lib/catalyst-source";
+import { catalystStateProse, resolveCatalystState } from "@/lib/catalyst-state";
 import type { TradeProposal } from "@/lib/types";
 
 export const EXPORT_DISCLAIMER =
   "point-in-time snapshot — not investment advice.";
+
+/** The Research-section catalyst text with the three distinct states
+ *  (catalyst-state-honesty M2): the catalyst itself when found, else an explicit
+ *  "No catalyst found" (searched) or "Catalyst data unavailable — retry" (failed
+ *  fetch) — never a silent blank or a misleading "no catalyst" on a failure. */
+function catalystResearchText(p: TradeProposal): string {
+  if (p.catalyst) return p.catalyst.trim();
+  const state = resolveCatalystState({
+    catalyst: p.catalyst,
+    catalystState: p.catalystState,
+  });
+  return catalystStateProse(state) ?? "No catalyst found.";
+}
 
 export interface ExportOpts {
   /** ISO timestamp the export was generated — stamped into the footer + the PDF
@@ -164,10 +178,7 @@ export function proposalToMarkdown(p: TradeProposal, opts: ExportOpts): string {
   }
 
   lines.push("## Research", "");
-  lines.push(
-    p.catalyst ? p.catalyst.trim() : "No named catalyst recorded on this proposal.",
-    "",
-  );
+  lines.push(catalystResearchText(p), "");
   if (p.catalystSources.length > 0) {
     lines.push("**Catalyst sources**", "");
     for (const s of p.catalystSources) {
@@ -274,12 +285,7 @@ export function buildProposalPdfDocDefinition(
   }
 
   content.push({ text: "Research", style: "h2" });
-  content.push({
-    text: p.catalyst
-      ? p.catalyst.trim()
-      : "No named catalyst recorded on this proposal.",
-    style: "body",
-  });
+  content.push({ text: catalystResearchText(p), style: "body" });
   if (p.catalystSources.length > 0) {
     content.push({ text: "Catalyst sources", style: "body", bold: true });
     content.push({

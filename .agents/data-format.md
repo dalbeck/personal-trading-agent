@@ -187,8 +187,31 @@ both lenses** (it is the symbol's news), **briefed to the red-team**
 dated headlines, NOT catalyst-free"), surfaced on the proposal detail page, and in
 the MD/PDF **export** (`catalystSourceLine` in `src/lib/catalyst-source.ts`).
 Preserved across a "Refresh levels" re-anchor. Defaults to `[]` so older records
-still validate. Distinguishing a failed fetch from a real "none found" is
-catalyst-state-honesty (M2).
+still validate.
+
+**Proposal `catalystState` (catalyst-state-honesty M2).** A `TradeProposal` (and
+each `ProposalLensSchema` breakdown) carries **`catalystState`** — a `CatalystState`
+(`found | none | unavailable`, nullable) — so a **failed fetch is never conflated
+with a real "no catalyst."** `captureCatalyst` sets it: **`found`** (a named
+catalyst from either source), **`none`** (at least one source was *successfully
+searched* and returned nothing material), **`unavailable`** (every source's fetch
+**failed** — the catalyst is *unverified, not absent*). A source counts as searched
+only if it returned (the news fetch succeeded, or Perplexity status is `ok`), so
+when both fail the state is `unavailable` (`perplexityStatus` is passed in to make
+that call). Threaded everywhere via the pure `src/lib/catalyst-state.ts`
+(`resolveCatalystState` / `isCatalystUnavailable` / the `CATALYST_*` labels +
+prose): the **checklist** item reads ✓ / ⚑ "No catalyst found" / ⚑ "Data
+unavailable — retry"; the **detail view** + **export** Research section render the
+three states distinctly (the unavailable copy says **retry**, never "no catalyst");
+the **red-team** prompt is told on `unavailable` that the catalyst is "UNVERIFIED,
+NOT absent" and must **not reject for 'no catalyst'** (an authoritative override
+placed before the mandate guidance). The value lens reads `found` when a dividend
+floor stands in (even if the news catalyst was none/unavailable). It also feeds the
+**conviction penalty** — `unavailable` → catalyst null → `hasCatalyst=false` (the
+0.3 catalyst weight), so an unverified catalyst is never neutral. Null (older
+records) is **derived from catalyst presence** (`found`/`none`), never fabricated as
+`unavailable`. Preserved across a "Refresh levels" re-anchor; defaults to null so
+older records still validate.
 
 **Catalyst extraction quality (catalyst-extraction-quality M2).** The catalyst is
 a **specific why-now**, never a company description. The analyze pipeline pulls it

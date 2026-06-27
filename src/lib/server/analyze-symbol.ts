@@ -32,6 +32,7 @@ import { captureCatalyst } from "@/lib/server/catalyst-capture";
 import type {
   CashFlowQuality,
   CatalystSource,
+  CatalystState,
   DividendSignals,
   ProposalLensBreakdown,
   RedTeamVerdict,
@@ -62,6 +63,9 @@ export interface ResearchContext {
    *  so the catalyst is verifiable on the proposal + export + red-team. From
    *  Alpaca News (primary); empty when the catalyst came from Perplexity or none. */
   catalystSources: CatalystSource[];
+  /** The catalyst capture state (catalyst-state-honesty M2): found / none /
+   *  unavailable. A failed fetch is `unavailable`, never a silent "no catalyst". */
+  catalystState: CatalystState;
   /** Cash-flow quality for the value lens (value-cashflow M1) — pulled from the
    *  SAME capped research fetch (no extra call). Attached to the value lens only;
    *  null when off/capped/unavailable. */
@@ -130,12 +134,14 @@ async function defaultResearch(
     const captured = await captureCatalyst({
       symbol,
       perplexityCatalysts: r.catalysts,
+      perplexityStatus: r.perplexity,
     });
     return {
       sector: r.profile?.sector ?? null,
       catalyst: captured.catalyst,
       catalystType: captured.catalystType,
       catalystSources: captured.sources,
+      catalystState: captured.state,
       cashFlow: r.cashFlow ?? null,
       dividend: r.dividend ?? null,
       researchStatus: r.perplexity,
@@ -144,13 +150,19 @@ async function defaultResearch(
   } catch {
     // Even if the deeper (Perplexity) research throws entirely, still try Alpaca
     // News for a catalyst — a single source failing must never silently render
-    // "no catalyst" (the LLY failure this milestone fixes).
-    const captured = await captureCatalyst({ symbol }).catch(() => null);
+    // "no catalyst" (the LLY failure this milestone fixes). Perplexity is
+    // unavailable here, so the capture's state is `none` when news searched and
+    // found nothing, or `unavailable` when news failed too.
+    const captured = await captureCatalyst({
+      symbol,
+      perplexityStatus: "unavailable",
+    }).catch(() => null);
     return {
       sector: null,
       catalyst: captured?.catalyst ?? null,
       catalystType: captured?.catalystType ?? null,
       catalystSources: captured?.sources ?? [],
+      catalystState: captured?.state ?? "unavailable",
       cashFlow: null,
       dividend: null,
       researchStatus: "unavailable",
@@ -204,6 +216,7 @@ export function redTeamInput(
   dividend: DividendSignals | null = null,
   researchStatus: ResearchStatus | null = null,
   catalystSources: CatalystSource[] = [],
+  catalystState: CatalystState | null = null,
 ): RedTeamProposal {
   return {
     symbol: d.symbol,
@@ -221,6 +234,9 @@ export function redTeamInput(
     // The headlines behind the catalyst (catalyst-news-sources M1) — so the
     // prosecutor can see the catalyst is backed by real, datable news.
     catalystSources,
+    // The capture state (catalyst-state-honesty M2) — so the prosecutor is told a
+    // failed fetch is UNAVAILABLE, not absent, and won't reject for "no catalyst".
+    catalystState,
     cashFlow: d.strategy === "value" ? cashFlow : null,
     dividend: d.strategy === "value" ? dividend : null,
     researchStatus: d.strategy === "value" ? researchStatus : null,
@@ -240,6 +256,7 @@ export function draftToLens(
   dividend: DividendSignals | null = null,
   researchStatus: ResearchStatus | null = null,
   catalystSources: CatalystSource[] = [],
+  catalystState: CatalystState | null = null,
 ): ProposalLensBreakdown {
   return {
     strategy: d.strategy,
@@ -255,6 +272,9 @@ export function draftToLens(
     // The headlines behind the catalyst (catalyst-news-sources M1) — shared across
     // both lenses (it is the symbol's news); surfaced on the detail page + export.
     catalystSources,
+    // The capture state (catalyst-state-honesty M2) — per lens (the value lens's
+    // dividend floor reads `found` even when the news catalyst was none/unavailable).
+    catalystState,
     convictionScore: d.convictionScore,
     convictionTier: d.convictionTier,
     confidence: d.confidence,
@@ -323,6 +343,9 @@ export async function analyzeSymbol(
     sector: research.sector,
     catalyst: research.catalyst,
     catalystType: research.catalystType,
+    // The capture state (catalyst-state-honesty M2) drives the thesis wording so a
+    // failed fetch reads "data unavailable", never a flat "no catalyst".
+    catalystState: research.catalystState,
   };
 
   // Dividend floor (dividend-floor M1): a durable, well-covered dividend is a
@@ -332,9 +355,15 @@ export async function analyzeSymbol(
   // drags. Value lens only — the floor never touches the trend draft.
   const dividendFloor = assessDividendFloor(research.dividend);
   const registerFloor = dividendFloor.covered && research.catalyst == null;
+  // The value lens's catalyst state: a registered dividend floor IS a found
+  // catalyst (the floor), even when the news catalyst was none/unavailable.
+  const valueCatalystState: CatalystState = registerFloor
+    ? "found"
+    : research.catalystState;
   const valueInput = {
     ...researchInput,
     strategy: "value" as const,
+    catalystState: valueCatalystState,
     ...(registerFloor
       ? { catalyst: dividendFloor.floorText, catalystType: "other" as const }
       : {}),
@@ -371,20 +400,39 @@ export async function analyzeSymbol(
   // The catalyst's sources (catalyst-news-sources M1) are the symbol's news —
   // shared across both lenses, briefed to each red-team, and persisted per lens.
   const catalystSources = research.catalystSources;
+  // The capture state (catalyst-state-honesty M2): the trend lens uses the news
+  // capture state; the value lens reads `found` when a dividend floor stands in.
+  const catalystState = research.catalystState;
 
   // Run each lens's red-team under its matching mandate.
   const [trendRedTeam, valueRedTeam] = await Promise.all([
-    runRedTeam(redTeamInput(trendDraft, null, null, null, catalystSources), {
-      exec: opts.redTeamExec,
-    }),
     runRedTeam(
-      redTeamInput(valueDraft, cashFlow, dividend, researchStatus, catalystSources),
+      redTeamInput(trendDraft, null, null, null, catalystSources, catalystState),
+      { exec: opts.redTeamExec },
+    ),
+    runRedTeam(
+      redTeamInput(
+        valueDraft,
+        cashFlow,
+        dividend,
+        researchStatus,
+        catalystSources,
+        valueCatalystState,
+      ),
       { exec: opts.redTeamExec },
     ),
   ]);
 
   const lenses: ProposalLensBreakdown[] = [
-    draftToLens(trendDraft, trendRedTeam, null, null, null, catalystSources),
+    draftToLens(
+      trendDraft,
+      trendRedTeam,
+      null,
+      null,
+      null,
+      catalystSources,
+      catalystState,
+    ),
     draftToLens(
       valueDraft,
       valueRedTeam,
@@ -392,6 +440,7 @@ export async function analyzeSymbol(
       dividend,
       researchStatus,
       catalystSources,
+      valueCatalystState,
     ),
   ];
 
@@ -407,6 +456,10 @@ export async function analyzeSymbol(
   const activeDividend = active.draft.strategy === "value" ? dividend : null;
   const activeResearchStatus =
     active.draft.strategy === "value" ? researchStatus : null;
+  // The top-level catalyst state mirrors the ACTIVE lens (the value lens may read
+  // `found` via its dividend floor while the trend lens is none/unavailable).
+  const activeCatalystState =
+    active.draft.strategy === "value" ? valueCatalystState : catalystState;
 
   const proposal: TradeProposal = TradeProposalSchema.parse({
     ...active.draft,
@@ -420,6 +473,7 @@ export async function analyzeSymbol(
     status: "pending",
     redTeam: active.redTeam,
     catalystSources,
+    catalystState: activeCatalystState,
     cashFlow: activeCashFlow,
     dividend: activeDividend,
     researchStatus: activeResearchStatus,
@@ -457,6 +511,7 @@ export async function analyzeSymbol(
       catalyst: proposal.catalyst,
       catalystType: proposal.catalystType,
       catalystSources: proposal.catalystSources,
+      catalystState: proposal.catalystState,
       convictionScore: proposal.convictionScore,
       convictionTier: proposal.convictionTier,
       riskPct: proposal.riskPct,

@@ -28,6 +28,12 @@ import { hasCashFlowData } from "@/lib/cash-flow";
 import { hasDividendData } from "@/lib/dividend";
 import { isResearchUnavailable } from "@/lib/research-availability";
 import { catalystSourceDate } from "@/lib/catalyst-source";
+import {
+  CATALYST_NONE_PROSE,
+  CATALYST_UNAVAILABLE_PROSE,
+  isCatalystUnavailable,
+  resolveCatalystState,
+} from "@/lib/catalyst-state";
 import { ResearchUnavailableNotice } from "@/components/research-unavailable-notice";
 import type { CheckStatus } from "@/lib/checklist";
 import {
@@ -302,10 +308,17 @@ export function ProposalDetailView({
               <p className="text-pretty text-sm leading-relaxed text-fg">
                 {lens.catalyst}
               </p>
-            ) : (
-              <p className="text-sm text-fg-muted">
-                No named catalyst recorded on this proposal.
+            ) : isCatalystUnavailable(
+                resolveCatalystState({
+                  catalyst: lens.catalyst,
+                  catalystState: lens.catalystState,
+                }),
+              ) ? (
+              <p className="text-sm font-medium text-warning-fg">
+                {CATALYST_UNAVAILABLE_PROSE}
               </p>
+            ) : (
+              <p className="text-sm text-fg-muted">{CATALYST_NONE_PROSE}</p>
             )}
             {lens.catalystSources.length > 0 ? (
               <div className="mt-3">
