@@ -135,6 +135,7 @@ async function defaultResearch(
     // extractors, catalyst-extraction-quality M2.)
     const captured = await captureCatalyst({
       symbol,
+      companyName: r.profile?.name,
       perplexityCatalysts: r.catalysts,
       perplexityStatus: r.perplexity,
     });

@@ -33,6 +33,28 @@ describe("classifyCatalyst", () => {
     // A genuine why-now with no enum bucket stays a (passing) 'other', not 'none'.
     expect(classifyCatalyst("Dividend hike + insider buying")).toBe("other");
   });
+
+  it("classifies approval/M&A/regulatory headlines as product_news BEFORE earnings can grab them", () => {
+    // Regulatory approval — must NOT fall into earnings_momentum even if
+    // the brand name or ticker is present alongside the approval language.
+    expect(classifyCatalyst("Eli Lilly Wins EMA Approval For Tirzepatide")).toBe("product_news");
+    // FDA approval
+    expect(classifyCatalyst("Pfizer Receives FDA Clearance For New Oncology Drug")).toBe("product_news");
+    // M&A headline
+    expect(classifyCatalyst("Company X Acquires Rival In $5B Deal")).toBe("product_news");
+    // Merger
+    expect(classifyCatalyst("Two Major Biotech Firms Announce Merger Agreement")).toBe("product_news");
+  });
+
+  it("still classifies a pure earnings headline as earnings_momentum (no product keyword)", () => {
+    expect(classifyCatalyst("Acme Q2 EPS Beats Estimates")).toBe("earnings_momentum");
+    expect(classifyCatalyst("Q3 revenue missed analyst expectations")).toBe("earnings_momentum");
+  });
+
+  it("still classifies a pure guidance headline as guidance when no product keyword is present", () => {
+    expect(classifyCatalyst("Acme Raises Full-Year Guidance")).toBe("guidance");
+    expect(classifyCatalyst("Management reaffirms FY outlook")).toBe("guidance");
+  });
 });
 
 describe("extractCatalyst", () => {
