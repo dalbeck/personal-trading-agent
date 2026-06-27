@@ -34,18 +34,34 @@ export function isCompanyDescription(text: string): boolean {
 }
 
 /** Best-effort classify a why-now phrase into a specific catalyst type; a genuine
- *  catalyst with no enum bucket stays `other` (still a passing, named why-now). */
+ *  catalyst with no enum bucket stays `other` (still a passing, named why-now).
+ *
+ *  Order matters: regulatory/approval/M&A keywords are checked FIRST so that an
+ *  EMA-approval or acquisition headline is never mis-bucketed as earnings_momentum
+ *  (the earnings rule would otherwise grab it because "revenue" or other financial
+ *  terms may co-appear). Guidance is checked AFTER product so a pure guidance
+ *  headline ("raises outlook") still lands in guidance — the product regex contains
+ *  no guidance words. (catalyst-selection-quality M3) */
 export function classifyCatalyst(phrase: string): CatalystType {
   const s = (phrase ?? "").toLowerCase();
+  // 1. Regulatory / approval / M&A / clinical / product — checked FIRST so an
+  //    approval or acquisition headline is never grabbed by the earnings rule.
+  if (
+    /\b(approv\w*|clears?|cleared|fda|ema|chmp|acquir\w*|acquisition|merger|buyout|takeover|launch\w*|unveil\w*|partnership|contract|deal|product)\b/.test(
+      s,
+    )
+  ) {
+    return "product_news";
+  }
+  // 2. Earnings / revenue results.
   if (/\b(earnings|eps|beat|miss|quarter|results|revenue|print)\b/.test(s)) {
     return "earnings_momentum";
   }
+  // 3. Guidance / outlook (no product words, so pure guidance phrases land here).
   if (/\b(guidance|outlook|forecast|raised|raises|reaffirm|reiterat)\w*\b/.test(s)) {
     return "guidance";
   }
-  if (/\b(product|launch|release|unveil|partnership|contract|approval|deal)\w*\b/.test(s)) {
-    return "product_news";
-  }
+  // 4. Sector rotation.
   if (/\b(sector|rotation|peers|industry)\b/.test(s)) {
     return "sector_rotation";
   }

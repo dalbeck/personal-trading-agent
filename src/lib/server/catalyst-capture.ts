@@ -53,6 +53,12 @@ export interface CapturedCatalyst {
 
 export interface CaptureCatalystOpts {
   symbol: string;
+  /** The company display name (e.g. "Eli Lilly, Inc."), threaded so
+   *  symbol-primary-subject filtering works on headlines that name the company
+   *  rather than the ticker. When present, only headlines that mention the company
+   *  name (or its last significant token) are treated as symbol-primary.
+   *  (catalyst-selection-quality M3) */
+  companyName?: string | null;
   /** Perplexity's structured catalyst phrases (from `getSymbolResearch`). */
   perplexityCatalysts?: string[] | null;
   /** Whether the Perplexity research itself was successfully obtained
@@ -113,7 +119,7 @@ export async function captureCatalyst(
   const news = await fetchNewsWithRetry(fetchNews, opts.symbol, retries);
   const newsSearched = news !== null;
   if (news) {
-    const fromNews = extractCatalystFromNews(news);
+    const fromNews = extractCatalystFromNews(news, { symbol: opts.symbol, companyName: opts.companyName });
     if (fromNews.catalyst) {
       return {
         catalyst: fromNews.catalyst,

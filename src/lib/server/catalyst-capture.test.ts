@@ -139,4 +139,59 @@ describe("captureCatalyst — multi-source with fallback chain", () => {
     expect(got.source).toBeNull();
     expect(got.state).toBe("unavailable");
   });
+
+  it("companyName filter: picks the symbol-primary EMA Approval headline, drops roundup and non-primary policy headline", async () => {
+    // Newest-first mixed set for LLY — mirrors what the plan spec requires.
+    const MIXED_LLY: CatalystNewsItem[] = [
+      {
+        // roundup — should be filtered out (isMultiTickerRoundup)
+        headline: "Apogee Therapeutics And 4 Other Stocks Moving Higher Wednesday",
+        publisher: "Benzinga",
+        url: "https://example.com/roundup",
+        publishedAt: "2026-06-27T15:00:00Z",
+      },
+      {
+        // policy headline — material but does NOT name Eli Lilly → not symbol-primary
+        headline: "Medicare To Cover GLP-1 Obesity Drugs Under New Program",
+        publisher: "Reuters",
+        url: "https://example.com/medicare",
+        publishedAt: "2026-06-27T14:00:00Z",
+      },
+      {
+        // analyst upgrade — names Eli Lilly → symbol-primary, tier-2 materiality
+        headline: "Eli Lilly Raised To Overweight At Morgan Stanley",
+        publisher: "Benzinga",
+        url: "https://example.com/lly-upgrade",
+        publishedAt: "2026-06-27T12:00:00Z",
+      },
+      {
+        // approval headline — names Eli Lilly → symbol-primary, tier-3 materiality
+        headline: "Eli Lilly Wins EMA Approval For Tirzepatide In Europe",
+        publisher: "Benzinga",
+        url: "https://example.com/lly-ema",
+        publishedAt: "2026-06-27T10:00:00Z",
+      },
+    ];
+
+    const got = await captureCatalyst({
+      symbol: "LLY",
+      companyName: "Eli Lilly, Inc.",
+      perplexityStatus: "ok",
+      fetchNews: async () => MIXED_LLY,
+    });
+
+    // Should surface the EMA Approval (highest materiality, symbol-primary).
+    expect(got.state).toBe("found");
+    expect(got.source).toBe("alpaca-news");
+    expect(got.catalyst).toContain("EMA Approval");
+    expect(got.catalystType).toBe("product_news");
+
+    // The roundup must NOT appear in sources.
+    const sourceHeadlines = got.sources.map((s) => s.headline);
+    expect(sourceHeadlines.some((h) => h.includes("Apogee Therapeutics"))).toBe(false);
+    // The Medicare headline must NOT appear in sources (not symbol-primary for LLY).
+    expect(sourceHeadlines.some((h) => h.includes("Medicare"))).toBe(false);
+    // The Eli Lilly analyst and approval headlines SHOULD appear.
+    expect(sourceHeadlines.some((h) => h.includes("EMA Approval"))).toBe(true);
+  });
 });
