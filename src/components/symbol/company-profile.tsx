@@ -13,7 +13,7 @@ import {
  * auto-loaded research resolves, or a short note when neither source has it.
  */
 
-const SOURCE_LABEL = { robinhood: "Robinhood", perplexity: "Perplexity" } as const;
+const SOURCE_LABEL = { robinhood: "Robinhood", perplexity: "Perplexity", fmp: "FMP" } as const;
 
 function Row({ label, value }: { label: string; value: string }) {
   return (

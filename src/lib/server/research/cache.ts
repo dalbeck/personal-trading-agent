@@ -27,8 +27,9 @@ import type { SymbolResearch } from "./types";
  *  date from the filename) and added the `fetchedAt` freshness stamp; v6 added
  *  the value-lens `cashFlow` block (value-cashflow M1); v7 added the `dividend`
  *  block (dividend-floor M1); v8 added the `perplexityReason` field
- *  (research-observability M1). */
-const CACHE_VERSION = 8;
+ *  (research-observability M1); v9 added `cashFlowSource`/`dividendSource` for
+ *  the FMP fallback (fundamentals-fallback-fmp M2). */
+const CACHE_VERSION = 9;
 
 function cacheFile(symbol: string, dataDir?: string): string {
   const root =

@@ -76,6 +76,7 @@ describe("mergeSymbolResearch", () => {
     const merged = mergeSymbolResearch({
       rh: rhData(),
       perplexity: pplxResult(),
+      fmp: null,
       robinhoodConnected: true,
       perplexityStatus: "ok",
       perplexityReason: null,
@@ -98,6 +99,7 @@ describe("mergeSymbolResearch", () => {
     const merged = mergeSymbolResearch({
       rh: null,
       perplexity: pplxResult(),
+      fmp: null,
       robinhoodConnected: false,
       perplexityStatus: "ok",
       perplexityReason: null,
@@ -111,6 +113,7 @@ describe("mergeSymbolResearch", () => {
     const merged = mergeSymbolResearch({
       rh: null,
       perplexity: null,
+      fmp: null,
       robinhoodConnected: false,
       perplexityStatus: "off",
       perplexityReason: null,
@@ -317,5 +320,148 @@ describe("getResearchFreshness", () => {
     expect(await getResearchFreshness("AMD", { dataDir: dir })).toEqual({
       fetchedAt: null,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FMP fallback chain tests
+// ---------------------------------------------------------------------------
+
+function fmpResult(): ResearchResult {
+  return {
+    provider: "fmp",
+    symbol: "LLY",
+    summary: "",
+    sources: [],
+    usedAt: "2026-06-25T12:00:00Z",
+    finance: [],
+    categories: [],
+    tickers: [],
+    fundamentals: { marketCap: 8e11, peRatio: 52, eps: 14.2, dividendYield: 0.006 },
+    profile: {
+      name: "Eli Lilly",
+      domain: "lilly.com",
+      ceo: "David Ricks",
+      employees: 43000,
+      sector: "Health Technology",
+      industry: "Pharmaceuticals",
+      country: "United States",
+      exchange: "NYSE",
+      ipoDate: null,
+      description: "FMP description.",
+    },
+    cashFlow: {
+      operatingCashFlow: null,
+      freeCashFlow: 5e9,
+      fcfTrend: "growing",
+      fcfYield: 0.032,
+      netDebt: null,
+      debtToEquity: null,
+      interestCoverage: 18,
+    },
+    dividend: {
+      dividendYield: 0.006,
+      payoutRatio: 0.30,
+      fcfPayout: null,
+      fcfCoverage: 4.5,
+      growthStreakYears: 10,
+      dividendCagr: null,
+    },
+  };
+}
+
+describe("FMP fallback chain", () => {
+  it("uses FMP when Perplexity is down and Perplexity did not supply value data", async () => {
+    const dir = await tmp();
+    const fmpResearch = vi.fn(async () => fmpResult());
+    const fmpProvider: ResearchProvider = { name: "fmp", research: fmpResearch };
+
+    const res = await getSymbolResearch("LLY", {
+      dataDir: dir,
+      robinhoodConnected: false,
+      provider: {
+        name: "perplexity",
+        research: async () => null,
+        lastDiagnostic: () => ({
+          at: "2026-06-25T12:00:00.000Z",
+          provider: "perplexity",
+          symbol: "LLY",
+          outcome: "http-error" as const,
+          httpStatus: 503,
+          latencyMs: 100,
+        }),
+      },
+      fmpProvider,
+      now: NOW,
+    });
+
+    expect(fmpResearch).toHaveBeenCalledOnce();
+    expect(res.cashFlow).not.toBeNull();
+    expect(res.cashFlow!.freeCashFlow).toBe(5e9);
+    expect(res.cashFlowSource).toBe("fmp");
+    expect(res.dividend).not.toBeNull();
+    expect(res.dividend!.growthStreakYears).toBe(10);
+    expect(res.dividendSource).toBe("fmp");
+    expect(res.fundamentals).not.toBeNull();
+    expect(res.fundamentalsSource).toBe("fmp");
+  });
+
+  it("does NOT call FMP when Perplexity supplied value data", async () => {
+    const dir = await tmp();
+    const fmpResearch = vi.fn(async () => fmpResult());
+    const fmpProvider: ResearchProvider = { name: "fmp", research: fmpResearch };
+
+    const pplxWithValues: ResearchResult = {
+      ...pplxResult(),
+      cashFlow: {
+        operatingCashFlow: null,
+        freeCashFlow: 8e9,
+        fcfTrend: "stable",
+        fcfYield: 0.041,
+        netDebt: null,
+        debtToEquity: null,
+        interestCoverage: 25,
+      },
+      dividend: {
+        dividendYield: 0.0072,
+        payoutRatio: 0.25,
+        fcfPayout: null,
+        fcfCoverage: 6,
+        growthStreakYears: 12,
+        dividendCagr: null,
+      },
+    };
+
+    const res = await getSymbolResearch("MSFT", {
+      dataDir: dir,
+      robinhoodConnected: false,
+      provider: { name: "perplexity", research: async () => pplxWithValues },
+      fmpProvider,
+      now: NOW,
+    });
+
+    expect(fmpResearch).not.toHaveBeenCalled();
+    expect(res.cashFlowSource).toBe("perplexity");
+    expect(res.dividendSource).toBe("perplexity");
+  });
+
+  it("returns null cashFlow/dividend with null sources when both providers return nothing", async () => {
+    const dir = await tmp();
+    const fmpResearch = vi.fn(async () => null);
+    const fmpProvider: ResearchProvider = { name: "fmp", research: fmpResearch };
+
+    const res = await getSymbolResearch("NVDA", {
+      dataDir: dir,
+      robinhoodConnected: false,
+      provider: { name: "perplexity", research: async () => null },
+      fmpProvider,
+      dailyCap: 30,
+      now: NOW,
+    });
+
+    expect(res.cashFlow).toBeNull();
+    expect(res.cashFlowSource).toBeNull();
+    expect(res.dividend).toBeNull();
+    expect(res.dividendSource).toBeNull();
   });
 });
