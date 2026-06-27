@@ -52,12 +52,14 @@ describe("isMaterialHeadline", () => {
 });
 
 describe("extractCatalystFromNews", () => {
-  it("captures a real catalyst from the newest material headline + lists sources", () => {
-    const got = extractCatalystFromNews(LLY_NEWS);
+  it("captures a real catalyst from the highest-materiality material headline + lists sources", () => {
+    // LLY_NEWS: CHMP headline (materiality 3) is both newest AND highest — so
+    // the result is the same as old behavior, but now driven by materiality rank.
+    const got = extractCatalystFromNews(LLY_NEWS, { symbol: "LLY" });
     expect(got.catalyst).toContain("CHMP");
     // CHMP / approval recommendation → product/regulatory news.
     expect(got.catalystType).toBe("product_news");
-    // Every material headline is surfaced as a verifiable source.
+    // All material headlines are surfaced as sources (materiality order — CHMP leads).
     expect(got.sources).toHaveLength(3);
     expect(got.sources[0]).toEqual({
       headline:
@@ -69,26 +71,29 @@ describe("extractCatalystFromNews", () => {
   });
 
   it("returns no catalyst (null) but stays empty when only noise is present", () => {
-    const got = extractCatalystFromNews([
-      {
-        headline: "Stocks mixed at midday as traders weigh data",
-        publisher: "CNBC",
-        url: null,
-        publishedAt: "2026-06-26T16:00:00Z",
-      },
-    ]);
+    const got = extractCatalystFromNews(
+      [
+        {
+          headline: "Stocks mixed at midday as traders weigh data",
+          publisher: "CNBC",
+          url: null,
+          publishedAt: "2026-06-26T16:00:00Z",
+        },
+      ],
+      { symbol: "LLY" },
+    );
     expect(got.catalyst).toBeNull();
     expect(got.catalystType).toBeNull();
     expect(got.sources).toEqual([]);
   });
 
   it("returns no catalyst for an empty / missing payload", () => {
-    expect(extractCatalystFromNews([])).toEqual({
+    expect(extractCatalystFromNews([], { symbol: "LLY" })).toEqual({
       catalyst: null,
       catalystType: null,
       sources: [],
     });
-    expect(extractCatalystFromNews(null)).toEqual({
+    expect(extractCatalystFromNews(null, { symbol: "LLY" })).toEqual({
       catalyst: null,
       catalystType: null,
       sources: [],
@@ -96,21 +101,24 @@ describe("extractCatalystFromNews", () => {
   });
 
   it("skips company-description boilerplate masquerading as a headline", () => {
-    const got = extractCatalystFromNews([
-      {
-        headline:
-          "Eli Lilly and Company is a pharmaceutical company that provides medicines",
-        publisher: "Wire",
-        url: null,
-        publishedAt: "2026-06-26T10:00:00Z",
-      },
-      {
-        headline: "Eli Lilly raises full-year guidance for 2026",
-        publisher: "Benzinga",
-        url: null,
-        publishedAt: "2026-06-26T09:00:00Z",
-      },
-    ]);
+    const got = extractCatalystFromNews(
+      [
+        {
+          headline:
+            "Eli Lilly and Company is a pharmaceutical company that provides medicines",
+          publisher: "Wire",
+          url: null,
+          publishedAt: "2026-06-26T10:00:00Z",
+        },
+        {
+          headline: "Eli Lilly raises full-year guidance for 2026",
+          publisher: "Benzinga",
+          url: null,
+          publishedAt: "2026-06-26T09:00:00Z",
+        },
+      ],
+      { symbol: "LLY" },
+    );
     expect(got.catalyst).toContain("guidance");
     expect(got.catalystType).toBe("guidance");
     expect(got.sources).toHaveLength(1);
@@ -123,16 +131,17 @@ describe("extractCatalystFromNews", () => {
       url: null,
       publishedAt: `2026-06-${10 + i}T10:00:00Z`,
     }));
-    const got = extractCatalystFromNews(many);
+    const got = extractCatalystFromNews(many, { symbol: "LLY" });
     expect(got.sources.length).toBeLessThanOrEqual(6);
   });
 
   it("word-truncates a very long headline used as the catalyst", () => {
     const long =
       "Eli Lilly announces a sweeping regulatory approval across multiple jurisdictions including the United States European Union and Japan covering several indications";
-    const got = extractCatalystFromNews([
-      { headline: long, publisher: "Wire", url: null, publishedAt: null },
-    ]);
+    const got = extractCatalystFromNews(
+      [{ headline: long, publisher: "Wire", url: null, publishedAt: null }],
+      { symbol: "LLY" },
+    );
     expect(got.catalyst).not.toBeNull();
     // Truncated on a word boundary with an ellipsis — never mid-word.
     expect(got.catalyst!.endsWith("…") || got.catalyst!.length <= long.length).toBe(true);
@@ -290,5 +299,79 @@ describe("headlineMateriality", () => {
       headlineMateriality("Stocks mixed at midday as traders weigh data"),
     ).toBe(0);
     expect(headlineMateriality("")).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 2: Rank-and-select rewrite — LLY mixed-headline test
+// ---------------------------------------------------------------------------
+
+describe("extractCatalystFromNews — Task 2 rank-and-select", () => {
+  /** Items newest-first (as Alpaca News returns them):
+   *  1. Roundup — should be excluded from selection entirely
+   *  2. Analyst raise — material, symbol-primary, materiality 2
+   *  3. EMA approval — material, symbol-primary, materiality 3 (highest)
+   */
+  const LLY_MIXED: CatalystNewsItem[] = [
+    {
+      headline: "Apogee Therapeutics And 4 Other Stocks Moving Higher Wednesday",
+      publisher: "Benzinga",
+      url: "https://example.com/roundup",
+      publishedAt: "2026-06-27T09:00:00Z",
+    },
+    {
+      headline: "Eli Lilly Raised To Overweight At Morgan Stanley",
+      publisher: "Benzinga",
+      url: "https://example.com/lly-ms",
+      publishedAt: "2026-06-26T14:00:00Z",
+    },
+    {
+      headline: "Eli Lilly Wins EMA Approval For Tirzepatide In Europe",
+      publisher: "Reuters",
+      url: "https://example.com/lly-ema",
+      publishedAt: "2026-06-26T10:00:00Z",
+    },
+  ];
+
+  it("selects the highest-materiality symbol-primary headline, not the newest", () => {
+    const got = extractCatalystFromNews(LLY_MIXED, {
+      symbol: "LLY",
+      companyName: "Eli Lilly, Inc.",
+    });
+    // EMA approval is materiality-3; should win over the analyst (materiality-2)
+    // even though the analyst headline is newer.
+    expect(got.catalyst).toContain("EMA Approval");
+    expect(got.catalystType).toBe("product_news");
+  });
+
+  it("excludes the roundup from sources", () => {
+    const got = extractCatalystFromNews(LLY_MIXED, {
+      symbol: "LLY",
+      companyName: "Eli Lilly, Inc.",
+    });
+    const headlines = got.sources.map((s) => s.headline);
+    expect(headlines).not.toContain(
+      "Apogee Therapeutics And 4 Other Stocks Moving Higher Wednesday",
+    );
+    // Both symbol-primary material headlines should be in sources
+    expect(headlines).toContain("Eli Lilly Wins EMA Approval For Tirzepatide In Europe");
+    expect(headlines).toContain("Eli Lilly Raised To Overweight At Morgan Stanley");
+  });
+
+  it("returns null catalyst when only material headline is a roundup", () => {
+    const roundupOnly: CatalystNewsItem[] = [
+      {
+        headline: "Apogee Therapeutics And 4 Other Stocks Moving Higher Wednesday",
+        publisher: "Benzinga",
+        url: "https://example.com/roundup",
+        publishedAt: "2026-06-27T09:00:00Z",
+      },
+    ];
+    const got = extractCatalystFromNews(roundupOnly, {
+      symbol: "LLY",
+      companyName: "Eli Lilly, Inc.",
+    });
+    expect(got.catalyst).toBeNull();
+    expect(got.sources).toEqual([]);
   });
 });

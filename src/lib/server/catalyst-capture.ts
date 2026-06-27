@@ -113,7 +113,7 @@ export async function captureCatalyst(
   const news = await fetchNewsWithRetry(fetchNews, opts.symbol, retries);
   const newsSearched = news !== null;
   if (news) {
-    const fromNews = extractCatalystFromNews(news);
+    const fromNews = extractCatalystFromNews(news, { symbol: opts.symbol });
     if (fromNews.catalyst) {
       return {
         catalyst: fromNews.catalyst,

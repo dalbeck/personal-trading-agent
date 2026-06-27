@@ -202,22 +202,35 @@ export interface CapturedNewsCatalyst {
 }
 
 /**
- * Pull a catalyst out of recent news headlines (newest first). Keeps only the
- * **material** headlines, derives the catalyst from the newest one (word-truncated
- * + classified), and surfaces the material headlines as verifiable sources. When
- * nothing material is present (only noise, or an empty payload) it returns a null
- * catalyst with no sources — the caller then distinguishes "searched, none found"
- * from a failed fetch (catalyst-state-honesty M2).
+ * Pull a catalyst out of recent news headlines (newest first). Keeps only
+ * **material** headlines where the symbol is the **primary subject** (roundups
+ * and co-tagged cross-listed headlines are excluded). Ranks the survivors by
+ * materiality descending, then recency (original index ascending — lower index
+ * = newer), picks the top headline as the catalyst, classifies it, and surfaces
+ * the ranked set as verifiable sources.
+ *
+ * When no symbol-primary material headline exists (e.g. only roundups mention
+ * the symbol), returns a null catalyst with no sources so the caller falls
+ * through to Perplexity — never crashes, never surfaces a roundup.
  */
 export function extractCatalystFromNews(
   items: CatalystNewsItem[] | null | undefined,
+  opts: { symbol: string; companyName?: string | null },
 ): CapturedNewsCatalyst {
   const material = (items ?? []).filter((it) => isMaterialHeadline(it.headline));
-  if (material.length === 0) {
+  const primary = material.filter((it) =>
+    isSymbolPrimarySubject(it.headline, { companyName: opts.companyName }),
+  );
+  if (primary.length === 0) {
     return { catalyst: null, catalystType: null, sources: [] };
   }
-  const top = material[0];
-  const sources: CatalystSource[] = material.slice(0, MAX_SOURCES).map((it) => ({
+  // Rank: materiality desc, then recency (input is newest-first, so lower index
+  // = newer — use it as a stable tiebreak).
+  const ranked = primary
+    .map((it, i) => ({ it, i, score: headlineMateriality(it.headline) }))
+    .sort((a, b) => b.score - a.score || a.i - b.i);
+  const top = ranked[0].it;
+  const sources: CatalystSource[] = ranked.slice(0, MAX_SOURCES).map(({ it }) => ({
     headline: it.headline.trim(),
     publisher: it.publisher,
     url: it.url,
