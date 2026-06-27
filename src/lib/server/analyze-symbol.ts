@@ -120,13 +120,17 @@ const ONE_YEAR_BARS = (symbol: string, now: Date): Promise<Ohlc[]> => {
 };
 
 /** Default research seam: Alpaca prices are separate; this pulls the
- *  fundamentals/sector + AI summary (capped) and maps a one-line catalyst. */
-async function defaultResearch(
+ *  fundamentals/sector + AI summary (capped) and maps a one-line catalyst.
+ *  `force` re-spends a fresh fetch (the "Refresh research" rebuild,
+ *  proposal-refresh-rebuilds M3); omitted it is cache-first. Exported so the
+ *  refresh rebuild re-derives a proposal from the SAME research shape. */
+export async function fetchResearchContext(
   symbol: string,
-  dataDir?: string,
+  opts?: { dataDir?: string; force?: boolean },
 ): Promise<ResearchContext> {
+  const dataDir = opts?.dataDir;
   try {
-    const r = await getSymbolResearch(symbol, { dataDir });
+    const r = await getSymbolResearch(symbol, { dataDir, force: opts?.force });
     // Multi-source catalyst capture (catalyst-news-sources M1): Alpaca News is the
     // PRIMARY catalyst source (free, Benzinga-powered, no daily cap, with
     // verifiable sources); Perplexity's curated `catalysts[]` phrases are the
@@ -323,7 +327,7 @@ export async function analyzeSymbol(
         ? getLatestPrice(s).catch(() => null)
         : Promise.resolve(null));
   const fetchResearch =
-    opts.fetchResearch ?? ((s: string) => defaultResearch(s, dataDir));
+    opts.fetchResearch ?? ((s: string) => fetchResearchContext(s, { dataDir }));
   const readSnapshot = opts.readSnapshot ?? defaultSnapshot;
 
   const [bars, quote, snapshot, research] = await Promise.all([
@@ -341,16 +345,145 @@ export async function analyzeSymbol(
     };
   }
 
-  // Dual-lens (M1): evaluate the SAME symbol under BOTH the trend and value
-  // mandates and produce ONE proposal holding both breakdowns. Research is
-  // fetched once and shared (so the Perplexity cap is respected); each lens gets
-  // its own deterministic draft and its own cross-model red-team verdict.
+  const createdAt = now.toISOString();
+  // Unique PER RUN, not just per day (so two same-day analyses don't collide on
+  // id → one `/proposals/[id]` URL + a duplicate React key).
+  const id = `manual-${symbol}-${createdAt.slice(0, 23).replace(/[-:.T]/g, "")}`;
+  const advisory = false; // approvable; the gate (not this) is the money boundary
+
+  // The dual-lens derivation (shared with the "Refresh research" rebuild,
+  // proposal-refresh-rebuilds M3). Levels + research are both fresh at analysis,
+  // so pricedAt and researchAt both stamp now.
+  const derived = await deriveProposalFromResearch({
+    symbol,
+    bars,
+    quote,
+    equity: snapshot.equity,
+    research,
+    account,
+    advisory,
+    id,
+    createdAt,
+    pricedAt: createdAt,
+    researchAt: createdAt,
+    redTeamExec: opts.redTeamExec,
+  });
+  if (!derived.ok) return derived;
+  const { proposal, lenses, active, usedPerplexity } = derived;
+
+  // Risk rails — informational preview for the ACTIVE lens (the binding re-check
+  // runs at approval, under whichever lens the human acts). SPY/VIX neutral here;
+  // equity/positions are the snapshot's, so size/sector/concentration are real.
+  const ctx: RiskContext = {
+    equity: snapshot.equity,
+    highWaterEquity: snapshot.highWaterEquity,
+    openPositions: snapshot.openPositions,
+    ordersToday: 0,
+    spyIntradayChangePct: 0,
+    vix: 15,
+  };
+  const risk = evaluateOrder(toOrder(proposal), ctx);
+
+  await recordManualProposal(
+    {
+      id,
+      createdAt,
+      symbol: proposal.symbol,
+      action: proposal.action,
+      side: proposal.side,
+      strategy: proposal.strategy,
+      qty: proposal.qty,
+      limitPrice: proposal.limitPrice,
+      stopPrice: proposal.stopPrice,
+      takeProfit: proposal.takeProfit,
+      targetType: proposal.targetType,
+      sector: proposal.sector,
+      relativeVolume: proposal.relativeVolume,
+      catalyst: proposal.catalyst,
+      catalystType: proposal.catalystType,
+      catalystSources: proposal.catalystSources,
+      catalystState: proposal.catalystState,
+      convictionScore: proposal.convictionScore,
+      convictionTier: proposal.convictionTier,
+      riskPct: proposal.riskPct,
+      confidence: proposal.confidence,
+      thesis: proposal.thesis,
+      reasoning: proposal.reasoning,
+      redTeam: proposal.redTeam,
+      cashFlow: proposal.cashFlow,
+      dividend: proposal.dividend,
+      researchStatus: proposal.researchStatus,
+      researchStatusReason: proposal.researchStatusReason,
+      pricedAt: proposal.pricedAt,
+      researchAt: proposal.researchAt,
+      lenses,
+    },
+    { account, advisory },
+    { dataDir },
+  );
+
+  return {
+    ok: true,
+    proposal,
+    risk,
+    redTeam: active.redTeam,
+    usedPerplexity,
+  };
+}
+
+/** Inputs to the shared dual-lens proposal derivation. The caller controls the
+ *  identity/meta (id / timestamps / account / status / origin); everything
+ *  value-related is derived from `research` + `bars` + `quote`. */
+export interface DeriveProposalArgs {
+  symbol: string;
+  bars: Ohlc[];
+  quote: number | null;
+  equity: number;
+  research: ResearchContext;
+  account: "paper" | "live";
+  advisory: boolean;
+  id: string;
+  createdAt: string;
+  /** When the levels were anchored (fresh-entry-levels M1). */
+  pricedAt: string;
+  /** When the value-lens research was derived (proposal-refresh-rebuilds M3). */
+  researchAt: string;
+  status?: TradeProposal["status"];
+  origin?: TradeProposal["origin"];
+  redTeamExec?: RedTeamExec;
+}
+
+export type DeriveProposalResult =
+  | {
+      ok: true;
+      proposal: TradeProposal;
+      lenses: ProposalLensBreakdown[];
+      active: { draft: ManualProposalDraft; redTeam: RedTeamVerdict };
+      usedPerplexity: boolean;
+    }
+  | { ok: false; code: "insufficient-data"; error: string };
+
+/**
+ * Build ONE dual-lens proposal from research + price history (shared by the
+ * manual analyze pipeline and the "Refresh research" rebuild). Evaluates the
+ * symbol under BOTH the trend and value mandates, runs each lens's cross-model
+ * red-team, and mirrors the higher-conviction lens to the top-level fields. The
+ * value lens carries the cash-flow / dividend / research-status quality signals;
+ * the trend lens carries null. Pure of persistence — the caller writes/overwrites.
+ */
+export async function deriveProposalFromResearch(
+  args: DeriveProposalArgs,
+): Promise<DeriveProposalResult> {
+  const { symbol, bars, quote, equity, research, account, advisory } = args;
+
+  // Research is shared across both lenses (one capped fetch); each lens gets its
+  // own deterministic draft + its own red-team verdict.
   const researchInput = {
     symbol,
     bars,
     // Anchor BOTH lenses to the SAME current quote (fresh-entry-levels M1).
     quote,
-    equity: snapshot.equity,
+    equity,
     sector: research.sector,
     catalyst: research.catalyst,
     catalystType: research.catalystType,
@@ -394,15 +527,9 @@ export async function analyzeSymbol(
     };
   }
 
-  const createdAt = now.toISOString();
-  // Unique PER RUN, not just per day (so two same-day analyses don't collide on
-  // id → one `/proposals/[id]` URL + a duplicate React key).
-  const id = `manual-${symbol}-${createdAt.slice(0, 23).replace(/[-:.T]/g, "")}`;
-  const advisory = false; // approvable; the gate (not this) is the money boundary
-
   // Cash-flow quality (value-cashflow M1) + dividend signals (dividend-floor M1)
-  // — VALUE-lens signals pulled from the shared research fetch (no extra call).
-  // Attached to the value lens + briefed to the value red-team only.
+  // — VALUE-lens signals from the shared research. Attached to the value lens +
+  // briefed to the value red-team only.
   const cashFlow = research.cashFlow;
   const dividend = research.dividend;
   // Research availability (research-unavailable-state M3 / fundamentals-fallback-fmp M2):
@@ -412,18 +539,14 @@ export async function analyzeSymbol(
   const valueDataPresent = Boolean(cashFlow || dividend);
   const researchStatus = valueDataPresent ? "ok" : research.researchStatus;
   const researchStatusReason = valueDataPresent ? null : research.researchStatusReason;
-  // The catalyst's sources (catalyst-news-sources M1) are the symbol's news —
-  // shared across both lenses, briefed to each red-team, and persisted per lens.
   const catalystSources = research.catalystSources;
-  // The capture state (catalyst-state-honesty M2): the trend lens uses the news
-  // capture state; the value lens reads `found` when a dividend floor stands in.
   const catalystState = research.catalystState;
 
   // Run each lens's red-team under its matching mandate.
   const [trendRedTeam, valueRedTeam] = await Promise.all([
     runRedTeam(
       redTeamInput(trendDraft, null, null, null, catalystSources, catalystState),
-      { exec: opts.redTeamExec },
+      { exec: args.redTeamExec },
     ),
     runRedTeam(
       redTeamInput(
@@ -434,7 +557,7 @@ export async function analyzeSymbol(
         catalystSources,
         valueCatalystState,
       ),
-      { exec: opts.redTeamExec },
+      { exec: args.redTeamExec },
     ),
   ]);
 
@@ -462,34 +585,30 @@ export async function analyzeSymbol(
   ];
 
   // The proposal's top-level fields mirror the ACTIVE (default) lens — the
-  // higher-conviction one (tie → trend). The human can toggle + approve under
-  // the other on the detail page; the slim list shows this default.
+  // higher-conviction one (tie → trend).
   const active =
     valueDraft.convictionScore > trendDraft.convictionScore
       ? { draft: valueDraft, redTeam: valueRedTeam }
       : { draft: trendDraft, redTeam: trendRedTeam };
-  // Top-level cash-flow + dividend + research status mirror the active lens.
   const activeCashFlow = active.draft.strategy === "value" ? cashFlow : null;
   const activeDividend = active.draft.strategy === "value" ? dividend : null;
   const activeResearchStatus =
     active.draft.strategy === "value" ? researchStatus : null;
   const activeResearchStatusReason =
     active.draft.strategy === "value" ? researchStatusReason : null;
-  // The top-level catalyst state mirrors the ACTIVE lens (the value lens may read
-  // `found` via its dividend floor while the trend lens is none/unavailable).
   const activeCatalystState =
     active.draft.strategy === "value" ? valueCatalystState : catalystState;
 
   const proposal: TradeProposal = TradeProposalSchema.parse({
     ...active.draft,
-    id,
-    createdAt,
-    // Levels were anchored to the current quote at this analysis time.
-    pricedAt: createdAt,
+    id: args.id,
+    createdAt: args.createdAt,
+    pricedAt: args.pricedAt,
+    researchAt: args.researchAt,
     account,
     advisory,
-    origin: "manual-request",
-    status: "pending",
+    origin: args.origin ?? "manual-request",
+    status: args.status ?? "pending",
     redTeam: active.redTeam,
     catalystSources,
     catalystState: activeCatalystState,
@@ -500,61 +619,11 @@ export async function analyzeSymbol(
     lenses,
   });
 
-  // Risk rails — informational preview for the ACTIVE lens (the binding re-check
-  // runs at approval, under whichever lens the human acts). SPY/VIX neutral here;
-  // equity/positions are the snapshot's, so size/sector/concentration are real.
-  const ctx: RiskContext = {
-    equity: snapshot.equity,
-    highWaterEquity: snapshot.highWaterEquity,
-    openPositions: snapshot.openPositions,
-    ordersToday: 0,
-    spyIntradayChangePct: 0,
-    vix: 15,
-  };
-  const risk = evaluateOrder(toOrder(proposal), ctx);
-
-  await recordManualProposal(
-    {
-      id,
-      createdAt,
-      symbol: proposal.symbol,
-      action: proposal.action,
-      side: proposal.side,
-      strategy: proposal.strategy,
-      qty: proposal.qty,
-      limitPrice: proposal.limitPrice,
-      stopPrice: proposal.stopPrice,
-      takeProfit: proposal.takeProfit,
-      targetType: proposal.targetType,
-      sector: proposal.sector,
-      relativeVolume: proposal.relativeVolume,
-      catalyst: proposal.catalyst,
-      catalystType: proposal.catalystType,
-      catalystSources: proposal.catalystSources,
-      catalystState: proposal.catalystState,
-      convictionScore: proposal.convictionScore,
-      convictionTier: proposal.convictionTier,
-      riskPct: proposal.riskPct,
-      confidence: proposal.confidence,
-      thesis: proposal.thesis,
-      reasoning: proposal.reasoning,
-      redTeam: active.redTeam,
-      cashFlow: activeCashFlow,
-      dividend: activeDividend,
-      researchStatus: activeResearchStatus,
-      researchStatusReason: activeResearchStatusReason,
-      pricedAt: proposal.pricedAt,
-      lenses,
-    },
-    { account, advisory },
-    { dataDir },
-  );
-
   return {
     ok: true,
     proposal,
-    risk,
-    redTeam: active.redTeam,
+    lenses,
+    active,
     usedPerplexity: research.usedPerplexity,
   };
 }

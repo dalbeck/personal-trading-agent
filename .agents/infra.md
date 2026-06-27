@@ -38,6 +38,14 @@
     **"Refresh levels"** action (`POST /api/proposals/[id]/refresh-levels` →
     `refreshProposalLevels`) re-anchors every lens off a fresh quote and re-runs
     each red-team, overwriting the same proposal in place (no new metered research).
+    **"Refresh research" (proposal-refresh-rebuilds M3)** is the heavier sibling
+    (`POST /api/proposals/[id]/refresh-research` → `refreshProposalResearch`): it
+    forces a **fresh research fetch** and **re-derives** the value-lens fields
+    (cashFlow / dividend / catalyst / conviction / red-team) via the shared
+    `deriveProposalFromResearch` core, overwriting the proposal in place + stamping
+    a new `researchAt` (so a stored proposal can never read "data unavailable" while
+    its badge says fresh; levels re-anchor too). Scoped to **manual-request**
+    proposals (`not-rebuildable` otherwise). A manual analyze always mints a NEW id.
     `evaluateApprovalBlocks` adds a **staleness block** (`ApprovalBlocks.staleLevels`):
     it reads the current quote (`quoteOf` seam, fail-soft to null) and, when the
     entry has drifted beyond `STALE_DRIFT_THRESHOLD` (1.5%, `src/lib/price-freshness.ts`),
