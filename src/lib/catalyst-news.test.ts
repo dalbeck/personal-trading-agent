@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   extractCatalystFromNews,
   isMaterialHeadline,
+  isMultiTickerRoundup,
+  companyNameMatches,
+  isSymbolPrimarySubject,
+  headlineMateriality,
   type CatalystNewsItem,
 } from "@/lib/catalyst-news";
 
@@ -133,5 +137,158 @@ describe("extractCatalystFromNews", () => {
     // Truncated on a word boundary with an ellipsis — never mid-word.
     expect(got.catalyst!.endsWith("…") || got.catalyst!.length <= long.length).toBe(true);
     expect(got.catalyst).not.toMatch(/\w…\w/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 1: New pure helpers
+// ---------------------------------------------------------------------------
+
+describe("isMultiTickerRoundup", () => {
+  it("returns TRUE for market-wrap / listicle / movers headlines", () => {
+    expect(
+      isMultiTickerRoundup(
+        "Apogee Therapeutics And 4 Other Stocks Moving Higher Wednesday",
+      ),
+    ).toBe(true);
+    expect(
+      isMultiTickerRoundup("10 Stocks Moving In Tuesday's Mid-Day Session"),
+    ).toBe(true);
+    expect(
+      isMultiTickerRoundup("Eli Lilly, Novo And 3 Other Stocks To Watch"),
+    ).toBe(true);
+    expect(isMultiTickerRoundup("Tech Stocks Moving Lower")).toBe(true);
+    expect(isMultiTickerRoundup("Trending Stocks Today")).toBe(true);
+    expect(
+      isMultiTickerRoundup("Why These 5 Healthcare Stocks Are Rising"),
+    ).toBe(true);
+  });
+
+  it("returns FALSE for symbol-specific catalyst headlines", () => {
+    expect(
+      isMultiTickerRoundup("Eli Lilly Wins EMA Approval For Tirzepatide"),
+    ).toBe(false);
+    expect(
+      isMultiTickerRoundup("Eli Lilly Raised To Buy At Morgan Stanley"),
+    ).toBe(false);
+  });
+});
+
+describe("companyNameMatches", () => {
+  it("matches when the full core name appears in the headline", () => {
+    expect(
+      companyNameMatches("Eli Lilly Wins EMA Approval For Tirzepatide", "Eli Lilly, Inc."),
+    ).toBe(true);
+  });
+
+  it("matches via the last significant token (possessive form)", () => {
+    expect(
+      companyNameMatches("Lilly's Medicare Win Is Significant", "Eli Lilly, Inc."),
+    ).toBe(true);
+  });
+
+  it("matches Apple via single-word core", () => {
+    expect(
+      companyNameMatches("Apple Unveils New AI Features At WWDC", "Apple Inc."),
+    ).toBe(true);
+  });
+
+  it("returns FALSE when the company name is not present", () => {
+    expect(
+      companyNameMatches("Apogee Therapeutics Phase 2 Data Positive", "Eli Lilly, Inc."),
+    ).toBe(false);
+  });
+
+  it("returns false for empty / whitespace inputs", () => {
+    expect(companyNameMatches("", "Eli Lilly, Inc.")).toBe(false);
+    expect(companyNameMatches("   ", "Eli Lilly, Inc.")).toBe(false);
+    expect(companyNameMatches("Eli Lilly Wins EMA Approval", "")).toBe(false);
+    expect(companyNameMatches("Eli Lilly Wins EMA Approval", "   ")).toBe(false);
+  });
+});
+
+describe("isSymbolPrimarySubject", () => {
+  const companyName = "Eli Lilly, Inc.";
+
+  it("returns FALSE for a roundup regardless of company name", () => {
+    expect(
+      isSymbolPrimarySubject(
+        "Apogee Therapeutics And 4 Other Stocks Moving Higher Wednesday",
+        { companyName },
+      ),
+    ).toBe(false);
+  });
+
+  it("returns FALSE when a different company is the subject", () => {
+    expect(
+      isSymbolPrimarySubject("Apogee Therapeutics Phase 2 Data Positive", {
+        companyName,
+      }),
+    ).toBe(false);
+  });
+
+  it("returns TRUE when the company is the primary subject", () => {
+    expect(
+      isSymbolPrimarySubject("Eli Lilly Wins EMA Approval For Tirzepatide", {
+        companyName,
+      }),
+    ).toBe(true);
+  });
+
+  it("is permissive (returns TRUE) for a non-roundup headline when companyName is unknown", () => {
+    expect(
+      isSymbolPrimarySubject("Biotech Company X Wins FDA Approval", {
+        companyName: null,
+      }),
+    ).toBe(true);
+    expect(
+      isSymbolPrimarySubject("Biotech Company X Wins FDA Approval", {
+        companyName: undefined,
+      }),
+    ).toBe(true);
+  });
+
+  it("returns FALSE for a roundup even when companyName is null", () => {
+    expect(
+      isSymbolPrimarySubject("Tech Stocks Moving Lower", { companyName: null }),
+    ).toBe(false);
+  });
+});
+
+describe("headlineMateriality", () => {
+  it("returns 3 for regulatory / clinical / M&A headlines", () => {
+    expect(
+      headlineMateriality("Eli Lilly Wins EMA Approval For Tirzepatide"),
+    ).toBe(3);
+    expect(
+      headlineMateriality("Pfizer Acquires Biotech Firm For $8B"),
+    ).toBe(3);
+    expect(
+      headlineMateriality("FDA Clears New Cancer Therapy"),
+    ).toBe(3);
+  });
+
+  it("returns 2 for guidance / analyst / earnings / product / policy headlines", () => {
+    expect(
+      headlineMateriality("Eli Lilly Raised To Buy At Morgan Stanley"),
+    ).toBe(2);
+    expect(headlineMateriality("Company Raises Full-Year Guidance")).toBe(2);
+    expect(headlineMateriality("Q2 Earnings Beat Expectations")).toBe(2);
+    expect(headlineMateriality("Medicare To Cover GLP-1 Obesity Drugs")).toBe(2);
+  });
+
+  it("returns 1 for a material headline that does not hit a higher bucket", () => {
+    // "split" matches CATALYST_KEYWORDS but not tier-3 or tier-2 keywords
+    expect(headlineMateriality("Company Announces Stock Split")).toBe(1);
+  });
+
+  it("returns 0 for a non-material / noise headline", () => {
+    expect(
+      headlineMateriality("3 dividend stocks to consider"),
+    ).toBe(0);
+    expect(
+      headlineMateriality("Stocks mixed at midday as traders weigh data"),
+    ).toBe(0);
+    expect(headlineMateriality("")).toBe(0);
   });
 });
