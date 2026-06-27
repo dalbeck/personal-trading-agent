@@ -29,6 +29,7 @@ const researchSeam = () =>
     cashFlow: null,
     dividend: null,
     researchStatus: "ok" as const,
+    catalystSources: [],
     usedPerplexity: false,
   });
 
@@ -82,6 +83,50 @@ describe("analyzeSymbol", () => {
     expect(p.redTeam?.verdict).toBe("approve");
   });
 
+  it("carries the catalyst's news sources onto the proposal + every lens (catalyst-news-sources M1)", async () => {
+    const sources = [
+      {
+        headline: "Eli Lilly wins CHMP recommendation for EU approval",
+        publisher: "Benzinga",
+        url: "https://example.com/lly",
+        publishedAt: "2026-06-26T13:30:00Z",
+      },
+    ];
+    const res = await analyzeSymbol("lly", {
+      account: "live",
+      dataDir: dir,
+      now: () => new Date("2026-06-26T09:00:00-04:00"),
+      fetchBars: async () => ramp(60, 50, 1),
+      readSnapshot: snapshotSeam,
+      fetchResearch: () =>
+        Promise.resolve({
+          sector: "Health Care",
+          catalyst: "CHMP recommends EU approval",
+          catalystType: "product_news" as const,
+          cashFlow: null,
+          dividend: null,
+          researchStatus: "ok" as const,
+          catalystSources: sources,
+          usedPerplexity: true,
+        }),
+      redTeamExec: approveExec,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.proposal.catalystSources).toEqual(sources);
+    // Both lenses (trend + value) share the symbol's news sources.
+    expect(res.proposal.lenses.length).toBeGreaterThan(0);
+    for (const lens of res.proposal.lenses) {
+      expect(lens.catalystSources).toEqual(sources);
+    }
+    // Persisted + validates against the contract.
+    const files = await readdir(path.join(dir, "proposals"));
+    const p = TradeProposalSchema.parse(
+      JSON.parse(await readFile(path.join(dir, "proposals", files[0]), "utf8")),
+    );
+    expect(p.catalystSources).toEqual(sources);
+  });
+
   it("does NOT rubber-stamp a weak pick — a red-team reject is surfaced, not hidden", async () => {
     const res = await analyzeSymbol("xyz", {
       account: "paper",
@@ -96,6 +141,7 @@ describe("analyzeSymbol", () => {
           cashFlow: null,
           dividend: null,
           researchStatus: "ok" as const,
+          catalystSources: [],
           usedPerplexity: false,
         }),
       redTeamExec: rejectExec,
@@ -123,6 +169,7 @@ describe("analyzeSymbol", () => {
         cashFlow: null, // UNKNOWN quality data
         dividend: null,
         researchStatus: "ok" as const,
+        catalystSources: [],
         usedPerplexity: false,
       }),
       redTeamExec: approveExec,
@@ -149,6 +196,7 @@ describe("analyzeSymbol", () => {
         cashFlow: null,
         dividend: null,
         researchStatus: "capped" as const,
+        catalystSources: [],
         usedPerplexity: false,
       }),
       redTeamExec: async (p) => {
@@ -249,6 +297,7 @@ describe("analyzeSymbol", () => {
         cashFlow,
         dividend: null,
         researchStatus: "ok" as const,
+        catalystSources: [],
         usedPerplexity: true,
       }),
       redTeamExec: async (p) => {
@@ -296,6 +345,7 @@ describe("analyzeSymbol", () => {
         cashFlow: null,
         dividend,
         researchStatus: "ok" as const,
+        catalystSources: [],
         usedPerplexity: true,
       }),
       redTeamExec: async (p) => {
@@ -346,6 +396,7 @@ describe("analyzeSymbol", () => {
           dividendCagr: null,
         },
         researchStatus: "ok" as const,
+        catalystSources: [],
         usedPerplexity: true,
       }),
       redTeamExec: approveExec,

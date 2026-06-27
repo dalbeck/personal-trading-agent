@@ -12,6 +12,7 @@ import { formatCompactCurrency, formatPercent } from "@/lib/format";
 import { researchUnavailableLabel } from "@/lib/research-availability";
 import type {
   CashFlowQuality,
+  CatalystSource,
   DividendSignals,
   RedTeamVerdict,
   ResearchStatus,
@@ -52,6 +53,10 @@ export interface RedTeamProposal {
    *  catalyst is weak; the prosecutor is told to flag it. */
   catalyst?: string | null;
   catalystType?: string | null;
+  /** The headlines that informed the catalyst (catalyst-news-sources M1) — the
+   *  prosecutor sees the catalyst is backed by real, datable news (so it can't
+   *  reject a catalyst-rich name as "catalyst-free" on a clean fetch). */
+  catalystSources?: CatalystSource[] | null;
   /** Cash-flow quality for the VALUE mandate (value-cashflow M1) — the prosecutor
    *  weighs durable/positive FCF as floor support and negative/declining FCF +
    *  rising leverage as a value-trap red flag. Value lens only; null/absent for
@@ -140,6 +145,29 @@ function dividendBriefing(d: DividendSignals | null | undefined): string {
   return `Dividend sustainability (${status} — ${verdict}): ${bits.join(", ")}`;
 }
 
+/** A short date (YYYY-MM-DD) for a raw news timestamp, or "" when unparseable. */
+function shortDate(ts: string | null | undefined): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? "" : ` ${d.toISOString().slice(0, 10)}`;
+}
+
+/** Brief the prosecutor on the catalyst's sources (catalyst-news-sources M1) so
+ *  it can verify the catalyst is backed by real, datable headlines. Empty string
+ *  when there are none (then only the catalyst line is shown). */
+function catalystSourcesBriefing(sources: CatalystSource[] | null | undefined): string {
+  const list = (sources ?? []).filter((s) => s.headline?.trim());
+  if (list.length === 0) return "";
+  const bullets = list
+    .slice(0, 5)
+    .map(
+      (s) =>
+        `  · "${s.headline.trim()}" — ${s.publisher || "source"}${shortDate(s.publishedAt)}`,
+    )
+    .join("\n");
+  return `- Catalyst sources (the catalyst is backed by these dated headlines — it is NOT catalyst-free):\n${bullets}`;
+}
+
 export type RedTeamExec = (prompt: string) => Promise<string>;
 export type RedTeamOutcome = "allow" | "downsize" | "block";
 
@@ -162,6 +190,8 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     `- Relative volume: ${p.relativeVolume != null ? `${p.relativeVolume.toFixed(2)}x avg` : "unknown"}`,
     `- Catalyst: ${p.catalyst ? p.catalyst : "none stated"} (${p.catalystType ?? "unspecified"})`,
   ];
+  const sourcesLine = catalystSourcesBriefing(p.catalystSources);
+  if (sourcesLine) lines.push(sourcesLine);
   // Cash-flow quality + dividend sustainability are VALUE-lens signals only —
   // surface the figures in the order block so the prosecutor weighs the
   // floor-vs-trap tell and recognizes a real dividend floor.

@@ -85,6 +85,28 @@ describe("proposalToMarkdown", () => {
     expect(md).toContain("**Edge** (refutes): Margins compressing");
   });
 
+  it("lists the catalyst's news sources under Research when present (catalyst-news-sources M1)", () => {
+    const withSources = proposalToMarkdown(
+      makeProposal({
+        catalystSources: [
+          {
+            headline: "Eli Lilly wins CHMP recommendation for EU approval",
+            publisher: "Benzinga",
+            url: "https://example.com/lly",
+            publishedAt: "2026-06-26T13:30:00Z",
+          },
+        ],
+      }),
+      opts,
+    );
+    expect(withSources).toContain("**Catalyst sources**");
+    expect(withSources).toContain(
+      '"Eli Lilly wins CHMP recommendation for EU approval" — Benzinga · 2026-06-26',
+    );
+    // No sources → no Catalyst-sources block.
+    expect(md).not.toContain("**Catalyst sources**");
+  });
+
   it("uses the value checklist labels (mean-reversion framing)", () => {
     expect(md).toContain("Mean-reversion stop below support");
     expect(md).not.toContain("Volume confirms"); // trend-only item

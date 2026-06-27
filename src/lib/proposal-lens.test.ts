@@ -35,6 +35,7 @@ function lens(
     relativeVolume: 0.9,
     catalyst: "Dividend hike",
     catalystType: "guidance",
+    catalystSources: [],
     convictionScore: strategy === "value" ? 0.6 : 0.4,
     convictionTier: strategy === "value" ? "moderate" : "moderate",
     confidence: 0.5,

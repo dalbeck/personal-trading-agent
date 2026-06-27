@@ -28,9 +28,10 @@ import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 import { TradeProposalSchema } from "@/lib/schemas";
 import { assessDividendFloor } from "@/lib/dividend";
 import { hasCashFlowData } from "@/lib/cash-flow";
-import { extractCatalyst } from "@/lib/catalyst-extract";
+import { captureCatalyst } from "@/lib/server/catalyst-capture";
 import type {
   CashFlowQuality,
+  CatalystSource,
   DividendSignals,
   ProposalLensBreakdown,
   RedTeamVerdict,
@@ -57,6 +58,10 @@ export interface ResearchContext {
   sector: string | null;
   catalyst: string | null;
   catalystType: BuilderCatalystType | null;
+  /** The headlines that informed the catalyst (catalyst-news-sources M1) — kept
+   *  so the catalyst is verifiable on the proposal + export + red-team. From
+   *  Alpaca News (primary); empty when the catalyst came from Perplexity or none. */
+  catalystSources: CatalystSource[];
   /** Cash-flow quality for the value lens (value-cashflow M1) — pulled from the
    *  SAME capped research fetch (no extra call). Attached to the value lens only;
    *  null when off/capped/unavailable. */
@@ -116,25 +121,36 @@ async function defaultResearch(
 ): Promise<ResearchContext> {
   try {
     const r = await getSymbolResearch(symbol, { dataDir });
-    // Catalyst extraction (catalyst-extraction-quality M2): pull a SPECIFIC
-    // why-now from the structured `catalysts[]` phrases — never the AI narrative
-    // summary, which is a company description and would green-check the catalyst
-    // item as boilerplate. A description / nothing usable → null (flagged weak).
-    const extracted = extractCatalyst(r.catalysts);
+    // Multi-source catalyst capture (catalyst-news-sources M1): Alpaca News is the
+    // PRIMARY catalyst source (free, Benzinga-powered, no daily cap, with
+    // verifiable sources); Perplexity's curated `catalysts[]` phrases are the
+    // fallback. A single source failing never yields "no catalyst" — the chain
+    // falls through. (Company-description boilerplate is still rejected inside the
+    // extractors, catalyst-extraction-quality M2.)
+    const captured = await captureCatalyst({
+      symbol,
+      perplexityCatalysts: r.catalysts,
+    });
     return {
       sector: r.profile?.sector ?? null,
-      catalyst: extracted?.catalyst ?? null,
-      catalystType: extracted?.catalystType ?? null,
+      catalyst: captured.catalyst,
+      catalystType: captured.catalystType,
+      catalystSources: captured.sources,
       cashFlow: r.cashFlow ?? null,
       dividend: r.dividend ?? null,
       researchStatus: r.perplexity,
       usedPerplexity: r.perplexity === "ok",
     };
   } catch {
+    // Even if the deeper (Perplexity) research throws entirely, still try Alpaca
+    // News for a catalyst — a single source failing must never silently render
+    // "no catalyst" (the LLY failure this milestone fixes).
+    const captured = await captureCatalyst({ symbol }).catch(() => null);
     return {
       sector: null,
-      catalyst: null,
-      catalystType: null,
+      catalyst: captured?.catalyst ?? null,
+      catalystType: captured?.catalystType ?? null,
+      catalystSources: captured?.sources ?? [],
       cashFlow: null,
       dividend: null,
       researchStatus: "unavailable",
@@ -187,6 +203,7 @@ export function redTeamInput(
   cashFlow: CashFlowQuality | null,
   dividend: DividendSignals | null = null,
   researchStatus: ResearchStatus | null = null,
+  catalystSources: CatalystSource[] = [],
 ): RedTeamProposal {
   return {
     symbol: d.symbol,
@@ -201,6 +218,9 @@ export function redTeamInput(
     relativeVolume: d.relativeVolume,
     catalyst: d.catalyst,
     catalystType: d.catalystType,
+    // The headlines behind the catalyst (catalyst-news-sources M1) — so the
+    // prosecutor can see the catalyst is backed by real, datable news.
+    catalystSources,
     cashFlow: d.strategy === "value" ? cashFlow : null,
     dividend: d.strategy === "value" ? dividend : null,
     researchStatus: d.strategy === "value" ? researchStatus : null,
@@ -219,6 +239,7 @@ export function draftToLens(
   cashFlow: CashFlowQuality | null,
   dividend: DividendSignals | null = null,
   researchStatus: ResearchStatus | null = null,
+  catalystSources: CatalystSource[] = [],
 ): ProposalLensBreakdown {
   return {
     strategy: d.strategy,
@@ -231,6 +252,9 @@ export function draftToLens(
     relativeVolume: d.relativeVolume,
     catalyst: d.catalyst,
     catalystType: d.catalystType,
+    // The headlines behind the catalyst (catalyst-news-sources M1) — shared across
+    // both lenses (it is the symbol's news); surfaced on the detail page + export.
+    catalystSources,
     convictionScore: d.convictionScore,
     convictionTier: d.convictionTier,
     confidence: d.confidence,
@@ -344,18 +368,31 @@ export async function analyzeSymbol(
   // Research availability (research-unavailable-state M3) — when off/capped/failed
   // the value-quality fields are "data unavailable" (explicit, not a silent —).
   const researchStatus = research.researchStatus;
+  // The catalyst's sources (catalyst-news-sources M1) are the symbol's news —
+  // shared across both lenses, briefed to each red-team, and persisted per lens.
+  const catalystSources = research.catalystSources;
 
   // Run each lens's red-team under its matching mandate.
   const [trendRedTeam, valueRedTeam] = await Promise.all([
-    runRedTeam(redTeamInput(trendDraft, null, null, null), { exec: opts.redTeamExec }),
-    runRedTeam(redTeamInput(valueDraft, cashFlow, dividend, researchStatus), {
+    runRedTeam(redTeamInput(trendDraft, null, null, null, catalystSources), {
       exec: opts.redTeamExec,
     }),
+    runRedTeam(
+      redTeamInput(valueDraft, cashFlow, dividend, researchStatus, catalystSources),
+      { exec: opts.redTeamExec },
+    ),
   ]);
 
   const lenses: ProposalLensBreakdown[] = [
-    draftToLens(trendDraft, trendRedTeam, null, null, null),
-    draftToLens(valueDraft, valueRedTeam, cashFlow, dividend, researchStatus),
+    draftToLens(trendDraft, trendRedTeam, null, null, null, catalystSources),
+    draftToLens(
+      valueDraft,
+      valueRedTeam,
+      cashFlow,
+      dividend,
+      researchStatus,
+      catalystSources,
+    ),
   ];
 
   // The proposal's top-level fields mirror the ACTIVE (default) lens — the
@@ -382,6 +419,7 @@ export async function analyzeSymbol(
     origin: "manual-request",
     status: "pending",
     redTeam: active.redTeam,
+    catalystSources,
     cashFlow: activeCashFlow,
     dividend: activeDividend,
     researchStatus: activeResearchStatus,
@@ -418,6 +456,7 @@ export async function analyzeSymbol(
       relativeVolume: proposal.relativeVolume,
       catalyst: proposal.catalyst,
       catalystType: proposal.catalystType,
+      catalystSources: proposal.catalystSources,
       convictionScore: proposal.convictionScore,
       convictionTier: proposal.convictionTier,
       riskPct: proposal.riskPct,

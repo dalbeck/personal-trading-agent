@@ -188,6 +188,23 @@ export const CatalystType = z.enum([
 ]);
 
 /**
+ * One **catalyst source** behind a proposal (catalyst-news-sources M1) — a
+ * headline that informed the named catalyst, kept so the catalyst is verifiable
+ * on the proposal + export and surfaced to the red-team. Sourced primarily from
+ * Alpaca's News API (free, Benzinga-powered, no daily cap). `publisher` is the
+ * outlet (e.g. "Benzinga"); `publishedAt` is the raw timestamp; `url` links out.
+ * Defaults keep older records valid.
+ */
+export const CatalystSourceSchema = z
+  .object({
+    headline: z.string().min(1),
+    publisher: z.string().default(""),
+    url: z.string().nullable().default(null),
+    publishedAt: z.string().nullable().default(null),
+  })
+  .strict();
+
+/**
  * Conviction tier for the diversified-discovery funnel (M1). A discovery run
  * surfaces a larger, ranked candidate set than the daily order cap; the tier
  * buckets a proposal's composite conviction so the queue can sort strongest
@@ -297,6 +314,10 @@ export const ProposalLensSchema = z
     relativeVolume: z.number().nonnegative().nullable().default(null),
     catalyst: z.string().nullable().default(null),
     catalystType: CatalystType.nullable().default(null),
+    // The headlines that informed the catalyst (catalyst-news-sources M1) — kept
+    // so the catalyst is verifiable. Empty when none/unavailable. Default keeps
+    // older records valid.
+    catalystSources: z.array(CatalystSourceSchema).default([]),
     convictionScore: z.number().min(0).max(1).nullable().default(null),
     convictionTier: ConvictionTier.nullable().default(null),
     confidence: z.number().min(0).max(1).nullable().default(null),
@@ -390,6 +411,10 @@ export const TradeProposalSchema = z
     // null so older records still validate.
     catalyst: z.string().nullable().default(null),
     catalystType: CatalystType.nullable().default(null),
+    // The headlines that informed the catalyst (catalyst-news-sources M1) —
+    // mirrors the active lens; surfaced on the proposal + export + red-team so the
+    // catalyst is verifiable. Defaults to `[]` so older records still validate.
+    catalystSources: z.array(CatalystSourceSchema).default([]),
     // Diversified-discovery ranking (M1). `convictionScore` is the 0–1 composite
     // of the playbook signals the discovery analyst assigns; `convictionTier`
     // (`high | moderate | watch`) is its labelled bucket, used to sort the queue
