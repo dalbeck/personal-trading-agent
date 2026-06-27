@@ -47,6 +47,7 @@ const FALLBACK: SymbolResearch = {
   cost: null,
   robinhoodConnected: false,
   perplexity: "unavailable",
+  perplexityReason: null,
   cached: false,
   fetchedAt: null,
 };

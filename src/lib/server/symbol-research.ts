@@ -7,6 +7,7 @@ import {
 import { getResearchProvider } from "./research";
 import { readResearchCache, writeResearchCache } from "./research/cache";
 import { buildFinanceSections } from "./research/sections";
+import { diagnosticToStatus, researchReasonText } from "./research/diagnostics";
 import { getResearchCallCount } from "./research/usage";
 import type {
   PerplexityStatus,
@@ -61,8 +62,9 @@ export function mergeSymbolResearch(args: {
   perplexity: ResearchResult | null;
   robinhoodConnected: boolean;
   perplexityStatus: PerplexityStatus;
+  perplexityReason: string | null;
 }): SymbolResearch {
-  const { rh, perplexity, robinhoodConnected, perplexityStatus } = args;
+  const { rh, perplexity, robinhoodConnected, perplexityStatus, perplexityReason } = args;
   const rf = rh?.fundamentals ?? null;
   const pf = perplexity?.fundamentals ?? null;
   const fundamentals: ResearchFundamentals | null =
@@ -112,6 +114,7 @@ export function mergeSymbolResearch(args: {
     cost: perplexity?.cost ?? null,
     robinhoodConnected,
     perplexity: perplexityStatus,
+    perplexityReason,
     cached: false,
     fetchedAt: null,
   };
@@ -175,12 +178,18 @@ export async function getSymbolResearch(
       : Promise.resolve(null),
   ]);
 
+  const diag = provider.lastDiagnostic?.() ?? null;
   let perplexityStatus: PerplexityStatus;
+  let perplexityReason: string | null = null;
   if (!providerOn) {
     perplexityStatus = "off";
   } else if (pplx) {
     perplexityStatus = "ok";
+  } else if (diag) {
+    perplexityStatus = diagnosticToStatus(diag);
+    perplexityReason = researchReasonText(diag);
   } else {
+    // Fallback when the provider exposes no diagnostic (e.g. a test fake).
     const cap =
       opts?.dailyCap ?? Number(process.env.PERPLEXITY_DAILY_CALL_CAP ?? "30");
     const used = await getResearchCallCount(date, { dataDir });
@@ -192,6 +201,7 @@ export async function getSymbolResearch(
     perplexity: pplx,
     robinhoodConnected,
     perplexityStatus,
+    perplexityReason,
   });
 
   // Only cache a payload that carries real data — never pin a transient failure
@@ -210,7 +220,7 @@ export async function getSymbolResearch(
   // A refetch that came back empty (e.g. the daily cap was hit) must not wipe a
   // good prior cache: keep the cached data, surface the fresh status flag.
   if (cached) {
-    return { ...cached, perplexity: merged.perplexity };
+    return { ...cached, perplexity: merged.perplexity, perplexityReason: merged.perplexityReason };
   }
   return merged;
 }

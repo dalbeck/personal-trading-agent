@@ -26,8 +26,9 @@ import type { SymbolResearch } from "./types";
  *  served with missing fields. v5 re-keyed the cache by symbol (dropping the
  *  date from the filename) and added the `fetchedAt` freshness stamp; v6 added
  *  the value-lens `cashFlow` block (value-cashflow M1); v7 added the `dividend`
- *  block (dividend-floor M1). */
-const CACHE_VERSION = 7;
+ *  block (dividend-floor M1); v8 added the `perplexityReason` field
+ *  (research-observability M1). */
+const CACHE_VERSION = 8;
 
 function cacheFile(symbol: string, dataDir?: string): string {
   const root =

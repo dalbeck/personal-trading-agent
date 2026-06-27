@@ -202,6 +202,10 @@ export interface SymbolResearch {
   cost: number | null;
   robinhoodConnected: boolean;
   perplexity: PerplexityStatus;
+  /** A specific, human failure reason when `perplexity` is not "ok" — e.g.
+   *  "HTTP 402 (check API billing)" / "timed out (35s)" / "no API key
+   *  configured" (research-observability M1). Null when ok / off / unknown. */
+  perplexityReason: string | null;
   /** True when this payload was served from the cache (no fresh call). */
   cached: boolean;
   /** When this payload was fetched (ISO). Drives the "fetched N ago" freshness
