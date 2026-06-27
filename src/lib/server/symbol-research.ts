@@ -207,9 +207,16 @@ export async function getSymbolResearch(
     perplexityStatus = used >= cap ? "capped" : "unavailable";
   }
 
-  // FMP fallback: only spend an FMP call when Perplexity didn't supply value data,
-  // conserving the FMP cap for symbols where Perplexity is down or capped.
-  const needFmp = !pplx?.cashFlow && !pplx?.dividend && !pplx?.fundamentals;
+  // FMP fallback (harden-research-fallback M2): spend an FMP call whenever the
+  // VALUE-quality data (cashFlow/dividend) is missing — even if Perplexity did
+  // parse some fundamentals. The prior guard also required `fundamentals` to be
+  // null, so a partial or truncated Perplexity result (fundamentals present, the
+  // cashFlow/dividend tail cut off — the LLY failure) skipped FMP and left the
+  // value lens "data unavailable". A truncated fetch now returns null entirely
+  // (research-output-completes M1), so `!pplx?.cashFlow && !pplx?.dividend`
+  // covers both that and the partial case; FMP fundamentals never override
+  // Perplexity's (the merge prefers Perplexity), so this only fills the gap.
+  const needFmp = !pplx?.cashFlow && !pplx?.dividend;
   const fmpProvider = opts?.fmpProvider ?? getFundamentalsFallbackProvider();
   const fmpOn = fmpProvider.name !== "off";
   const fmp =
