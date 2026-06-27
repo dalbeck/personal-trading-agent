@@ -1,0 +1,24 @@
+# Local production reverse proxy for the trading dashboard.
+#
+#   https://personal-trading.agent  ->  the `pnpm start` server on 127.0.0.1:3000
+#
+# Coexistence with DDEV/Docker:
+#   DDEV's router runs on ports 8080/8443 (see `ddev config global`:
+#   router-http-port=8080, router-https-port=8443), so this binding of the
+#   standard 80/443 does NOT conflict with DDEV. The only thing that would
+#   reintroduce a clash is reconfiguring DDEV back onto 443.
+#
+# Served over plain HTTP on purpose: this is a loopback-only name (127.0.0.1
+# via /etc/hosts), so TLS adds no security but a self-signed cert would trip a
+# browser trust warning that can block the dashboard's own same-origin /api/*
+# fetches. HTTP keeps it frictionless. (Server-to-external API calls — Alpaca,
+# Robinhood, LLM CLIs — are made server-side and never touch Caddy regardless.)
+#
+# Usage:
+#   1. one-time:  echo "127.0.0.1  personal-trading.agent" | sudo tee -a /etc/hosts
+#   2. the app runs as a LaunchAgent on :3000; Caddy runs via `sudo brew services start caddy`
+#   then open:  http://personal-trading.agent
+
+http://personal-trading.agent {
+	reverse_proxy 127.0.0.1:3000
+}

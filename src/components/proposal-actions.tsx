@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { RedTeamRerunButton } from "@/components/red-team-rerun-button";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { Term } from "@/components/term";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { formatCurrency, formatPercent, formatQty } from "@/lib/format";
 import { confidenceBucket } from "@/lib/confidence";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { isAdvisoryProposal, type AdvisoryDecision } from "@/lib/proposal-advisory";
 import { resolveActiveLens } from "@/lib/proposal-lens";
+import { nextPendingTranche } from "@/lib/staged-entry";
 import { STRATEGY_LABEL, type Strategy } from "@/lib/strategy";
 import type { TradeProposal } from "@/lib/types";
 
@@ -58,6 +59,9 @@ interface PrecheckResult {
   redTeamNotes: string | null;
   railViolations: Violation[];
   capViolations: Violation[];
+  /** Stale-levels guard (fresh-entry-levels M1): the entry has drifted from the
+   *  live quote. Cleared by re-anchoring ("Refresh levels"), never by an override. */
+  staleLevels: { entry: number; quote: number; driftPct: number } | null;
   liveEnabled: boolean;
   blocked: boolean;
 }
@@ -96,6 +100,14 @@ export function ProposalActions({
   const status = advResult ?? (result ? outcomeStatus(result) : p.status);
   const pending = status === "pending";
 
+  // Staged-entry (M2): when the proposal carries a plan, the approve flow acts on
+  // the NEXT pending tranche — the order places that tranche's qty and only that
+  // tranche is marked filled. No plan → the whole position, unchanged.
+  const nextTranche = p.stagedPlan ? nextPendingTranche(p.stagedPlan) : null;
+  // The quantity this approval will actually place — the tranche's share when
+  // staged, else the full position.
+  const orderQty = nextTranche ? nextTranche.qty : al.qty;
+
   async function decide(
     decision: "approve" | "deny",
     overrideCommentText?: string,
@@ -109,6 +121,9 @@ export function ProposalActions({
           proposalId: p.id,
           decision,
           ...(activeLens ? { actingLens: activeLens } : {}),
+          ...(decision === "approve" && nextTranche
+            ? { tranche: nextTranche.index }
+            : {}),
           ...(overrideCommentText && overrideCommentText.trim()
             ? { override: { comment: overrideCommentText.trim() } }
             : {}),
@@ -183,6 +198,26 @@ export function ProposalActions({
     })();
   }
 
+  // Re-anchor the levels to the current quote (fresh-entry-levels M1), then close
+  // the dialog and re-render so the human approves on FRESH levels. The staleness
+  // guard is refresh-only — it is never cleared by an override comment.
+  function refreshLevelsAndClose() {
+    if (busy) return;
+    setBusy(true);
+    void (async () => {
+      try {
+        await fetch(
+          `/api/proposals/${encodeURIComponent(p.id)}/refresh-levels`,
+          { method: "POST" },
+        );
+        router.refresh();
+      } finally {
+        setBusy(false);
+        setConfirming(false);
+      }
+    })();
+  }
+
   const rr = computeRiskReward({
     action: p.action,
     entry: al.limitPrice,
@@ -192,8 +227,14 @@ export function ProposalActions({
   const conf = al.confidence === null ? null : confidenceBucket(al.confidence);
   const blocks = precheck.result;
   const blocked = blocks?.blocked ?? false;
+  // Stale levels are a refresh-only gate: an override comment can't clear them.
+  const stale = blocks?.staleLevels ?? null;
   const overrideReady = overrideComment.trim().length > 0;
-  const confirmBlocked = busy || precheck.loading || (blocked && !overrideReady);
+  // When stale, the only action is "Refresh levels" (always enabled); otherwise
+  // the normal busy / loading / override-required gating applies.
+  const confirmBlocked = stale
+    ? busy
+    : busy || precheck.loading || (blocked && !overrideReady);
 
   return (
     <div className="flex flex-col gap-3">
@@ -297,20 +338,35 @@ export function ProposalActions({
         confirmLabel={
           busy
             ? "Routing…"
-            : precheck.loading
-              ? "Checking rails…"
-              : blocked
-                ? "Override & approve"
-                : liveEnabled
-                  ? "Approve — place LIVE order"
-                  : "Approve (dry-run)"
+            : stale
+              ? "Refresh levels"
+              : precheck.loading
+                ? "Checking rails…"
+                : blocked
+                  ? "Override & approve"
+                  : liveEnabled
+                    ? "Approve — place LIVE order"
+                    : "Approve (dry-run)"
         }
-        confirmVariant={blocked || liveEnabled ? "danger" : "primary"}
+        confirmVariant={stale ? "primary" : blocked || liveEnabled ? "danger" : "primary"}
         confirmDisabled={confirmBlocked}
-        onConfirm={() => decide("approve", blocked ? overrideComment : undefined)}
+        onConfirm={() =>
+          stale
+            ? refreshLevelsAndClose()
+            : decide("approve", blocked ? overrideComment : undefined)
+        }
         onDismiss={() => setConfirming(false)}
       >
         <div className="flex flex-col gap-4">
+          {nextTranche && p.stagedPlan ? (
+            <p className="rounded-card border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg">
+              Approving <span className="font-semibold">tranche{" "}
+              {nextTranche.index + 1} of {p.stagedPlan.tranches.length}</span> —{" "}
+              {formatQty(nextTranche.qty)} sh (a fraction of the full{" "}
+              {formatQty(al.qty)}-share position). Risk stays sized on the full
+              position; the remaining tranches are approved separately.
+            </p>
+          ) : null}
           {dual && activeLens ? (
             <p className="rounded-card border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg">
               Approving under the{" "}
@@ -329,7 +385,12 @@ export function ProposalActions({
                 {p.action} · {p.side}
               </dd>
               <dt className="text-fg-muted">Quantity</dt>
-              <dd className="text-right tabular-nums text-fg">{al.qty}</dd>
+              <dd className="text-right tabular-nums text-fg">
+                {formatQty(orderQty)}
+                {nextTranche ? (
+                  <span className="text-fg-muted"> (tranche)</span>
+                ) : null}
+              </dd>
               <dt className="text-fg-muted">Order type</dt>
               <dd className="text-right text-fg">
                 <Term term="marketable-limit">marketable-limit</Term>
@@ -340,7 +401,7 @@ export function ProposalActions({
               </dd>
               <dt className="text-fg-muted">Est. cost</dt>
               <dd className="text-right tabular-nums text-fg">
-                {formatCurrency(al.qty * al.limitPrice)}
+                {formatCurrency(orderQty * al.limitPrice)}
               </dd>
               {al.stopPrice !== null ? (
                 <>
@@ -357,7 +418,7 @@ export function ProposalActions({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <StatChip label="Est. cost" value={formatCurrency(al.qty * al.limitPrice)} />
+            <StatChip label="Est. cost" value={formatCurrency(orderQty * al.limitPrice)} />
             <StatChip
               label="Risk"
               value={formatPercent(al.riskPct, { signed: false })}
@@ -375,11 +436,27 @@ export function ProposalActions({
 
           {al.redTeam ? <RedTeamVerdict verdict={al.redTeam} /> : null}
 
+          {stale ? (
+            <div className="rounded-card border border-warning/40 bg-warning-surface p-4">
+              <p className="text-sm font-semibold text-warning">
+                Stale levels — the entry has drifted{" "}
+                {formatPercent(stale.driftPct)} from the live quote{" "}
+                {formatCurrency(stale.quote)}.
+              </p>
+              <p className="mt-1 text-sm text-warning">
+                The stop, reward/risk, and sizing were computed off{" "}
+                {formatCurrency(stale.entry)} — a price the market has left.
+                Re-anchor the levels before approving; this isn&apos;t something
+                an override should wave through.
+              </p>
+            </div>
+          ) : null}
+
           {precheck.loading ? (
             <p className="text-sm text-fg-muted">
               Checking the risk rails and red-team…
             </p>
-          ) : blocked && blocks ? (
+          ) : blocked && blocks && !stale ? (
             <div className="rounded-card border border-danger-border bg-danger-surface p-4">
               <p className="text-sm font-semibold text-danger">
                 This order is blocked by a safeguard. Overriding is a deliberate,

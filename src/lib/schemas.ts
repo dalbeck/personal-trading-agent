@@ -280,6 +280,41 @@ export const ProposalLensSchema = z
   })
   .strict();
 
+/**
+ * One tranche of a staged-entry (DCA / scale-in) plan (staged-entry-plan M2).
+ * `fraction` is its share of the full position (0.33 === a third); `qty` is the
+ * concrete share count; `offsetDays` is the suggested schedule offset from the
+ * first tranche (tranche 0 = now). `status` tracks per-tranche fills — each
+ * tranche is a separate gated human approval (no auto-execution).
+ */
+export const StagedTrancheSchema = z
+  .object({
+    index: z.number().int().nonnegative(),
+    fraction: z.number().min(0).max(1),
+    qty: z.number().positive(),
+    offsetDays: z.number().int().nonnegative(),
+    status: z.enum(["pending", "filled", "skipped"]).default("pending"),
+  })
+  .strict();
+
+/**
+ * An optional **staged-entry plan** on a proposal (staged-entry-plan M2). It
+ * splits the proposal's **full intended position** into tranches with a schedule
+ * (`intervalDays`) and a drift condition (`driftBandPct` — add only within ±band
+ * of the prior fill). **Risk is sized on the full position** — the tranche qtys
+ * sum back to the proposal's full qty, so the stop + ≤2% rail bind the completed
+ * position. **No auto-execution:** each tranche is approved through the normal
+ * gated per-trade approval when due. Null when the proposal has no plan.
+ */
+export const StagedEntryPlanSchema = z
+  .object({
+    trancheCount: z.number().int().positive(),
+    intervalDays: z.number().int().nonnegative(),
+    driftBandPct: ratio,
+    tranches: z.array(StagedTrancheSchema).min(1),
+  })
+  .strict();
+
 export const TradeProposalSchema = z
   .object({
     id: z.string().min(1),
@@ -360,6 +395,15 @@ export const TradeProposalSchema = z
     // trend-active one carries null. Value lens only. Defaults to null so older
     // records still validate.
     cashFlow: CashFlowQualitySchema.nullable().default(null),
+    // When the levels (entry/stop/target/sizing) were anchored to the live Alpaca
+    // quote (fresh-entry-levels M1). Set at analysis and updated on a "Refresh
+    // levels" re-anchor; drives the "levels as of …" freshness indicator and the
+    // approval staleness guard (entry vs the current quote). Null for older
+    // records → the UI falls back to `createdAt`.
+    pricedAt: isoDateTime.nullable().default(null),
+    // Optional staged-entry (DCA / scale-in) plan (staged-entry-plan M2) — splits
+    // the full position into separately-approved tranches. Null when none.
+    stagedPlan: StagedEntryPlanSchema.nullable().default(null),
     reviewByDate: isoDate.nullable().default(null),
     // Seeded/demo content. Live records written by the routines/scout omit this
     // (or set it false). Any view rendering a sample record flags it so demo

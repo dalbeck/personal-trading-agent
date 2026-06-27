@@ -137,6 +137,13 @@ export const GLOSSARY = {
     definition:
       "Operating earnings divided by interest expense — how many times over the company can cover its interest. Thin coverage (rising leverage) is a value-trap warning; comfortable coverage supports the floor.",
   },
+  "staged-entry": {
+    label: "staged entry (DCA)",
+    definition:
+      "Scaling into a position in tranches over time instead of all at once — e.g. a third now, then more later if the price holds within a band. The full position's risk is sized up front; each tranche is approved separately.",
+    caveat:
+      "Reduces timing risk, not market risk — averaging into a decliner can average into a loss. An execution choice, not a guarantee.",
+  },
   "evaluation-scorecard": {
     label: "evaluation scorecard",
     definition:

@@ -1,4 +1,8 @@
-import { getStockBars, hasAlpacaCredentials } from "@/lib/server/alpaca";
+import {
+  getLatestPrice,
+  getStockBars,
+  hasAlpacaCredentials,
+} from "@/lib/server/alpaca";
 import { readLatestSnapshot } from "@/lib/server/data";
 import { getSymbolResearch } from "@/lib/server/symbol-research";
 import { rangeWindow } from "@/lib/server/symbol";
@@ -63,6 +67,10 @@ export interface AnalyzeSymbolOpts {
   dataDir?: string;
   // Seams (default to the real fetchers).
   fetchBars?: (symbol: string) => Promise<Ohlc[]>;
+  /** Current-quote seam (fresh-entry-levels M1) — the entry anchor. Defaults to a
+   *  live Alpaca read; null when off/unavailable (then the builder falls back to
+   *  the last bar close). */
+  fetchQuote?: (symbol: string) => Promise<number | null>;
   fetchResearch?: (symbol: string) => Promise<ResearchContext>;
   readSnapshot?: (
     account: "paper" | "live",
@@ -119,7 +127,7 @@ async function defaultResearch(
   }
 }
 
-async function defaultSnapshot(account: "paper" | "live") {
+export async function defaultSnapshot(account: "paper" | "live") {
   const snap = await readLatestSnapshot(account);
   if (!snap) return null;
   const highWaterEquity = Math.max(
@@ -156,8 +164,9 @@ function toOrder(p: TradeProposal): ProposedOrder {
 /** Brief the red-team prosecutor for one lens's draft, under its own mandate.
  *  Cash-flow quality is briefed for the **value** lens only (value-cashflow M1) —
  *  the prosecutor weighs strong FCF as floor support and weak/declining FCF +
- *  rising leverage as a value-trap flag. */
-function redTeamInput(
+ *  rising leverage as a value-trap flag. Exported so the "Refresh levels"
+ *  re-anchor reuses the exact same briefing. */
+export function redTeamInput(
   d: ManualProposalDraft,
   cashFlow: CashFlowQuality | null,
 ): RedTeamProposal {
@@ -182,8 +191,9 @@ function redTeamInput(
 
 /** Turn a lens's draft + its red-team verdict into a persisted lens breakdown.
  *  Cash-flow quality is a **value-lens** signal (value-cashflow M1) — it is
- *  attached to the value lens only; the trend lens carries null. */
-function draftToLens(
+ *  attached to the value lens only; the trend lens carries null. Exported so the
+ *  "Refresh levels" re-anchor builds lenses identically. */
+export function draftToLens(
   d: ManualProposalDraft,
   redTeam: RedTeamVerdict,
   cashFlow: CashFlowQuality | null,
@@ -226,12 +236,19 @@ export async function analyzeSymbol(
     opts.fetchBars ??
     ((s: string) =>
       hasAlpacaCredentials() ? ONE_YEAR_BARS(s, now) : Promise.resolve([]));
+  const fetchQuote =
+    opts.fetchQuote ??
+    ((s: string) =>
+      hasAlpacaCredentials()
+        ? getLatestPrice(s).catch(() => null)
+        : Promise.resolve(null));
   const fetchResearch =
     opts.fetchResearch ?? ((s: string) => defaultResearch(s, dataDir));
   const readSnapshot = opts.readSnapshot ?? defaultSnapshot;
 
-  const [bars, snapshot, research] = await Promise.all([
+  const [bars, quote, snapshot, research] = await Promise.all([
     fetchBars(symbol),
+    fetchQuote(symbol),
     readSnapshot(account),
     fetchResearch(symbol),
   ]);
@@ -251,6 +268,8 @@ export async function analyzeSymbol(
   const researchInput = {
     symbol,
     bars,
+    // Anchor BOTH lenses to the SAME current quote (fresh-entry-levels M1).
+    quote,
     equity: snapshot.equity,
     sector: research.sector,
     catalyst: research.catalyst,
@@ -302,6 +321,8 @@ export async function analyzeSymbol(
     ...active.draft,
     id,
     createdAt,
+    // Levels were anchored to the current quote at this analysis time.
+    pricedAt: createdAt,
     account,
     advisory,
     origin: "manual-request",
@@ -349,6 +370,7 @@ export async function analyzeSymbol(
       reasoning: proposal.reasoning,
       redTeam: active.redTeam,
       cashFlow: activeCashFlow,
+      pricedAt: proposal.pricedAt,
       lenses,
     },
     { account, advisory },

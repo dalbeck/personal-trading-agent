@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const readProposals = vi.fn();
 const submitTradeApproval = vi.fn();
 const setProposalStatus = vi.fn();
+const markTrancheFilled = vi.fn();
 
 vi.mock("@/lib/server/data", () => ({
   readProposals: (...a: unknown[]) => readProposals(...a),
@@ -23,7 +24,20 @@ vi.mock("@/lib/server/live-order", () => ({
 }));
 vi.mock("@/lib/server/writers", () => ({
   setProposalStatus: (...a: unknown[]) => setProposalStatus(...a),
+  markTrancheFilled: (...a: unknown[]) => markTrancheFilled(...a),
 }));
+
+/** A 3-tranche staged plan over a full qty of 9 (3 + 3 + 3). */
+const PLAN = {
+  trancheCount: 3,
+  intervalDays: 5,
+  driftBandPct: 0.05,
+  tranches: [
+    { index: 0, fraction: 1 / 3, qty: 3, offsetDays: 0, status: "pending" },
+    { index: 1, fraction: 1 / 3, qty: 3, offsetDays: 5, status: "pending" },
+    { index: 2, fraction: 1 / 3, qty: 3, offsetDays: 10, status: "pending" },
+  ],
+};
 
 import { POST } from "./route";
 
@@ -64,7 +78,9 @@ beforeEach(() => {
   readProposals.mockReset();
   submitTradeApproval.mockReset();
   setProposalStatus.mockReset();
+  markTrancheFilled.mockReset();
   setProposalStatus.mockResolvedValue({ id: "p-1", file: "x" });
+  markTrancheFilled.mockResolvedValue({ id: "p-1" });
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -155,5 +171,60 @@ describe("POST /api/live/approve — advisory proposals are non-executable", () 
       override: unknown;
     };
     expect(arg.override).toBeNull();
+  });
+});
+
+describe("POST /api/live/approve — staged-entry tranches (M2)", () => {
+  it("places only the tranche's qty and marks it filled — proposal stays pending", async () => {
+    readProposals.mockResolvedValue([proposal({ qty: 9, stagedPlan: PLAN })]);
+    submitTradeApproval.mockResolvedValue({
+      outcome: "approved",
+      destination: "mock",
+      dryRun: true,
+    });
+
+    const res = await POST(
+      post({ proposalId: "p-1", decision: "approve", tranche: 0 }),
+    );
+    expect(res.status).toBe(200);
+    const arg = submitTradeApproval.mock.calls[0][0] as {
+      order: { qty: number; tags?: string[] };
+      idempotencyKey: string;
+    };
+    // The order is the TRANCHE qty (3), not the full position (9).
+    expect(arg.order.qty).toBe(3);
+    expect(arg.order.tags).toContain("tranche:1/3");
+    // Each tranche dedupes independently.
+    expect(arg.idempotencyKey).toBe("p-1#t0");
+    // Only THIS tranche is marked filled; the proposal isn't blanket-approved.
+    expect(markTrancheFilled).toHaveBeenCalledWith("p-1", 0);
+    expect(setProposalStatus).not.toHaveBeenCalled();
+  });
+
+  it("ignores an already-filled tranche index and approves the full position", async () => {
+    const filled = {
+      ...PLAN,
+      tranches: PLAN.tranches.map((t) =>
+        t.index === 0 ? { ...t, status: "filled" } : t,
+      ),
+    };
+    readProposals.mockResolvedValue([proposal({ qty: 9, stagedPlan: filled })]);
+    submitTradeApproval.mockResolvedValue({
+      outcome: "approved",
+      destination: "mock",
+      dryRun: true,
+    });
+
+    // Re-approving tranche 0 (already filled) is not honoured as a tranche → the
+    // request falls back to the full-position approve (qty 9).
+    const res = await POST(
+      post({ proposalId: "p-1", decision: "approve", tranche: 0 }),
+    );
+    expect(res.status).toBe(200);
+    const arg = submitTradeApproval.mock.calls[0][0] as {
+      order: { qty: number };
+    };
+    expect(arg.order.qty).toBe(9);
+    expect(markTrancheFilled).not.toHaveBeenCalled();
   });
 });

@@ -22,7 +22,8 @@ import { STRATEGY_LABEL } from "@/lib/strategy";
 import { targetTypeLabel } from "@/lib/target-type";
 import { catalystTypeLabel } from "@/lib/catalyst";
 import { formatRelativeVolume } from "@/lib/volume";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { formatCurrency, formatPercent, formatQty } from "@/lib/format";
+import { trancheConditionText } from "@/lib/staged-entry";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { confidenceBucket } from "@/lib/confidence";
 import type { TradeProposal } from "@/lib/types";
@@ -157,6 +158,10 @@ export function proposalToMarkdown(p: TradeProposal, opts: ExportOpts): string {
   }
   lines.push("");
 
+  if (p.stagedPlan) {
+    lines.push(...stagedPlanMarkdown(p.stagedPlan));
+  }
+
   lines.push("## Research", "");
   lines.push(
     p.catalyst ? p.catalyst.trim() : "No named catalyst recorded on this proposal.",
@@ -173,6 +178,26 @@ export function proposalToMarkdown(p: TradeProposal, opts: ExportOpts): string {
   lines.push("---", "", `_${footerText(p, opts)}_`);
 
   return stringifyFrontmatter(frontmatter, lines.join("\n"));
+}
+
+/** The staged-entry (DCA) plan section for the Markdown export. */
+function stagedPlanMarkdown(plan: NonNullable<TradeProposal["stagedPlan"]>): string[] {
+  const band = Math.round(plan.driftBandPct * 100);
+  const out: string[] = [
+    "## Staged entry (DCA / scale-in)",
+    "",
+    `Full position split into ${plan.trancheCount} tranches ~${plan.intervalDays} days apart (add within ±${band}% of the prior fill). Risk is sized on the **full** position; each tranche is a separate gated approval — no auto-execution.`,
+    "",
+    "| Tranche | Size | When & condition | Status |",
+    "| --- | --- | --- | --- |",
+  ];
+  for (const t of plan.tranches) {
+    out.push(
+      `| ${t.index + 1}/${plan.tranches.length} | ${formatQty(t.qty)} sh (${formatPercent(t.fraction, { signed: false })}) | ${trancheConditionText(plan, t)} | ${t.status} |`,
+    );
+  }
+  out.push("");
+  return out;
 }
 
 function redTeamMarkdown(lens: ProposalLensView): string[] {
@@ -235,6 +260,11 @@ export function buildProposalPdfDocDefinition(
   content.push({ text: "Sizing math", style: "h2" });
   content.push(rowsTable(sizingRows(p)));
 
+  if (p.stagedPlan) {
+    content.push({ text: "Staged entry (DCA / scale-in)", style: "h2" });
+    content.push(...stagedPlanPdf(p.stagedPlan));
+  }
+
   content.push({ text: "Research", style: "h2" });
   content.push({
     text: p.catalyst
@@ -277,6 +307,36 @@ export function buildProposalPdfDocDefinition(
       cellValue: { fontSize: 9, bold: true, alignment: "right" },
     },
   };
+}
+
+/** The staged-entry (DCA) plan section for the PDF: an intro line + a tranche
+ *  table (size / when+condition / status). */
+function stagedPlanPdf(plan: NonNullable<TradeProposal["stagedPlan"]>): Content[] {
+  const band = Math.round(plan.driftBandPct * 100);
+  const header = ["Tranche", "Size", "When & condition", "Status"];
+  const rows = plan.tranches.map((t) => [
+    `${t.index + 1}/${plan.tranches.length}`,
+    `${formatQty(t.qty)} sh (${formatPercent(t.fraction, { signed: false })})`,
+    trancheConditionText(plan, t),
+    t.status,
+  ]);
+  return [
+    {
+      text: `Full position split into ${plan.trancheCount} tranches ~${plan.intervalDays} days apart (add within ±${band}% of the prior fill). Risk is sized on the full position; each tranche is a separate gated approval — no auto-execution.`,
+      style: "muted",
+    },
+    {
+      table: {
+        widths: ["auto", "auto", "*", "auto"],
+        body: [
+          header.map((h) => ({ text: h, style: "cellLabel" })),
+          ...rows.map((r) => r.map((c) => ({ text: c, style: "body" }))),
+        ],
+      },
+      layout: "lightHorizontalLines",
+      margin: [0, 2, 0, 4],
+    },
+  ];
 }
 
 /** A borderless two-column [label, value] table. */

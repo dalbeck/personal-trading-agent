@@ -184,6 +184,44 @@ proposals come from the manual analyze-a-symbol **lens** picker (`strategy` in
 the `POST /api/proposals/analyze` body) and, when enabled, the discovery run (see
 `valueSleeveEnabled` below). Defaults to `trend` so older records still validate.
 
+**Proposal `pricedAt` (fresh-entry-levels M1).** A `TradeProposal` carries
+**`pricedAt`** (ISO datetime, nullable) — when the levels (entry/stop/target/
+sizing) were **anchored to the live Alpaca quote**. The manual analyze pipeline
+anchors the entry to the *current* quote (`getLatestPrice`, snapshot→last-bar
+fallback) rather than a stale daily-bar close, so the stop / reward-risk / sizing
+are computed off the price the market is actually at; both lenses share the one
+quote. Set to `createdAt` at analysis and **updated on a "Refresh levels"
+re-anchor** (`refreshProposalLevels` → `overwriteProposal`, same id/file — it
+recomputes every lens off a fresh quote and re-runs each red-team, but spends no
+new metered research). It drives the **levels-freshness indicator** ("levels as
+of … · price now $X") and the **approval staleness guard**: at approval the entry
+is compared to the current quote and an order whose entry has drifted beyond
+`STALE_DRIFT_THRESHOLD` (1.5%) is **blocked until refreshed** — a correctness gate
+that, unlike a rail/red-team block, is **not** clearable by an override comment
+(`src/lib/price-freshness.ts`, `src/lib/server/live-order.ts`). Null for older
+records → the UI falls back to `createdAt`. Defaults to null so older records
+still validate.
+
+**Proposal `stagedPlan` (staged-entry-plan M2).** A `TradeProposal` carries an
+optional **`stagedPlan`** (`StagedEntryPlanSchema`, nullable) — a DCA / scale-in
+plan that splits the **full intended position** into tranches. The block holds
+`trancheCount`, `intervalDays`, `driftBandPct` (the ±band vs the prior fill), and
+`tranches[]` (each `StagedTrancheSchema`: `index`, `fraction`, `qty`,
+`offsetDays`, `status` `pending|filled|skipped`). The tranche qtys **sum back to
+the proposal's full qty**, so **risk stays sized on the full position** — the stop
++ ≤2% rail bind the completed position. Built by the pure `buildStagedEntryPlan`
+(`src/lib/staged-entry.ts`, unit-tested; defaults `STAGED_ENTRY_DEFAULTS` =
+3 tranches / 5 days / ±5%), attached or removed via `POST /api/proposals/[id]/staged-plan`
+(`setStagedPlan`). **No auto-execution:** each tranche is a separate **gated
+per-trade human approval** — the approve route (`POST /api/live/approve`) accepts
+a `tranche` index, places **only that tranche's qty** (idempotency key
+`<id>#t<index>`, so each tranche dedupes independently), tags the journal
+`tranche:k/N`, and `markTrancheFilled` flips just that tranche to `filled`; the
+proposal only becomes `approved` once **every** tranche is filled. Each tranche
+still clears the staleness guard + risk rails + red-team, and counts against the
+6-order/day cap (per placement). Surfaced on the detail page (tranche table) and
+in the MD/PDF export. Defaults to null so older records still validate.
+
 **Proposal `lenses` (dual-lens M1).** A **manual** analyze-a-symbol proposal is
 evaluated under **both** the trend and value mandates and carries **both**
 breakdowns in **`lenses`** (an array of `ProposalLensSchema`: per-lens

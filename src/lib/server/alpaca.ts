@@ -419,6 +419,37 @@ export function getStockSnapshot(
   );
 }
 
+/**
+ * The symbol's **current price** from Alpaca (fresh-entry-levels M1) — the entry
+ * anchor for a proposal's levels. Two-tier like the live-position mark: try the
+ * IEX snapshot's latest trade / daily close first, then fall back to the most
+ * recent daily bar close (robust when the market is closed or the snapshot is
+ * thin). Returns null when nothing is available — callers never fabricate a
+ * price. Prices are Alpaca-only (charter).
+ */
+export async function getLatestPrice(
+  symbol: string,
+  opts?: { fetchImpl?: typeof fetch },
+): Promise<number | null> {
+  try {
+    const snap = await getStockSnapshot(symbol, opts);
+    const live =
+      snap.latestTrade?.p ?? snap.dailyBar?.c ?? snap.prevDailyBar?.c ?? null;
+    if (live != null && live > 0) return live;
+  } catch {
+    /* fall through to bars */
+  }
+  // After-hours / thin IEX snapshot → use the most recent daily close.
+  const start = new Date(Date.now() - 12 * 86_400_000).toISOString();
+  try {
+    const bars = await getStockBars(symbol, { timeframe: "1Day", start }, opts);
+    const last = bars.at(-1)?.c ?? null;
+    return last != null && last > 0 ? last : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Recent news headlines for `symbol` from Alpaca's news feed (newest first). */
 export async function getStockNews(
   symbol: string,

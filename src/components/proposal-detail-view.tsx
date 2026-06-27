@@ -7,7 +7,9 @@ import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
 import { CashFlowBlock } from "@/components/cash-flow-block";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
+import { ProposalLevelsFreshness } from "@/components/proposal-levels-freshness";
 import { ProposalActions } from "@/components/proposal-actions";
+import { StagedEntryPlanCard } from "@/components/staged-entry-plan";
 import { CheckIcon, FlagIcon, ChevronRightIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
@@ -240,6 +242,15 @@ export function ProposalDetailView({
             </Section>
           ) : null}
 
+          {!advisory ? (
+            <Section
+              title="Staged entry"
+              note="Optional DCA / scale-in — risk sized on the full position; each tranche a separate gated approval."
+            >
+              <StagedEntryPlanCard proposal={p} />
+            </Section>
+          ) : null}
+
           <Section title="Research">
             {lens.catalyst ? (
               <p className="text-pretty text-sm leading-relaxed text-fg">
@@ -289,13 +300,20 @@ export function ProposalDetailView({
                 : undefined
             }
           >
+            <ProposalLevelsFreshness
+              proposalId={p.id}
+              symbol={p.symbol}
+              entry={lens.limitPrice}
+              pricedAt={p.pricedAt}
+              createdAt={p.createdAt}
+            />
             <RiskRewardBar
               action={p.action}
               entry={lens.limitPrice}
               stop={lens.stopPrice}
               target={lens.takeProfit}
               confidence={lens.confidence}
-              className="mb-1"
+              className="mb-1 mt-1"
             />
             <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <MathRow
