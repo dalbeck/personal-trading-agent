@@ -4,8 +4,11 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseFrontmatter } from "./frontmatter";
 import { validateDataDir } from "./validate-data";
+import { mkdir } from "node:fs/promises";
 import {
+  markTrancheFilled,
   promoteLessonToPlaybook,
+  readProposalById,
   recordAdvisoryProposal,
   recordCoaching,
   recordRejection,
@@ -13,7 +16,9 @@ import {
   recordRunLog,
   recordSnapshot,
   recordTradeDecision,
+  setStagedPlan,
 } from "./writers";
+import { buildStagedEntryPlan } from "@/lib/staged-entry";
 import { TradeProposalSchema } from "@/lib/schemas";
 
 let dataDir = "";
@@ -229,6 +234,70 @@ describe("promoteLessonToPlaybook", () => {
     expect(out.indexOf("Honor the trim trigger")).toBeLessThan(
       out.indexOf("Old lesson"),
     );
+  });
+});
+
+describe("staged-entry plan writers (M2)", () => {
+  /** Seed an approvable proposal file (qty 9) into the temp data dir. */
+  async function seed(dir: string): Promise<void> {
+    const p = TradeProposalSchema.parse({
+      id: "manual-X-1",
+      createdAt: "2026-06-26T20:00:00.000Z",
+      symbol: "X",
+      action: "buy",
+      side: "long",
+      qty: 9,
+      limitPrice: 100,
+      stopPrice: 92,
+      takeProfit: 130,
+      riskPct: 0.012,
+      thesis: "t",
+      reasoning: "r",
+      status: "pending",
+      account: "live",
+      advisory: false,
+      origin: "manual-request",
+    });
+    await mkdir(path.join(dir, "proposals"), { recursive: true });
+    await writeFile(
+      path.join(dir, "proposals", "manual-X-1.json"),
+      JSON.stringify(p),
+    );
+  }
+
+  it("attaches and clears a staged plan in place", async () => {
+    const dir = await tmpData();
+    await seed(dir);
+    const plan = buildStagedEntryPlan({ fullQty: 9, trancheCount: 3 })!;
+
+    const attached = await setStagedPlan("manual-X-1", plan, { dataDir: dir });
+    expect(attached?.stagedPlan?.tranches).toHaveLength(3);
+    const reread = await readProposalById("manual-X-1", { dataDir: dir });
+    expect(reread?.stagedPlan?.tranches.map((t) => t.qty)).toEqual([3, 3, 3]);
+
+    const cleared = await setStagedPlan("manual-X-1", null, { dataDir: dir });
+    expect(cleared?.stagedPlan).toBeNull();
+  });
+
+  it("marks a tranche filled and flips to approved only when ALL are filled", async () => {
+    const dir = await tmpData();
+    await seed(dir);
+    await setStagedPlan(
+      "manual-X-1",
+      buildStagedEntryPlan({ fullQty: 9, trancheCount: 3 }),
+      { dataDir: dir },
+    );
+
+    const afterFirst = await markTrancheFilled("manual-X-1", 0, { dataDir: dir });
+    expect(afterFirst?.stagedPlan?.tranches[0].status).toBe("filled");
+    // More tranches pending → the proposal is NOT yet approved.
+    expect(afterFirst?.status).toBe("pending");
+
+    await markTrancheFilled("manual-X-1", 1, { dataDir: dir });
+    const afterLast = await markTrancheFilled("manual-X-1", 2, { dataDir: dir });
+    // Every tranche filled → the staged entry is complete.
+    expect(afterLast?.stagedPlan?.tranches.every((t) => t.status === "filled")).toBe(true);
+    expect(afterLast?.status).toBe("approved");
   });
 });
 

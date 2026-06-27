@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { RedTeamRerunButton } from "@/components/red-team-rerun-button";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { Term } from "@/components/term";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { formatCurrency, formatPercent, formatQty } from "@/lib/format";
 import { confidenceBucket } from "@/lib/confidence";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { isAdvisoryProposal, type AdvisoryDecision } from "@/lib/proposal-advisory";
 import { resolveActiveLens } from "@/lib/proposal-lens";
+import { nextPendingTranche } from "@/lib/staged-entry";
 import { STRATEGY_LABEL, type Strategy } from "@/lib/strategy";
 import type { TradeProposal } from "@/lib/types";
 
@@ -99,6 +100,14 @@ export function ProposalActions({
   const status = advResult ?? (result ? outcomeStatus(result) : p.status);
   const pending = status === "pending";
 
+  // Staged-entry (M2): when the proposal carries a plan, the approve flow acts on
+  // the NEXT pending tranche — the order places that tranche's qty and only that
+  // tranche is marked filled. No plan → the whole position, unchanged.
+  const nextTranche = p.stagedPlan ? nextPendingTranche(p.stagedPlan) : null;
+  // The quantity this approval will actually place — the tranche's share when
+  // staged, else the full position.
+  const orderQty = nextTranche ? nextTranche.qty : al.qty;
+
   async function decide(
     decision: "approve" | "deny",
     overrideCommentText?: string,
@@ -112,6 +121,9 @@ export function ProposalActions({
           proposalId: p.id,
           decision,
           ...(activeLens ? { actingLens: activeLens } : {}),
+          ...(decision === "approve" && nextTranche
+            ? { tranche: nextTranche.index }
+            : {}),
           ...(overrideCommentText && overrideCommentText.trim()
             ? { override: { comment: overrideCommentText.trim() } }
             : {}),
@@ -346,6 +358,15 @@ export function ProposalActions({
         onDismiss={() => setConfirming(false)}
       >
         <div className="flex flex-col gap-4">
+          {nextTranche && p.stagedPlan ? (
+            <p className="rounded-card border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg">
+              Approving <span className="font-semibold">tranche{" "}
+              {nextTranche.index + 1} of {p.stagedPlan.tranches.length}</span> —{" "}
+              {formatQty(nextTranche.qty)} sh (a fraction of the full{" "}
+              {formatQty(al.qty)}-share position). Risk stays sized on the full
+              position; the remaining tranches are approved separately.
+            </p>
+          ) : null}
           {dual && activeLens ? (
             <p className="rounded-card border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg">
               Approving under the{" "}
@@ -364,7 +385,12 @@ export function ProposalActions({
                 {p.action} · {p.side}
               </dd>
               <dt className="text-fg-muted">Quantity</dt>
-              <dd className="text-right tabular-nums text-fg">{al.qty}</dd>
+              <dd className="text-right tabular-nums text-fg">
+                {formatQty(orderQty)}
+                {nextTranche ? (
+                  <span className="text-fg-muted"> (tranche)</span>
+                ) : null}
+              </dd>
               <dt className="text-fg-muted">Order type</dt>
               <dd className="text-right text-fg">
                 <Term term="marketable-limit">marketable-limit</Term>
@@ -375,7 +401,7 @@ export function ProposalActions({
               </dd>
               <dt className="text-fg-muted">Est. cost</dt>
               <dd className="text-right tabular-nums text-fg">
-                {formatCurrency(al.qty * al.limitPrice)}
+                {formatCurrency(orderQty * al.limitPrice)}
               </dd>
               {al.stopPrice !== null ? (
                 <>
@@ -392,7 +418,7 @@ export function ProposalActions({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <StatChip label="Est. cost" value={formatCurrency(al.qty * al.limitPrice)} />
+            <StatChip label="Est. cost" value={formatCurrency(orderQty * al.limitPrice)} />
             <StatChip
               label="Risk"
               value={formatPercent(al.riskPct, { signed: false })}

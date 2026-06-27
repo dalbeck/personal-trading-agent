@@ -16,6 +16,8 @@ import type {
   RiskRailSettingSchema,
   RiskSettingsSchema,
   RunLogSchema,
+  StagedEntryPlanSchema,
+  StagedTrancheSchema,
   TradeJournalEntrySchema,
   TradeProposalSchema,
   WatchlistEntrySchema,
@@ -40,6 +42,8 @@ export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 export type RedTeamFactor = z.infer<typeof RedTeamFactorSchema>;
 export type RedTeamVerdict = z.infer<typeof RedTeamVerdictSchema>;
 export type ProposalLensBreakdown = z.infer<typeof ProposalLensSchema>;
+export type StagedTranche = z.infer<typeof StagedTrancheSchema>;
+export type StagedEntryPlan = z.infer<typeof StagedEntryPlanSchema>;
 export type TradeProposal = z.infer<typeof TradeProposalSchema>;
 
 export type CoachingEntry = z.infer<typeof CoachingEntrySchema>;
