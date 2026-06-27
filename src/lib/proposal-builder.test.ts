@@ -113,6 +113,30 @@ describe("buildManualProposalDraft", () => {
     );
   });
 
+  it("penalizes + caps value conviction below 'high' when cash-flow quality is unknown (conviction-honesty M1)", () => {
+    // A deep-discount value setup with a covered dividend that WOULD score high…
+    const base = {
+      symbol: "JKHY",
+      bars: ramp(220, 200, -0.3), // long downtrend → cheap vs the 200-day
+      equity: 10_000,
+      strategy: "value" as const,
+      catalyst: "Dividend floor: FCF covers 2.4×, 14-yr growth streak",
+      catalystType: "other" as const,
+      dividendFloor: { covered: true, atRisk: false },
+    };
+    const known = buildManualProposalDraft({ ...base, qualityDataKnown: true });
+    const unknown = buildManualProposalDraft({ ...base, qualityDataKnown: false });
+    expect(known).not.toBeNull();
+    expect(unknown).not.toBeNull();
+    if (!known || !unknown) return;
+
+    // Unknown cash-flow measurably lowers the score…
+    expect(unknown.convictionScore).toBeLessThan(known.convictionScore);
+    // …and caps the tier below "high" — never high-conviction without the data.
+    expect(unknown.convictionTier).not.toBe("high");
+    expect(unknown.convictionScore).toBeLessThan(0.7);
+  });
+
   it("anchors the target on the prior high when that gives a >=2:1 reward", () => {
     // A long base then a pullback: the prior high sits well above the last close.
     const base = ramp(40, 100, 0); // flat at 100

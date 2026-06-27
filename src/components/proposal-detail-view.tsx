@@ -15,7 +15,8 @@ import { CheckIcon, FlagIcon, ChevronRightIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { confidenceBucket } from "@/lib/confidence";
-import { convictionTierStyle } from "@/lib/conviction-style";
+import { convictionDisplay } from "@/lib/conviction-display";
+import { redTeamVerdictStyle } from "@/lib/red-team-style";
 import { strategyStyle } from "@/lib/strategy-style";
 import { STRATEGY_DESCRIPTION, STRATEGY_LABEL } from "@/lib/strategy";
 import {
@@ -85,6 +86,9 @@ export function ProposalDetailView({
   });
   const conf =
     lens.confidence === null ? null : confidenceBucket(lens.confidence);
+  // Conviction paired with the active (top-level) lens's verdict — secondary to
+  // the verdict, muted + flagged on a reject (conviction-honesty M1).
+  const conviction = convictionDisplay(p.convictionTier, p.redTeam?.verdict);
   const estCost = lens.qty * lens.limitPrice;
   const riskPerShare =
     lens.stopPrice === null ? null : Math.abs(lens.limitPrice - lens.stopPrice);
@@ -117,10 +121,23 @@ export function ProposalDetailView({
               {strategyStyle[l.strategy].label}
             </Badge>
           ))}
-          {p.convictionTier ? (
-            <Badge tone={convictionTierStyle[p.convictionTier].tone}>
-              {convictionTierStyle[p.convictionTier].label}
-            </Badge>
+          {/* Red-team verdict is the HEADLINE (conviction-honesty M1) — a
+              semantic pill (reject → danger), so a rejected proposal reads as
+              rejected at a glance, not reassuring. */}
+          {p.redTeam ? (
+            <span
+              className={`inline-flex items-center rounded-pill border px-2.5 py-1 text-xs font-semibold ${redTeamVerdictStyle[p.redTeam.verdict].className}`}
+              title="Cross-model red-team verdict — the headline; conviction below is a secondary ranking signal."
+            >
+              Red-team: {redTeamVerdictStyle[p.redTeam.verdict].label}
+            </span>
+          ) : null}
+          {/* Conviction is a SECONDARY ranking signal — muted + flagged when the
+              red-team rejects (never a bare green "high" on a rejected proposal). */}
+          {conviction ? (
+            <span title={conviction.note ?? "conviction ranking / sort signal"}>
+              <Badge tone={conviction.tone}>{conviction.label}</Badge>
+            </span>
           ) : null}
           {advisory ? (
             <span className="inline-flex items-center rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-fg">

@@ -106,6 +106,31 @@ describe("analyzeSymbol", () => {
     expect(res.proposal.redTeam?.verdict).toBe("reject");
   });
 
+  it("a value proposal with UNKNOWN cash-flow is never 'high conviction' (conviction-honesty M1)", async () => {
+    // A deep-discount value setup that, with quality data, could rank high — but
+    // research returns NO cash-flow, so the value lens must be capped below high.
+    const res = await analyzeSymbol("JKHY", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(220, 200, -0.3), // long downtrend = cheap
+      readSnapshot: snapshotSeam,
+      fetchResearch: async () => ({
+        sector: "Technology Services",
+        catalyst: null,
+        catalystType: null,
+        cashFlow: null, // UNKNOWN quality data
+        dividend: null,
+        usedPerplexity: false,
+      }),
+      redTeamExec: approveExec,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const valueLens = res.proposal.lenses.find((l) => l.strategy === "value")!;
+    expect(valueLens.convictionTier).not.toBe("high");
+    expect(valueLens.convictionScore as number).toBeLessThan(0.7);
+  });
+
   it("evaluates BOTH lenses → one proposal holding both breakdowns", async () => {
     const res = await analyzeSymbol("KR", {
       account: "live",

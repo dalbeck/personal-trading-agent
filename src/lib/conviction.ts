@@ -19,6 +19,21 @@ export const CONVICTION_TIERS: readonly ConvictionTier[] = [
   "watch",
 ] as const;
 
+/** Tier score boundaries: high ≥ 0.7 · moderate ≥ 0.4 · watch < 0.4. */
+export const CONVICTION_HIGH_MIN = 0.7;
+export const CONVICTION_MODERATE_MIN = 0.4;
+
+/**
+ * Cap applied to value conviction when key quality data (cash-flow) is **unknown**
+ * (conviction-honesty M1). Strictly below `CONVICTION_HIGH_MIN`, so a value play
+ * whose cash-flow we can't verify can NEVER read "high" — unknown is a penalty,
+ * not neutral.
+ */
+export const CONVICTION_UNKNOWN_QUALITY_CAP = 0.6;
+/** Multiplicative drag also applied on unknown quality, so the score measurably
+ *  falls even before the cap bites. */
+export const CONVICTION_UNKNOWN_QUALITY_DRAG = 0.85;
+
 /**
  * Bucket a composite conviction score (0–1) into a tier. Thresholds mirror the
  * confidence buckets so the two read consistently: **high ≥ 0.7 · moderate ≥
@@ -30,8 +45,8 @@ export const CONVICTION_TIERS: readonly ConvictionTier[] = [
  */
 export function convictionTierFromScore(score: number): ConvictionTier {
   const s = clamp01(score);
-  if (s >= 0.7) return "high";
-  if (s >= 0.4) return "moderate";
+  if (s >= CONVICTION_HIGH_MIN) return "high";
+  if (s >= CONVICTION_MODERATE_MIN) return "moderate";
   return "watch";
 }
 

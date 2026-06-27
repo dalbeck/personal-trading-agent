@@ -7,7 +7,7 @@ import { SampleDataBadge } from "@/components/sample-data-badge";
 import { ChevronRightIcon } from "@/components/icons";
 import { confidenceBucket } from "@/lib/confidence";
 import { CONVICTION_TIERS, compareByConviction } from "@/lib/conviction";
-import { convictionTierStyle } from "@/lib/conviction-style";
+import { convictionDisplay } from "@/lib/conviction-display";
 import { strategyStyle } from "@/lib/strategy-style";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { redTeamVerdictStyle } from "@/lib/red-team-style";
@@ -168,6 +168,10 @@ function ProposalRow({ proposal: p }: { proposal: TradeProposal }) {
   });
   const conf = p.confidence === null ? null : confidenceBucket(p.confidence);
   const verdict = p.redTeam ? redTeamVerdictStyle[p.redTeam.verdict] : null;
+  // Conviction is a ranking signal, not a verdict (conviction-honesty M1): it's
+  // muted + flagged when the red-team rejects, so a rejected proposal never reads
+  // as a confident "high".
+  const conviction = convictionDisplay(p.convictionTier, p.redTeam?.verdict);
 
   return (
     <Link
@@ -186,10 +190,10 @@ function ProposalRow({ proposal: p }: { proposal: TradeProposal }) {
         <Badge tone={strategyStyle[p.strategy].tone}>
           {strategyStyle[p.strategy].label}
         </Badge>
-        {p.convictionTier ? (
-          <Badge tone={convictionTierStyle[p.convictionTier].tone}>
-            {convictionTierStyle[p.convictionTier].label}
-          </Badge>
+        {conviction ? (
+          <span title={conviction.note ?? "conviction ranking signal"}>
+            <Badge tone={conviction.tone}>{conviction.label}</Badge>
+          </span>
         ) : null}
         {advisory ? (
           <span className="hidden items-center rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-fg sm:inline-flex">

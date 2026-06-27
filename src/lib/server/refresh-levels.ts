@@ -20,6 +20,7 @@ import {
 } from "@/lib/proposal-builder";
 import { TradeProposalSchema } from "@/lib/schemas";
 import { assessDividendFloor } from "@/lib/dividend";
+import { hasCashFlowData } from "@/lib/cash-flow";
 import type { Ohlc } from "@/lib/indicators";
 import type { Strategy } from "@/lib/strategy";
 import type { ProposalLensBreakdown, TradeProposal } from "@/lib/types";
@@ -150,6 +151,10 @@ export async function refreshProposalLevels(
       strategy,
       ...(floor
         ? { dividendFloor: { covered: floor.covered, atRisk: floor.atRisk } }
+        : {}),
+      // Preserve the unknown-cash-flow conviction penalty across a refresh.
+      ...(strategy === "value"
+        ? { qualityDataKnown: hasCashFlowData(existingCashFlow("value")) }
         : {}),
     });
   });
