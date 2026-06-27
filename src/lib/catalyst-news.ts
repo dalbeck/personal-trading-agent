@@ -185,6 +185,11 @@ export function isSymbolPrimarySubject(
 export function headlineMateriality(headline: string): number {
   if (!isMaterialHeadline(headline)) return 0;
 
+  // TIER_3 regex: Regulatory / clinical / M&A events (highest materiality).
+  // Intentionally omits "to buy" (analyst rating phrase, produces false positives
+  // with "Raised To Buy") and "deal" (too generic, causes "good deal"/"deal with"
+  // false positives). Genuine acquisitions are already caught by acquir|acquisition|
+  // merger|buyout|takeover.
   const TIER_3 =
     /\b(fda|ema|chmp|approv\w*|clears?|cleared|authoriz\w*|breakthrough|phase\s?[123]|trial|clinical|acqui(r\w*|sition)|merger|buyout|takeover)\b/i;
   const TIER_2 =
