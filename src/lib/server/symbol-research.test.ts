@@ -406,6 +406,33 @@ describe("FMP fallback chain", () => {
     expect(res.fundamentalsSource).toBe("fmp");
   });
 
+  it("calls FMP when Perplexity parsed fundamentals but supplied NO cashFlow/dividend (harden-research-fallback M2)", async () => {
+    // The post-M1 truncation/partial shape: Perplexity returns some fundamentals
+    // but the value-quality tail (cashFlow/dividend) is missing. The old guard
+    // (which also required fundamentals to be null) skipped FMP here, leaving the
+    // value lens "data unavailable". The loosened guard must fall through to FMP.
+    const dir = await tmp();
+    const fmpResearch = vi.fn(async () => fmpResult());
+    const fmpProvider: ResearchProvider = { name: "fmp", research: fmpResearch };
+
+    const res = await getSymbolResearch("MSFT", {
+      dataDir: dir,
+      robinhoodConnected: false,
+      // pplxResult() has fundamentals but no cashFlow/dividend.
+      provider: { name: "perplexity", research: async () => pplxResult() },
+      fmpProvider,
+      now: NOW,
+    });
+
+    expect(fmpResearch).toHaveBeenCalledOnce();
+    expect(res.cashFlow).not.toBeNull();
+    expect(res.cashFlowSource).toBe("fmp");
+    expect(res.dividend).not.toBeNull();
+    expect(res.dividendSource).toBe("fmp");
+    // Perplexity's fundamentals still win — FMP only filled the value-data gap.
+    expect(res.fundamentalsSource).toBe("perplexity");
+  });
+
   it("does NOT call FMP when Perplexity supplied value data", async () => {
     const dir = await tmp();
     const fmpResearch = vi.fn(async () => fmpResult());
