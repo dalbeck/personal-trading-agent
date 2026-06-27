@@ -150,7 +150,7 @@ export interface ResearchProvider {
 }
 
 /** Which source actually supplied a field group, for honest per-section tagging. */
-export type ResearchOrigin = "robinhood" | "perplexity" | null;
+export type ResearchOrigin = "robinhood" | "perplexity" | "fmp" | null;
 
 export type PerplexityStatus = "ok" | "off" | "capped" | "unavailable";
 
@@ -186,6 +186,12 @@ export interface SymbolResearch {
    *  when unavailable. Drives the dividend floor (catalyst) + red-team + stat
    *  block + conviction. Folded into the same capped value fetch — no extra call. */
   dividend: DividendSignals | null;
+  /** Which source supplied `cashFlow` — "perplexity" when Perplexity returned it,
+   *  "fmp" when FMP filled the gap, null when neither had data. */
+  cashFlowSource: ResearchOrigin;
+  /** Which source supplied `dividend` — "perplexity" when Perplexity returned it,
+   *  "fmp" when FMP filled the gap, null when neither had data. */
+  dividendSource: ResearchOrigin;
   /** Raw finance_results blocks (kept for back-compat / debugging). */
   finance: ResearchFinanceResult[];
   /**

@@ -22,18 +22,20 @@ import { useSymbolResearch } from "@/components/symbol/research-context";
  * auto-loaded research resolves ("—" when neither has it).
  */
 
-type Source = "alpaca" | "robinhood" | "perplexity";
+type Source = "alpaca" | "robinhood" | "perplexity" | "fmp";
 
 const SOURCE_LABEL: Record<Source, string> = {
   alpaca: "Alpaca",
   robinhood: "Robinhood",
   perplexity: RESEARCH_PROVIDER_SHORT,
+  fmp: "FMP",
 };
 
 const SOURCE_TITLE: Record<Source, string> = {
   alpaca: "Alpaca IEX market data",
   robinhood: "Robinhood get_equity_fundamentals (read-only, no metered cost)",
   perplexity: `${RESEARCH_PROVIDER_LABEL} (metered, context only)`,
+  fmp: "Financial Modeling Prep (fallback, context only)",
 };
 
 function SourceTag({ source }: { source: Source }) {

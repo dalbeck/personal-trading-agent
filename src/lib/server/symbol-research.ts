@@ -4,7 +4,7 @@ import {
   getRobinhoodFundamentals,
   hasRobinhoodConnection,
 } from "./robinhood";
-import { getResearchProvider } from "./research";
+import { getFundamentalsFallbackProvider, getResearchProvider } from "./research";
 import { readResearchCache, writeResearchCache } from "./research/cache";
 import { buildFinanceSections } from "./research/sections";
 import { diagnosticToStatus, researchReasonText } from "./research/diagnostics";
@@ -51,61 +51,72 @@ interface GetSymbolResearchOpts {
   ) => Promise<{ fundamentals: ResearchFundamentals; profile: ResearchProfile } | null>;
   /** Injectable research provider (tests bypass the network). */
   provider?: ResearchProvider;
+  /** Injectable FMP fundamentals fallback provider (tests bypass the network). */
+  fmpProvider?: ResearchProvider;
   robinhoodConnected?: boolean;
   dailyCap?: number;
 }
 
 /** Pure merge: Robinhood preferred for fundamentals/profile (field-by-field),
- *  Perplexity fills gaps and supplies consensus + the AI summary. */
+ *  Perplexity fills gaps and supplies consensus + the AI summary, FMP fills
+ *  cashFlow/dividend/fundamentals when Perplexity did not supply value data. */
 export function mergeSymbolResearch(args: {
   rh: { fundamentals: ResearchFundamentals; profile: ResearchProfile } | null;
   perplexity: ResearchResult | null;
+  fmp: ResearchResult | null;
   robinhoodConnected: boolean;
   perplexityStatus: PerplexityStatus;
   perplexityReason: string | null;
 }): SymbolResearch {
-  const { rh, perplexity, robinhoodConnected, perplexityStatus, perplexityReason } = args;
+  const { rh, perplexity, fmp, robinhoodConnected, perplexityStatus, perplexityReason } = args;
   const rf = rh?.fundamentals ?? null;
   const pf = perplexity?.fundamentals ?? null;
+  const ff = fmp?.fundamentals ?? null;
   const fundamentals: ResearchFundamentals | null =
-    rf || pf
+    rf || pf || ff
       ? {
-          marketCap: rf?.marketCap ?? pf?.marketCap ?? null,
-          peRatio: rf?.peRatio ?? pf?.peRatio ?? null,
-          eps: rf?.eps ?? pf?.eps ?? null,
-          dividendYield: rf?.dividendYield ?? pf?.dividendYield ?? null,
+          marketCap: rf?.marketCap ?? pf?.marketCap ?? ff?.marketCap ?? null,
+          peRatio: rf?.peRatio ?? pf?.peRatio ?? ff?.peRatio ?? null,
+          eps: rf?.eps ?? pf?.eps ?? ff?.eps ?? null,
+          dividendYield: rf?.dividendYield ?? pf?.dividendYield ?? ff?.dividendYield ?? null,
         }
       : null;
 
   const rp = rh?.profile ?? null;
   const pp = perplexity?.profile ?? null;
+  const fp = fmp?.profile ?? null;
   const profile: ResearchProfile | null =
-    rp || pp
+    rp || pp || fp
       ? {
-          name: rp?.name ?? pp?.name ?? null,
-          domain: rp?.domain ?? pp?.domain ?? null,
-          ceo: rp?.ceo ?? pp?.ceo ?? null,
-          employees: rp?.employees ?? pp?.employees ?? null,
-          sector: rp?.sector ?? pp?.sector ?? null,
-          industry: rp?.industry ?? pp?.industry ?? null,
-          country: rp?.country ?? pp?.country ?? null,
-          exchange: rp?.exchange ?? pp?.exchange ?? null,
-          ipoDate: rp?.ipoDate ?? pp?.ipoDate ?? null,
-          description: rp?.description ?? pp?.description ?? null,
+          name: rp?.name ?? pp?.name ?? fp?.name ?? null,
+          domain: rp?.domain ?? pp?.domain ?? fp?.domain ?? null,
+          ceo: rp?.ceo ?? pp?.ceo ?? fp?.ceo ?? null,
+          employees: rp?.employees ?? pp?.employees ?? fp?.employees ?? null,
+          sector: rp?.sector ?? pp?.sector ?? fp?.sector ?? null,
+          industry: rp?.industry ?? pp?.industry ?? fp?.industry ?? null,
+          country: rp?.country ?? pp?.country ?? fp?.country ?? null,
+          exchange: rp?.exchange ?? pp?.exchange ?? fp?.exchange ?? null,
+          ipoDate: rp?.ipoDate ?? pp?.ipoDate ?? fp?.ipoDate ?? null,
+          description: rp?.description ?? pp?.description ?? fp?.description ?? null,
         }
       : null;
 
+  const cashFlow = perplexity?.cashFlow ?? fmp?.cashFlow ?? null;
+  const dividend = perplexity?.dividend ?? fmp?.dividend ?? null;
+
   return {
     fundamentals,
-    fundamentalsSource: rf ? "robinhood" : pf ? "perplexity" : null,
+    fundamentalsSource: rf ? "robinhood" : pf ? "perplexity" : ff ? "fmp" : null,
     profile,
-    profileSource: rp ? "robinhood" : pp ? "perplexity" : null,
+    profileSource: rp ? "robinhood" : pp ? "perplexity" : fp ? "fmp" : null,
     consensus: perplexity?.consensus ?? null,
     summary: perplexity?.summary ?? "",
     earnings: perplexity?.earnings ?? [],
     catalysts: perplexity?.catalysts ?? [],
-    cashFlow: perplexity?.cashFlow ?? null,
-    dividend: perplexity?.dividend ?? null,
+    cashFlow,
+    cashFlowSource: perplexity?.cashFlow ? "perplexity" : fmp?.cashFlow ? "fmp" : null,
+    dividend,
+    dividendSource: perplexity?.dividend ? "perplexity" : fmp?.dividend ? "fmp" : null,
     finance: perplexity?.finance ?? [],
     sections: buildFinanceSections(perplexity?.finance ?? []),
     categories: perplexity?.categories ?? [],
@@ -196,9 +207,20 @@ export async function getSymbolResearch(
     perplexityStatus = used >= cap ? "capped" : "unavailable";
   }
 
+  // FMP fallback: only spend an FMP call when Perplexity didn't supply value data,
+  // conserving the FMP cap for symbols where Perplexity is down or capped.
+  const needFmp = !pplx?.cashFlow && !pplx?.dividend && !pplx?.fundamentals;
+  const fmpProvider = opts?.fmpProvider ?? getFundamentalsFallbackProvider();
+  const fmpOn = fmpProvider.name !== "off";
+  const fmp =
+    needFmp && fmpOn
+      ? await Promise.resolve(fmpProvider.research({ symbol })).catch(() => null)
+      : null;
+
   const merged = mergeSymbolResearch({
     rh,
     perplexity: pplx,
+    fmp,
     robinhoodConnected,
     perplexityStatus,
     perplexityReason,
@@ -210,7 +232,9 @@ export async function getSymbolResearch(
     merged.fundamentals ||
     merged.profile ||
     merged.consensus ||
-    merged.summary;
+    merged.summary ||
+    merged.cashFlow ||
+    merged.dividend;
   if (hasData) {
     const fetchedAt = now.toISOString();
     await writeResearchCache(symbol, merged, fetchedAt, { dataDir });
