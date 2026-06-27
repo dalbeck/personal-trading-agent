@@ -2,7 +2,9 @@ import "server-only";
 
 import { spawn } from "node:child_process";
 import { RedTeamVerdictSchema } from "@/lib/schemas";
-import type { RedTeamVerdict } from "@/lib/types";
+import { assessCashFlowQuality, hasCashFlowData } from "@/lib/cash-flow";
+import { formatCompactCurrency, formatPercent } from "@/lib/format";
+import type { CashFlowQuality, RedTeamVerdict } from "@/lib/types";
 
 /**
  * Red-team gate. After the primary model proposes a trade, a **different model
@@ -39,9 +41,43 @@ export interface RedTeamProposal {
    *  catalyst is weak; the prosecutor is told to flag it. */
   catalyst?: string | null;
   catalystType?: string | null;
+  /** Cash-flow quality for the VALUE mandate (value-cashflow M1) — the prosecutor
+   *  weighs durable/positive FCF as floor support and negative/declining FCF +
+   *  rising leverage as a value-trap red flag. Value lens only; null/absent for
+   *  trend (the trend prompt never mentions it). */
+  cashFlow?: CashFlowQuality | null;
   thesis: string;
   reasoning?: string;
   research?: string;
+}
+
+/** A concise cash-flow descriptor for the value prosecutor, tagged with the
+ *  pure pass/flag assessment. "unknown" when no usable FCF data was returned —
+ *  itself a weakness for a value call (the floor can't be verified). */
+function cashFlowBriefing(cf: CashFlowQuality | null | undefined): string {
+  if (!hasCashFlowData(cf ?? null) || !cf) {
+    return "Cash-flow quality: unknown (no FCF / leverage data returned — the floor cannot be verified, treat the absence as a weakness)";
+  }
+  const bits: string[] = [];
+  if (cf.freeCashFlow !== null) {
+    bits.push(`FCF ${formatCompactCurrency(cf.freeCashFlow)}`);
+  }
+  if (cf.fcfTrend) bits.push(`FCF trend ${cf.fcfTrend}`);
+  if (cf.fcfYield !== null) {
+    bits.push(`FCF yield ${formatPercent(cf.fcfYield, { signed: false })}`);
+  }
+  if (cf.operatingCashFlow !== null) {
+    bits.push(`OCF ${formatCompactCurrency(cf.operatingCashFlow)}`);
+  }
+  if (cf.netDebt !== null) {
+    bits.push(`net debt ${formatCompactCurrency(cf.netDebt)}`);
+  }
+  if (cf.debtToEquity !== null) bits.push(`D/E ${cf.debtToEquity.toFixed(1)}`);
+  if (cf.interestCoverage !== null) {
+    bits.push(`interest coverage ${cf.interestCoverage.toFixed(1)}x`);
+  }
+  const { status } = assessCashFlowQuality(cf);
+  return `Cash-flow quality (${status}): ${bits.join(", ")}`;
 }
 
 export type RedTeamExec = (prompt: string) => Promise<string>;
@@ -65,14 +101,20 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"} (${p.targetType ?? "unspecified"})`,
     `- Relative volume: ${p.relativeVolume != null ? `${p.relativeVolume.toFixed(2)}x avg` : "unknown"}`,
     `- Catalyst: ${p.catalyst ? p.catalyst : "none stated"} (${p.catalystType ?? "unspecified"})`,
-    `- Thesis: ${p.thesis}`,
   ];
+  // Cash-flow quality is a VALUE-lens signal only — surface the figures in the
+  // order block so the prosecutor weighs the floor-vs-trap tell.
+  if (isValue) {
+    lines.push(`- ${cashFlowBriefing(p.cashFlow)}`);
+  }
+  lines.push(`- Thesis: ${p.thesis}`);
   if (isValue) {
     lines.push(
       "VALUE / MEAN-REVERSION MANDATE — judge under the RIGHT criteria, not the trend rules:",
       "COUNTER-TREND IS EXPECTED. This is a value / mean-reversion entry, NOT a trend trade. Being BELOW the 50-/200-day moving averages, in a downtrend, or making lower lows is NORMAL here and is NOT by itself a reason to reject. Do NOT penalize the thesis merely for being below its moving averages, 'fighting the trend', or lacking upside momentum — that would be applying the wrong mandate.",
       "FUNDAMENTALS LEAD. Judge QUALITY first: is this a profitable, durable business with a sound balance sheet, trading at a genuine discount (cheap vs its own history / peers, near a multi-year or 52-week low)? A fundamental / valuation rationale is IN MANDATE for this sleeve.",
       "HUNT THE VALUE TRAP — this is your real job. REJECT (or at least flag concern) for: deteriorating fundamentals (falling revenue / margins, cut guidance, slashed analyst targets), NO real catalyst or floor, a falling-knife / structurally broken business, or an unrealistic target. A valid why-now is a dividend support or hike, an analyst-target floor, insider buying, fundamental stabilization, OR a technical mean-reversion signal (oversold RSI, long-term support, capitulation volume, basing). 'It's just cheap' with no catalyst or floor is WEAK — flag it in the Edge factor.",
+      "CASH FLOW IS THE FLOOR-VS-TRAP TELL. Weigh the Cash-flow quality line above: strong, positive, stable/growing free cash flow with a healthy FCF yield and manageable leverage SUPPORTS the floor thesis (a business that funds itself rarely keeps falling) — lean toward giving the value call a fair hearing. Conversely, NEGATIVE or DECLINING free cash flow, a deteriorating OCF, or RISING / heavy leverage (high debt-to-equity, thin interest coverage) is a STRONG value-trap red flag — a cheap stock bleeding cash with a stretched balance sheet is a falling knife, not a floor; REJECT or flag concern and say so in the Edge factor. Unknown cash flow means the floor is unverified — a weakness, not a free pass. Good cash flow alone does NOT make it a buy; its absence/deterioration is a strong disqualifier.",
       "A target anchored to FUNDAMENTAL value is APPROPRIATE for this sleeve (do NOT call it weak). A sell-side analyst_price target is still weak (borrowed conviction); an unspecified target is weak. Note this in the Target factor.",
     );
   } else {

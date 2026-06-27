@@ -24,8 +24,9 @@ import type { SymbolResearch } from "./types";
 
 /** Bump when the cached shape changes so stale entries are re-fetched, not
  *  served with missing fields. v5 re-keyed the cache by symbol (dropping the
- *  date from the filename) and added the `fetchedAt` freshness stamp. */
-const CACHE_VERSION = 5;
+ *  date from the filename) and added the `fetchedAt` freshness stamp; v6 added
+ *  the value-lens `cashFlow` block (value-cashflow M1). */
+const CACHE_VERSION = 6;
 
 function cacheFile(symbol: string, dataDir?: string): string {
   const root =

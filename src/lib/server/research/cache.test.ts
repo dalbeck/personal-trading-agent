@@ -32,6 +32,7 @@ function payload(): SymbolResearch {
     summary: "Solid.",
     earnings: [],
     catalysts: [],
+    cashFlow: null,
     finance: [],
     sections: [],
     categories: [],

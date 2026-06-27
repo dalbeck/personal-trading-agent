@@ -41,6 +41,7 @@ function lens(
     thesis: `${strategy} thesis`,
     reasoning: `${strategy} reasoning`,
     redTeam: verdict(strategy === "value" ? "concern" : "reject"),
+    cashFlow: null,
     ...overrides,
   };
 }

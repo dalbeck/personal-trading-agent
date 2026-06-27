@@ -9,6 +9,7 @@
  * No side effects, no `server-only` — unit-tested directly (`parse.test.ts`).
  */
 
+import type { CashFlowQuality } from "@/lib/types";
 import type {
   EarningsQuarter,
   ResearchConsensus,
@@ -266,6 +267,74 @@ export function coerceEarnings(raw: unknown, max = 4): EarningsQuarter[] {
   return out.slice(-max);
 }
 
+/** Map a free-text trend word to the constrained FCF trend, or null. */
+const FCF_TREND_SYNONYMS: Record<string, CashFlowQuality["fcfTrend"]> = {
+  growing: "growing",
+  rising: "growing",
+  improving: "growing",
+  increasing: "growing",
+  up: "growing",
+  expanding: "growing",
+  stable: "stable",
+  flat: "stable",
+  steady: "stable",
+  declining: "declining",
+  falling: "declining",
+  deteriorating: "declining",
+  decreasing: "declining",
+  down: "declining",
+  shrinking: "declining",
+};
+
+function coerceFcfTrend(value: unknown): CashFlowQuality["fcfTrend"] {
+  const s = coerceStr(value);
+  if (!s) return null;
+  return FCF_TREND_SYNONYMS[s.toLowerCase()] ?? null;
+}
+
+/**
+ * Coerce the cash-flow quality block (value-cashflow M1) — the floor-vs-trap
+ * signal for the value lens. Money figures expand magnitude suffixes; `fcfYield`
+ * is a fraction (and is **derived** from `freeCashFlow ÷ marketCap` when the
+ * model didn't give one but a market cap is available); `fcfTrend` is normalized
+ * to growing/stable/declining. Returns null when there is no usable figure, so
+ * the proposal carries `cashFlow: null` (and the UI renders "—") rather than an
+ * all-null husk.
+ */
+export function coerceCashFlow(
+  raw: unknown,
+  opts?: { marketCap?: number | null },
+): CashFlowQuality | null {
+  const cf = asRecord(raw);
+  if (!cf) return null;
+
+  const freeCashFlow = coerceMoneyLike(cf.freeCashFlow);
+  let fcfYield = coercePercentLike(cf.fcfYield);
+  const marketCap = opts?.marketCap ?? null;
+  if (
+    fcfYield === null &&
+    freeCashFlow !== null &&
+    marketCap !== null &&
+    marketCap > 0
+  ) {
+    fcfYield = freeCashFlow / marketCap;
+  }
+
+  const result: CashFlowQuality = {
+    operatingCashFlow: coerceMoneyLike(cf.operatingCashFlow),
+    freeCashFlow,
+    fcfTrend: coerceFcfTrend(cf.fcfTrend),
+    fcfYield,
+    netDebt: coerceMoneyLike(cf.netDebt),
+    debtToEquity: coerceNumberLike(cf.debtToEquity),
+    interestCoverage: coerceNumberLike(cf.interestCoverage),
+  };
+
+  // No usable figure → null (so `cashFlow` reads as absent, not all-null).
+  const hasAny = Object.values(result).some((v) => v !== null);
+  return hasAny ? result : null;
+}
+
 function coerceConsensus(raw: unknown): ResearchConsensus | null {
   const c = asRecord(raw);
   if (!c) return null;
@@ -290,16 +359,23 @@ export function parseStructuredResearch(text: string): {
   consensus: ResearchConsensus | null;
   earnings: EarningsQuarter[];
   catalysts: string[];
+  cashFlow: CashFlowQuality | null;
   summary: string;
 } {
   const { json, cleaned } = extractJsonBlock(text);
   const obj = asRecord(json);
+  const fundamentals = obj ? coerceFundamentals(obj.fundamentals) : null;
   return {
     profile: obj ? coerceProfile(obj.profile) : null,
-    fundamentals: obj ? coerceFundamentals(obj.fundamentals) : null,
+    fundamentals,
     consensus: obj ? coerceConsensus(obj.consensus) : null,
     earnings: obj ? coerceEarnings(obj.earnings) : [],
     catalysts: obj ? coerceCatalysts(obj.catalysts) : [],
+    // Derive FCF yield from the same block's market cap when the model didn't
+    // give one — the parser stays the single source of the yield math.
+    cashFlow: obj
+      ? coerceCashFlow(obj.cashFlow, { marketCap: fundamentals?.marketCap })
+      : null,
     summary: cleaned,
   };
 }

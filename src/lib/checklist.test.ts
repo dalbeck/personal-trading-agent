@@ -75,6 +75,50 @@ describe("buildChecklist — value mandate", () => {
     expect(item(list, "Catalyst or floor — why now")?.status).toBe("flag");
   });
 
+  it("carries a Cash-flow quality item (value only) that passes a durable floor", () => {
+    const trend = buildChecklist(makeProposal({ strategy: "trend" }));
+    expect(item(trend, "Cash-flow quality")).toBeUndefined();
+
+    const value = buildChecklist(
+      makeProposal({
+        strategy: "value",
+        cashFlow: {
+          operatingCashFlow: 1_500_000_000,
+          freeCashFlow: 1_200_000_000,
+          fcfTrend: "growing",
+          fcfYield: 0.045,
+          netDebt: -500_000_000,
+          debtToEquity: 0.3,
+          interestCoverage: 20,
+        },
+      }),
+    );
+    expect(item(value, "Cash-flow quality")?.status).toBe("pass");
+  });
+
+  it("flags Cash-flow quality on a value-trap signal (negative/declining FCF)", () => {
+    const list = buildChecklist(
+      makeProposal({
+        strategy: "value",
+        cashFlow: {
+          operatingCashFlow: -100_000_000,
+          freeCashFlow: -200_000_000,
+          fcfTrend: "declining",
+          fcfYield: null,
+          netDebt: 3_000_000_000,
+          debtToEquity: 3.5,
+          interestCoverage: 1.5,
+        },
+      }),
+    );
+    expect(item(list, "Cash-flow quality")?.status).toBe("flag");
+  });
+
+  it("leaves Cash-flow quality as na (never a false pass) with no data", () => {
+    const list = buildChecklist(makeProposal({ strategy: "value" }));
+    expect(item(list, "Cash-flow quality")?.status).toBe("na");
+  });
+
   it("shares the hard rails — flags a thin reward/risk and an over-cap risk", () => {
     const list = buildChecklist(
       makeProposal({

@@ -120,6 +120,23 @@ export const GLOSSARY = {
     caveat:
       "Capped and daily-metered — results are cached per symbol per day so a refresh never re-spends.",
   },
+  "fcf": {
+    label: "free cash flow (FCF)",
+    definition:
+      "The cash a business generates after funding its operations and capital spending — operating cash flow minus capital expenditures. Durable, positive FCF means a company funds itself; for a value play it supports the floor thesis.",
+    caveat:
+      "A point-in-time research figure, not order data — evidence to weigh, never a verdict on its own.",
+  },
+  "fcf-yield": {
+    label: "FCF yield",
+    definition:
+      "Free cash flow divided by market cap — how much cash the business throws off relative to its price. Higher is cheaper; a healthy yield is part of a credible value floor.",
+  },
+  "interest-coverage": {
+    label: "interest coverage",
+    definition:
+      "Operating earnings divided by interest expense — how many times over the company can cover its interest. Thin coverage (rising leverage) is a value-trap warning; comfortable coverage supports the floor.",
+  },
   "staged-entry": {
     label: "staged entry (DCA)",
     definition:

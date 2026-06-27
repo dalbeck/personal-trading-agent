@@ -135,16 +135,30 @@ export async function refreshProposalLevels(
   }
   const builtDrafts = drafts as ManualProposalDraft[];
 
+  // Preserve the existing per-lens cash-flow quality (value-cashflow M1) across a
+  // level re-anchor — it is research data, not a price level, so refreshing the
+  // levels must not wipe it. Looked up by strategy from the prior lens (or the
+  // top-level mirror for a single-lens proposal).
+  const existingCashFlow = (strategy: Strategy) => {
+    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
+    if (lens) return lens.cashFlow ?? null;
+    return proposal.strategy === strategy ? proposal.cashFlow ?? null : null;
+  };
+
   // Re-run each lens's red-team — the prior verdict judged the stale entry.
   const verdicts = await Promise.all(
     builtDrafts.map((d) =>
-      runRedTeam(redTeamInput(d), { exec: opts.redTeamExec }),
+      runRedTeam(redTeamInput(d, existingCashFlow(d.strategy)), {
+        exec: opts.redTeamExec,
+      }),
     ),
   );
 
   const dual = (proposal.lenses ?? []).length > 0;
   const lenses: ProposalLensBreakdown[] = dual
-    ? builtDrafts.map((d, i) => draftToLens(d, verdicts[i]))
+    ? builtDrafts.map((d, i) =>
+        draftToLens(d, verdicts[i], existingCashFlow(d.strategy)),
+      )
     : [];
 
   // The active (top-level) lens mirrors the higher-conviction draft (tie → the
@@ -175,6 +189,8 @@ export async function refreshProposalLevels(
     reasoning: active.reasoning,
     redTeam: verdicts[activeIdx],
     lenses,
+    // Top-level cash-flow mirrors the active lens (preserved across the refresh).
+    cashFlow: existingCashFlow(active.strategy),
     // Stamp the new anchor time so the freshness indicator + staleness guard reset.
     pricedAt: now.toISOString(),
   });

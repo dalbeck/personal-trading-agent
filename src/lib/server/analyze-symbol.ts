@@ -27,6 +27,7 @@ import type { Ohlc } from "@/lib/indicators";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 import { TradeProposalSchema } from "@/lib/schemas";
 import type {
+  CashFlowQuality,
   ProposalLensBreakdown,
   RedTeamVerdict,
   TradeProposal,
@@ -51,6 +52,10 @@ export interface ResearchContext {
   sector: string | null;
   catalyst: string | null;
   catalystType: BuilderCatalystType | null;
+  /** Cash-flow quality for the value lens (value-cashflow M1) — pulled from the
+   *  SAME capped research fetch (no extra call). Attached to the value lens only;
+   *  null when off/capped/unavailable. */
+  cashFlow: CashFlowQuality | null;
   /** True when the metered Perplexity provider supplied the context (for the
    *  caller to surface that a daily-capped call was spent). */
   usedPerplexity: boolean;
@@ -108,10 +113,17 @@ async function defaultResearch(
       // null (honestly flagged weak by the red-team).
       catalyst: summary ? summary.slice(0, 180) : null,
       catalystType: summary ? "other" : null,
+      cashFlow: r.cashFlow ?? null,
       usedPerplexity: r.perplexity === "ok",
     };
   } catch {
-    return { sector: null, catalyst: null, catalystType: null, usedPerplexity: false };
+    return {
+      sector: null,
+      catalyst: null,
+      catalystType: null,
+      cashFlow: null,
+      usedPerplexity: false,
+    };
   }
 }
 
@@ -150,8 +162,14 @@ function toOrder(p: TradeProposal): ProposedOrder {
 }
 
 /** Brief the red-team prosecutor for one lens's draft, under its own mandate.
- *  Exported so the "Refresh levels" re-anchor reuses the exact same briefing. */
-export function redTeamInput(d: ManualProposalDraft): RedTeamProposal {
+ *  Cash-flow quality is briefed for the **value** lens only (value-cashflow M1) —
+ *  the prosecutor weighs strong FCF as floor support and weak/declining FCF +
+ *  rising leverage as a value-trap flag. Exported so the "Refresh levels"
+ *  re-anchor reuses the exact same briefing. */
+export function redTeamInput(
+  d: ManualProposalDraft,
+  cashFlow: CashFlowQuality | null,
+): RedTeamProposal {
   return {
     symbol: d.symbol,
     action: d.action,
@@ -165,16 +183,20 @@ export function redTeamInput(d: ManualProposalDraft): RedTeamProposal {
     relativeVolume: d.relativeVolume,
     catalyst: d.catalyst,
     catalystType: d.catalystType,
+    cashFlow: d.strategy === "value" ? cashFlow : null,
     thesis: d.thesis,
     reasoning: d.reasoning,
   };
 }
 
 /** Turn a lens's draft + its red-team verdict into a persisted lens breakdown.
- *  Exported so the "Refresh levels" re-anchor builds lenses identically. */
+ *  Cash-flow quality is a **value-lens** signal (value-cashflow M1) — it is
+ *  attached to the value lens only; the trend lens carries null. Exported so the
+ *  "Refresh levels" re-anchor builds lenses identically. */
 export function draftToLens(
   d: ManualProposalDraft,
   redTeam: RedTeamVerdict,
+  cashFlow: CashFlowQuality | null,
 ): ProposalLensBreakdown {
   return {
     strategy: d.strategy,
@@ -193,6 +215,7 @@ export function draftToLens(
     thesis: d.thesis,
     reasoning: d.reasoning,
     redTeam,
+    cashFlow: d.strategy === "value" ? cashFlow : null,
   };
 }
 
@@ -268,15 +291,20 @@ export async function analyzeSymbol(
   const id = `manual-${symbol}-${createdAt.slice(0, 23).replace(/[-:.T]/g, "")}`;
   const advisory = false; // approvable; the gate (not this) is the money boundary
 
+  // Cash-flow quality (value-cashflow M1) — a VALUE-lens signal pulled from the
+  // shared research fetch (no extra call). Attached to the value lens + briefed
+  // to the value red-team only.
+  const cashFlow = research.cashFlow;
+
   // Run each lens's red-team under its matching mandate.
   const [trendRedTeam, valueRedTeam] = await Promise.all([
-    runRedTeam(redTeamInput(trendDraft), { exec: opts.redTeamExec }),
-    runRedTeam(redTeamInput(valueDraft), { exec: opts.redTeamExec }),
+    runRedTeam(redTeamInput(trendDraft, null), { exec: opts.redTeamExec }),
+    runRedTeam(redTeamInput(valueDraft, cashFlow), { exec: opts.redTeamExec }),
   ]);
 
   const lenses: ProposalLensBreakdown[] = [
-    draftToLens(trendDraft, trendRedTeam),
-    draftToLens(valueDraft, valueRedTeam),
+    draftToLens(trendDraft, trendRedTeam, null),
+    draftToLens(valueDraft, valueRedTeam, cashFlow),
   ];
 
   // The proposal's top-level fields mirror the ACTIVE (default) lens — the
@@ -286,6 +314,8 @@ export async function analyzeSymbol(
     valueDraft.convictionScore > trendDraft.convictionScore
       ? { draft: valueDraft, redTeam: valueRedTeam }
       : { draft: trendDraft, redTeam: trendRedTeam };
+  // Top-level cash-flow mirrors the active lens — only carried when value is active.
+  const activeCashFlow = active.draft.strategy === "value" ? cashFlow : null;
 
   const proposal: TradeProposal = TradeProposalSchema.parse({
     ...active.draft,
@@ -298,6 +328,7 @@ export async function analyzeSymbol(
     origin: "manual-request",
     status: "pending",
     redTeam: active.redTeam,
+    cashFlow: activeCashFlow,
     lenses,
   });
 
@@ -338,6 +369,7 @@ export async function analyzeSymbol(
       thesis: proposal.thesis,
       reasoning: proposal.reasoning,
       redTeam: active.redTeam,
+      cashFlow: activeCashFlow,
       pricedAt: proposal.pricedAt,
       lenses,
     },

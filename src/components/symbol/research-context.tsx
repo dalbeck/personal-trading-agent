@@ -37,6 +37,7 @@ const FALLBACK: SymbolResearch = {
   summary: "",
   earnings: [],
   catalysts: [],
+  cashFlow: null,
   finance: [],
   sections: [],
   categories: [],

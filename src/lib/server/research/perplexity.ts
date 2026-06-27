@@ -140,6 +140,7 @@ function normalize(symbol: string, json: unknown, usedAt: string): ResearchResul
     consensus: structured.consensus,
     earnings: structured.earnings,
     catalysts: structured.catalysts,
+    cashFlow: structured.cashFlow,
   };
   const cost = extractCost(obj.usage);
   if (cost != null) result.cost = cost;
@@ -195,9 +196,11 @@ export function createPerplexityProvider(
             '"fundamentals":{"marketCap":string|null,"peRatio":number|null,"eps":number|null,"dividendYield":string|null},' +
             '"consensus":{"rating":string|null,"targetMean":number|null,"targetHigh":number|null,"targetLow":number|null,"analystCount":number|null},' +
             '"earnings":[{"period":string,"epsActual":number|null,"epsEstimate":number|null,"surprisePct":string|null,"priceMovePct":string|null}],' +
-            '"catalysts":[string]}',
+            '"catalysts":[string],' +
+            '"cashFlow":{"operatingCashFlow":string|null,"freeCashFlow":string|null,"fcfTrend":"growing"|"stable"|"declining"|null,"fcfYield":string|null,"netDebt":string|null,"debtToEquity":number|null,"interestCoverage":number|null}}',
           "name is the official company name (e.g. \"Apple, Inc.\"); domain is the primary website host only (e.g. \"apple.com\"); marketCap may use a suffix (e.g. \"3.1T\"); dividendYield as a percent string (e.g. \"0.72%\"); ipoDate as YYYY-MM-DD; exchange like \"NASDAQ\"/\"NYSE\"; country like \"United States\"; description one sentence.",
           "earnings is the last up-to-4 reported quarters oldest-first (period like \"Q1 FY26\"; surprisePct and priceMovePct as percent strings like \"+4.3%\"/\"-2.1%\"). catalysts is up to 6 short upcoming-catalyst phrases (e.g. \"Q2 earnings Jul 24\"). Omit either array if you have nothing verifiable.",
+          "cashFlow is trailing-twelve-month cash-flow quality: operatingCashFlow and freeCashFlow as money (suffix ok, e.g. \"1.2B\"); fcfTrend is the recent direction of free cash flow; fcfYield as a percent string (FCF ÷ market cap, e.g. \"4.1%\") — omit it and it will be derived from FCF and market cap; netDebt as money (negative = net cash); debtToEquity and interestCoverage as plain numbers. Use null for anything you cannot verify.",
         ].join("\n");
 
       try {

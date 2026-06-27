@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { RedTeamVerdict } from "@/components/red-team-verdict";
 import { RiskRewardBar } from "@/components/risk-reward-bar";
+import { CashFlowBlock } from "@/components/cash-flow-block";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
 import { ProposalLevelsFreshness } from "@/components/proposal-levels-freshness";
 import { ProposalActions } from "@/components/proposal-actions";
@@ -21,6 +22,7 @@ import {
   dualVerdictSummary,
   isDualLens,
 } from "@/lib/proposal-lens";
+import { hasCashFlowData } from "@/lib/cash-flow";
 import type { CheckStatus } from "@/lib/checklist";
 import {
   ADVISORY_TAG,
@@ -230,6 +232,15 @@ export function ProposalDetailView({
               ))}
             </ul>
           </Section>
+
+          {lens.strategy === "value" && hasCashFlowData(lens.cashFlow) ? (
+            <Section
+              title="Cash-flow quality"
+              note="The value floor-vs-trap signal — does the business fund itself?"
+            >
+              <CashFlowBlock cashFlow={lens.cashFlow} />
+            </Section>
+          ) : null}
 
           {!advisory ? (
             <Section

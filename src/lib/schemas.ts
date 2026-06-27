@@ -211,6 +211,37 @@ export const ConvictionTier = z.enum(["high", "moderate", "watch"]);
 export const Strategy = z.enum(["trend", "value"]);
 
 /**
+ * Cash-flow quality — the value-lens floor-vs-trap discriminator
+ * (value-cashflow M1). For a value / mean-reversion call, cash flow is the key
+ * tell between "hitting a floor with upside" and a value trap: durable, positive
+ * **free cash flow** with manageable leverage SUPPORTS the floor thesis, while
+ * negative / declining FCF and rising leverage are a strong value-trap signal.
+ * Folded into the SAME capped Perplexity value research fetch (no extra calls).
+ *
+ * `operatingCashFlow` / `freeCashFlow` / `netDebt` are USD (net debt may be
+ * negative = net cash); `fcfYield` is a **fraction** (0.041 === 4.1%, FCF ÷
+ * market cap); `debtToEquity` / `interestCoverage` are plain multiples.
+ * `fcfTrend` is the recent direction of FCF. Every field is nullable — research
+ * is best-effort and the UI renders "—" rather than fabricating one. Value lens
+ * only; the whole block defaults to null so trend records and older proposals
+ * still validate.
+ */
+export const CashFlowQualitySchema = z
+  .object({
+    operatingCashFlow: money.nullable().default(null),
+    freeCashFlow: money.nullable().default(null),
+    fcfTrend: z
+      .enum(["growing", "stable", "declining"])
+      .nullable()
+      .default(null),
+    fcfYield: ratio.nullable().default(null),
+    netDebt: money.nullable().default(null),
+    debtToEquity: money.nullable().default(null),
+    interestCoverage: money.nullable().default(null),
+  })
+  .strict();
+
+/**
  * One **lens breakdown** carried by a dual-lens proposal (dual-lens M1). The
  * manual analyze-a-symbol pipeline now evaluates a ticker under **both** the
  * trend and value mandates and produces **one** proposal holding both
@@ -239,6 +270,13 @@ export const ProposalLensSchema = z
     thesis: z.string().min(1),
     reasoning: z.string().min(1),
     redTeam: RedTeamVerdictSchema.nullable().default(null),
+    // Cash-flow quality — the value lens's floor-vs-trap signal (value-cashflow
+    // M1). Populated for the **value** lens only (trend stays null); folded into
+    // the one shared, capped research fetch. Drives the "Cash-flow quality"
+    // value-checklist item, the value red-team's floor-vs-trap weighting, and the
+    // cash-flow stat block. Defaults to null so trend lenses + older records
+    // still validate.
+    cashFlow: CashFlowQualitySchema.nullable().default(null),
   })
   .strict();
 
@@ -352,6 +390,11 @@ export const TradeProposalSchema = z
     // (discovery candidates, older manual records) — the top-level fields are the
     // lone lens. Discovery stays single-lens; only manual analyze is dual.
     lenses: z.array(ProposalLensSchema).default([]),
+    // Cash-flow quality (value-cashflow M1) — mirrors the **active** lens, so a
+    // value-active proposal carries its value cash-flow block here and a
+    // trend-active one carries null. Value lens only. Defaults to null so older
+    // records still validate.
+    cashFlow: CashFlowQualitySchema.nullable().default(null),
     // When the levels (entry/stop/target/sizing) were anchored to the live Alpaca
     // quote (fresh-entry-levels M1). Set at analysis and updated on a "Refresh
     // levels" re-anchor; drives the "levels as of …" freshness indicator and the

@@ -13,24 +13,27 @@
  * - **Trend** — a protective stop, a technically-anchored target, a named
  *   catalyst, and **breakout/pullback volume confirmation**.
  * - **Value** — a **mean-reversion stop** below support, a **discount / anchored
- *   target** (a `fundamental` target is appropriate here, not weak), and a
- *   **catalyst *or* floor** (why now). It deliberately **omits** the
- *   breakout-volume item — counter-trend is expected for value, so being below
- *   the moving averages is never itself a flag (quality / value-trap is judged
- *   by the value red-team lens, not a green-check from structured fields).
+ *   target** (a `fundamental` target is appropriate here, not weak), a
+ *   **catalyst *or* floor** (why now), and **cash-flow quality** (the floor-vs-trap
+ *   tell: durable positive FCF supports the floor, negative/declining FCF + rising
+ *   leverage flags a trap). It deliberately **omits** the breakout-volume item —
+ *   counter-trend is expected for value, so being below the moving averages is
+ *   never itself a flag (broader quality / value-trap judgment is the value
+ *   red-team lens, not a green-check from structured fields).
  *
  * Plain module (no `server-only`) so the client modal imports it directly.
  */
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { isWeakTarget, targetTypeLabel } from "@/lib/target-type";
 import { isWeakCatalyst, catalystTypeLabel } from "@/lib/catalyst";
+import { assessCashFlowQuality } from "@/lib/cash-flow";
 import { formatRelativeVolume, REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { RISK_LIMITS } from "@strategy/charter.config";
 import type { Strategy } from "@/lib/strategy";
 import type { CatalystType } from "@/lib/catalyst";
 import type { TargetType } from "@/lib/target-type";
-import type { RedTeamVerdict } from "@/lib/types";
+import type { CashFlowQuality, RedTeamVerdict } from "@/lib/types";
 
 export type CheckStatus = "pass" | "flag" | "na";
 
@@ -57,6 +60,9 @@ export interface ChecklistInput {
   catalyst: string | null;
   catalystType: CatalystType | null;
   relativeVolume: number | null;
+  /** Cash-flow quality — the value lens's floor-vs-trap signal (value-cashflow
+   *  M1). Value mandate only; null/absent for trend lenses. */
+  cashFlow?: CashFlowQuality | null;
   redTeam: RedTeamVerdict | null;
 }
 
@@ -119,6 +125,18 @@ function catalystItem(p: ChecklistInput, label: string): CheckItem {
   };
 }
 
+/**
+ * The value lens's cash-flow quality item (value-cashflow M1) — the floor-vs-trap
+ * discriminator. **Pass** on durable, positive FCF with a healthy yield + manageable
+ * leverage; **flag** on negative/declining FCF or rising leverage; **na** when
+ * there's no usable cash-flow data (honest "—", never a false pass). The
+ * pass/flag logic is the pure `assessCashFlowQuality`.
+ */
+function cashFlowItem(p: ChecklistInput): CheckItem {
+  const { status, detail } = assessCashFlowQuality(p.cashFlow ?? null);
+  return { label: "Cash-flow quality", status, detail };
+}
+
 /** The trend mandate's checklist (the desk's original). */
 function trendChecklist(p: ChecklistInput): CheckItem[] {
   return [
@@ -156,6 +174,7 @@ function valueChecklist(p: ChecklistInput): CheckItem[] {
     stopItem(p, "Mean-reversion stop below support"),
     targetItem(p, "Discount / target anchored"),
     catalystItem(p, "Catalyst or floor — why now"),
+    cashFlowItem(p),
     redTeamItem(p),
   ];
 }

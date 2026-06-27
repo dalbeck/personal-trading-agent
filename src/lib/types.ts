@@ -2,6 +2,7 @@ import type { z } from "zod";
 import type {
   AccountKind,
   BenchmarkSchema,
+  CashFlowQualitySchema,
   CoachingEntrySchema,
   DiscoverySettingsSchema,
   EquityPointSchema,
@@ -39,6 +40,7 @@ export type TradeJournalEntry = z.infer<typeof TradeJournalEntrySchema>;
 export type RejectionJournalEntry = z.infer<typeof RejectionJournalEntrySchema>;
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 
+export type CashFlowQuality = z.infer<typeof CashFlowQualitySchema>;
 export type RedTeamFactor = z.infer<typeof RedTeamFactorSchema>;
 export type RedTeamVerdict = z.infer<typeof RedTeamVerdictSchema>;
 export type ProposalLensBreakdown = z.infer<typeof ProposalLensSchema>;
