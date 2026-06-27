@@ -167,6 +167,23 @@ describe("proposalToMarkdown", () => {
     expect(staged).toMatch(/risk is sized on the \*\*full\*\* position/i);
   });
 
+  it("includes the specific research failure reason in the Research section", () => {
+    const p = makeProposal({
+      catalyst: null,
+      catalystState: "unavailable",
+      researchStatus: "unavailable",
+      researchStatusReason: "HTTP 402 (check API billing)",
+    });
+    const md = proposalToMarkdown(p, { generatedAt: "2026-06-27T12:00:00.000Z" });
+    expect(md).toContain("HTTP 402 (check API billing)");
+  });
+
+  it("does not add a research-unavailable line when researchStatus is ok", () => {
+    const p = makeProposal({ researchStatus: "ok" });
+    const md = proposalToMarkdown(p, { generatedAt: "2026-06-27T12:00:00.000Z" });
+    expect(md).not.toContain("Value-quality research unavailable");
+  });
+
   it("handles a trend proposal (trend checklist + no value framing)", () => {
     const trendMd = proposalToMarkdown(
       makeProposal({ strategy: "trend" }),

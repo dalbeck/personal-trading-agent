@@ -28,6 +28,7 @@ import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { confidenceBucket } from "@/lib/confidence";
 import { catalystSourceLine } from "@/lib/catalyst-source";
 import { catalystStateProse, resolveCatalystState } from "@/lib/catalyst-state";
+import { isResearchUnavailable, researchUnavailableLabel } from "@/lib/research-availability";
 import type { TradeProposal } from "@/lib/types";
 
 export const EXPORT_DISCLAIMER =
@@ -179,6 +180,10 @@ export function proposalToMarkdown(p: TradeProposal, opts: ExportOpts): string {
 
   lines.push("## Research", "");
   lines.push(catalystResearchText(p), "");
+  if (isResearchUnavailable(p.researchStatus)) {
+    const reason = p.researchStatusReason ?? researchUnavailableLabel(p.researchStatus);
+    lines.push("", `_Value-quality research unavailable — ${reason}._`, "");
+  }
   if (p.catalystSources.length > 0) {
     lines.push("**Catalyst sources**", "");
     for (const s of p.catalystSources) {
@@ -286,6 +291,10 @@ export function buildProposalPdfDocDefinition(
 
   content.push({ text: "Research", style: "h2" });
   content.push({ text: catalystResearchText(p), style: "body" });
+  if (isResearchUnavailable(p.researchStatus)) {
+    const reason = p.researchStatusReason ?? researchUnavailableLabel(p.researchStatus);
+    content.push({ text: `Value-quality research unavailable — ${reason}.`, style: "muted" });
+  }
   if (p.catalystSources.length > 0) {
     content.push({ text: "Catalyst sources", style: "body", bold: true });
     content.push({
