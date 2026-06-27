@@ -28,6 +28,7 @@ import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 import { TradeProposalSchema } from "@/lib/schemas";
 import { assessDividendFloor } from "@/lib/dividend";
 import { hasCashFlowData } from "@/lib/cash-flow";
+import { extractCatalyst } from "@/lib/catalyst-extract";
 import type {
   CashFlowQuality,
   DividendSignals,
@@ -111,14 +112,15 @@ async function defaultResearch(
 ): Promise<ResearchContext> {
   try {
     const r = await getSymbolResearch(symbol, { dataDir });
-    const summary = r.summary?.trim();
+    // Catalyst extraction (catalyst-extraction-quality M2): pull a SPECIFIC
+    // why-now from the structured `catalysts[]` phrases — never the AI narrative
+    // summary, which is a company description and would green-check the catalyst
+    // item as boilerplate. A description / nothing usable → null (flagged weak).
+    const extracted = extractCatalyst(r.catalysts);
     return {
       sector: r.profile?.sector ?? null,
-      // The desk's identity is technical; research catalyst is a check only. A
-      // trimmed AI summary becomes the one-line "why now" when present, else
-      // null (honestly flagged weak by the red-team).
-      catalyst: summary ? summary.slice(0, 180) : null,
-      catalystType: summary ? "other" : null,
+      catalyst: extracted?.catalyst ?? null,
+      catalystType: extracted?.catalystType ?? null,
       cashFlow: r.cashFlow ?? null,
       dividend: r.dividend ?? null,
       usedPerplexity: r.perplexity === "ok",
