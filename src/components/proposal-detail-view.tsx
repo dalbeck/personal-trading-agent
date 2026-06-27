@@ -354,7 +354,12 @@ export function ProposalDetailView({
               </div>
             ) : null}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <ProposalResearchFreshness symbol={p.symbol} />
+              <ProposalResearchFreshness
+                symbol={p.symbol}
+                proposalId={p.id}
+                researchAt={p.researchAt ?? p.createdAt}
+                rebuildable={p.origin === "manual-request"}
+              />
               <Link
                 href={`/symbol/${p.symbol}`}
                 className="text-sm font-medium text-link transition-colors hover:text-link-hover"

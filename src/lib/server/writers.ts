@@ -601,6 +601,9 @@ export interface AdvisoryProposalInput {
   // When the levels were anchored to the live quote (fresh-entry-levels M1).
   // Schema-backed + default null, so a caller may omit it (older records).
   pricedAt?: TradeProposal["pricedAt"];
+  // When the value-lens research was last derived (proposal-refresh-rebuilds M3).
+  // Schema-backed + default null, so a caller may omit it (older records).
+  researchAt?: TradeProposal["researchAt"];
 }
 
 /**

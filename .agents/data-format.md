@@ -302,6 +302,24 @@ that, unlike a rail/red-team block, is **not** clearable by an override comment
 records → the UI falls back to `createdAt`. Defaults to null so older records
 still validate.
 
+**Proposal `researchAt` (proposal-refresh-rebuilds M3).** A `TradeProposal`
+carries **`researchAt`** (ISO datetime, nullable) — when its **value-lens
+research** (cashFlow / dividend / catalyst / conviction / red-team) was last
+**derived from a research fetch**. Set to `createdAt` at analysis and **updated by
+the "Refresh research" rebuild** (`refreshProposalResearch` →
+`deriveProposalFromResearch` → `overwriteProposal`, same id/file). Unlike "Refresh
+levels" (which re-anchors levels but reuses the stored narrative), this **re-runs a
+fresh research fetch** (`fetchResearchContext(..., { force: true })`) and
+**re-derives** the value-quality fields + re-runs each red-team, so a stored
+proposal can never read "data unavailable" while its freshness badge says fresh; it
+also re-anchors levels (so `pricedAt` advances too). It drives the proposal's
+**research-freshness label + "stale — refresh" indicator** and is scoped to
+**manual-request** (analyze-a-symbol, dual-lens) proposals — a non-manual record is
+reported `not-rebuildable` and never reshaped. The same derivation core is shared
+with the manual analyze pipeline (`deriveProposalFromResearch`,
+`src/lib/server/analyze-symbol.ts`). Null for older records → the UI falls back to
+`createdAt`. Defaults to null so older records still validate.
+
 **Proposal `stagedPlan` (staged-entry-plan M2).** A `TradeProposal` carries an
 optional **`stagedPlan`** (`StagedEntryPlanSchema`, nullable) — a DCA / scale-in
 plan that splits the **full intended position** into tranches. The block holds

@@ -502,6 +502,13 @@ export const TradeProposalSchema = z
     // approval staleness guard (entry vs the current quote). Null for older
     // records → the UI falls back to `createdAt`.
     pricedAt: isoDateTime.nullable().default(null),
+    // When the proposal's value-lens research (cashFlow / dividend / catalyst /
+    // conviction / red-team) was last derived from a research fetch
+    // (proposal-refresh-rebuilds M3). Set at analysis and updated by the
+    // "Refresh research" rebuild; drives the proposal's research-freshness label
+    // + "stale — refresh" indicator. Null for older records → the UI falls back
+    // to `createdAt`.
+    researchAt: isoDateTime.nullable().default(null),
     // Optional staged-entry (DCA / scale-in) plan (staged-entry-plan M2) — splits
     // the full position into separately-approved tranches. Null when none.
     stagedPlan: StagedEntryPlanSchema.nullable().default(null),

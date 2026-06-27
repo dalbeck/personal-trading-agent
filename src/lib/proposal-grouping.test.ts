@@ -38,6 +38,7 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     researchStatus: null,
     researchStatusReason: null,
     pricedAt: null,
+    researchAt: null,
     stagedPlan: null,
     reviewByDate: null,
     sample: false,
