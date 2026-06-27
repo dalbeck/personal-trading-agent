@@ -76,8 +76,14 @@ function strings(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.map((x) => String(x)).filter(Boolean) : [];
 }
 
-/** Parse the Agent API `output[]` (finance_results blocks + final message). */
-function normalize(symbol: string, json: unknown, usedAt: string): ResearchResult {
+/** Parse the Agent API `output[]` (finance_results blocks + final message).
+ *  Returns the result plus the structured-JSON parse status so the caller can
+ *  treat a truncated block as a soft failure (research-output-completes M1). */
+function normalize(
+  symbol: string,
+  json: unknown,
+  usedAt: string,
+): { result: ResearchResult; jsonStatus: "ok" | "missing" | "parse-error" } {
   const obj = (json ?? {}) as { output?: AgentOutputItem[]; usage?: unknown };
   const output = Array.isArray(obj.output) ? obj.output : [];
 
@@ -150,7 +156,7 @@ function normalize(symbol: string, json: unknown, usedAt: string): ResearchResul
   };
   const cost = extractCost(obj.usage);
   if (cost != null) result.cost = cost;
-  return result;
+  return { result, jsonStatus: structured.jsonStatus };
 }
 
 /** Real per-call cost (USD), when the Agent API reports it. */
@@ -172,7 +178,14 @@ export function createPerplexityProvider(
     opts?.dailyCap ??
     Number(process.env.PERPLEXITY_DAILY_CALL_CAP ?? "30") ??
     30;
-  const maxOutputTokens = opts?.maxOutputTokens ?? 512;
+  // The structured JSON (profile → fundamentals → consensus → earnings →
+  // catalysts → cashFlow → dividend) plus a short prose summary must fit in one
+  // response. 512 truncated it mid-stream (the LLY cashFlow/dividend failure);
+  // a generous budget lets the full schema complete (research-output-completes M1).
+  const maxOutputTokens =
+    opts?.maxOutputTokens ??
+    Number(process.env.PERPLEXITY_MAX_OUTPUT_TOKENS ?? "4000") ??
+    4000;
   const doFetch = opts?.fetchImpl ?? fetch;
   const clock = opts?.now ?? (() => new Date());
 
@@ -227,9 +240,7 @@ export function createPerplexityProvider(
       const input =
         query.question ??
         [
-          `Summarize the latest fundamentals, earnings, analyst views, and catalysts for ${query.symbol}. Be concise and cite sources.`,
-          "",
-          "Then append a fenced ```json code block with these exact keys, using null for anything you cannot verify (do not guess):",
+          `Research ${query.symbol}. Output a fenced \`\`\`json code block FIRST — before any prose — with these exact keys, using null for anything you cannot verify (do not guess). The JSON block must be COMPLETE and valid; emit it before the summary so it is never the part that gets cut off:`,
           '{"profile":{"name":string|null,"domain":string|null,"ceo":string|null,"employees":number|null,"sector":string|null,"industry":string|null,"country":string|null,"exchange":string|null,"ipoDate":string|null,"description":string|null},' +
             '"fundamentals":{"marketCap":string|null,"peRatio":number|null,"eps":number|null,"dividendYield":string|null},' +
             '"consensus":{"rating":string|null,"targetMean":number|null,"targetHigh":number|null,"targetLow":number|null,"analystCount":number|null},' +
@@ -241,6 +252,8 @@ export function createPerplexityProvider(
           "earnings is the last up-to-4 reported quarters oldest-first (period like \"Q1 FY26\"; surprisePct and priceMovePct as percent strings like \"+4.3%\"/\"-2.1%\"). catalysts is up to 6 short upcoming-catalyst phrases (e.g. \"Q2 earnings Jul 24\"). Omit either array if you have nothing verifiable.",
           "cashFlow is trailing-twelve-month cash-flow quality: operatingCashFlow and freeCashFlow as money (suffix ok, e.g. \"1.2B\"); fcfTrend is the recent direction of free cash flow; fcfYield as a percent string (FCF ÷ market cap, e.g. \"4.1%\") — omit it and it will be derived from FCF and market cap; netDebt as money (negative = net cash); debtToEquity and interestCoverage as plain numbers. Use null for anything you cannot verify.",
           "dividend is dividend sustainability (null the whole block if the company pays no dividend): dividendYield, payoutRatio (dividends ÷ earnings), fcfPayout (dividends ÷ FCF) and dividendCagr as percent strings (e.g. \"45%\"); fcfCoverage as a plain multiple (FCF ÷ dividends, e.g. 2.4) — give fcfPayout OR fcfCoverage and the other is derived; growthStreakYears as the count of consecutive annual dividend increases. Use null for anything you cannot verify.",
+          "",
+          `After the closed \`\`\`json block, add a concise 1–2 sentence summary of the latest fundamentals, earnings, analyst views, and catalysts for ${query.symbol}, and cite sources. The JSON must come first and be complete.`,
         ].join("\n");
 
       let res: Response;
@@ -283,19 +296,36 @@ export function createPerplexityProvider(
       }
 
       let result: ResearchResult;
+      let jsonStatus: "ok" | "missing" | "parse-error";
       try {
-        result = normalize(query.symbol, await res.json(), clock().toISOString());
+        ({ result, jsonStatus } = normalize(
+          query.symbol,
+          await res.json(),
+          clock().toISOString(),
+        ));
       } catch {
         await emit(query.symbol, "parse-error", startedAt);
         return null;
       }
 
-      // Only successful calls are metered. Record real cost for visibility;
-      // the count remains the hard daily cap.
+      // The call succeeded and was billed regardless of the structured outcome,
+      // so it always counts against the hard daily cost cap.
       await bumpResearchCallCount(date, {
         dataDir: opts?.dataDir,
         cost: result.cost,
       });
+
+      // Truncation guard (research-output-completes M1): a structured block that
+      // was opened but is unparseable means the output-token budget cut it off
+      // mid-stream (the LLY cashFlow/dividend failure). Do NOT return it as a
+      // clean success with null value data — record `truncated` and fail soft so
+      // the orchestrator falls through to the FMP fallback instead of caching a
+      // null-cashFlow result tagged "ok".
+      if (jsonStatus === "parse-error") {
+        await emit(query.symbol, "truncated", startedAt, { cost: result.cost });
+        return null;
+      }
+
       await emit(query.symbol, "ok", startedAt, { cost: result.cost });
       return result;
     },

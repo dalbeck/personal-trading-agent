@@ -110,6 +110,24 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
+/** The structured-block keys the model is asked to emit — used to tell a real
+ *  (but truncated) JSON block apart from a plain prose answer. */
+const STRUCTURED_KEYS =
+  /"(profile|fundamentals|consensus|earnings|catalysts|cashFlow|dividend)"/;
+
+/**
+ * Was a structured JSON block *opened* in this text? True when a ```json fence
+ * is present OR a `{` is followed by one of our expected keys — i.e. the model
+ * started emitting the schema, even if the closing brace/fence never arrived.
+ * This is what distinguishes a **truncated** response (block opened, unparseable)
+ * from a legitimate prose-only one (no block at all). (research-output-completes M1)
+ */
+export function hasStructuredJsonOpening(text: string): boolean {
+  if (/```json/i.test(text)) return true;
+  const first = text.indexOf("{");
+  return first !== -1 && STRUCTURED_KEYS.test(text.slice(first));
+}
+
 /**
  * Best-effort company name from a profile blurb — the leading proper-noun run
  * before a common connector verb ("Apple, Inc. engages in…" → "Apple, Inc.";
@@ -399,11 +417,25 @@ export function parseStructuredResearch(text: string): {
   cashFlow: CashFlowQuality | null;
   dividend: DividendSignals | null;
   summary: string;
+  /** Whether the structured JSON block parsed (research-output-completes M1):
+   *  - `ok`        — a block parsed cleanly.
+   *  - `parse-error` — a block was opened (```json fence / `{"profile"…`) but is
+   *    unparseable, i.e. **truncated** (the LLY `max_output_tokens` failure) or
+   *    malformed. The caller should treat this as a soft failure → trigger FMP,
+   *    never cache it as a clean success.
+   *  - `missing`   — no structured block at all (a legitimate prose-only answer). */
+  jsonStatus: "ok" | "missing" | "parse-error";
 } {
   const { json, cleaned } = extractJsonBlock(text);
   const obj = asRecord(json);
   const fundamentals = obj ? coerceFundamentals(obj.fundamentals) : null;
+  const jsonStatus: "ok" | "missing" | "parse-error" = obj
+    ? "ok"
+    : hasStructuredJsonOpening(text)
+      ? "parse-error"
+      : "missing";
   return {
+    jsonStatus,
     profile: obj ? coerceProfile(obj.profile) : null,
     fundamentals,
     consensus: obj ? coerceConsensus(obj.consensus) : null,

@@ -470,4 +470,41 @@ describe("parseStructuredResearch", () => {
     // The unparseable block is still stripped from the prose.
     expect(summary).toContain("Prose.");
   });
+
+  describe("jsonStatus (truncation detection, research-output-completes M1)", () => {
+    it("reports ok when a complete JSON block parses", () => {
+      const text =
+        '```json\n{"profile":{"name":"Eli Lilly"},"cashFlow":{"freeCashFlow":"8B"}}\n```\nShort prose.';
+      expect(parseStructuredResearch(text).jsonStatus).toBe("ok");
+    });
+
+    it("reports missing when there is no JSON block at all", () => {
+      expect(parseStructuredResearch("Only prose here.").jsonStatus).toBe(
+        "missing",
+      );
+    });
+
+    it("reports parse-error when a fenced block was opened but is unterminated (truncated)", () => {
+      // The real LLY failure: max_output_tokens cut the JSON mid-stream at the
+      // consensus block — fence opened, never closed, outer object never closed.
+      const truncated =
+        '```json\n{"profile":{"name":"Eli Lilly, Co."},"fundamentals":{"marketCap":"1.14T","peRatio":41.01},"cons';
+      const result = parseStructuredResearch(truncated);
+      expect(result.jsonStatus).toBe("parse-error");
+      // And nothing was salvaged — the value fields stay null.
+      expect(result.cashFlow).toBeNull();
+      expect(result.dividend).toBeNull();
+    });
+
+    it("reports parse-error for a bare (unfenced) object that begins with our keys but is truncated", () => {
+      const truncated = '{"profile":{"name":"X"},"fundamentals":{"marketCap":"1';
+      expect(parseStructuredResearch(truncated).jsonStatus).toBe("parse-error");
+    });
+
+    it("reports parse-error for a malformed but fully-fenced block", () => {
+      expect(
+        parseStructuredResearch("Prose.\n```json\n{not valid json}\n```").jsonStatus,
+      ).toBe("parse-error");
+    });
+  });
 });

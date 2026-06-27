@@ -28,8 +28,11 @@ import type { SymbolResearch } from "./types";
  *  the value-lens `cashFlow` block (value-cashflow M1); v7 added the `dividend`
  *  block (dividend-floor M1); v8 added the `perplexityReason` field
  *  (research-observability M1); v9 added `cashFlowSource`/`dividendSource` for
- *  the FMP fallback (fundamentals-fallback-fmp M2). */
-const CACHE_VERSION = 9;
+ *  the FMP fallback (fundamentals-fallback-fmp M2); v10 busts entries cached
+ *  while Perplexity truncation silently stored null cashFlow/dividend as a clean
+ *  "ok" success — they re-fetch with the raised output cap + truncation guard
+ *  (research-output-completes M1). */
+const CACHE_VERSION = 10;
 
 function cacheFile(symbol: string, dataDir?: string): string {
   const root =
