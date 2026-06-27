@@ -18,7 +18,11 @@ export const CATALYST_TYPE_LABEL: Record<CatalystType, string> = {
   none: "None",
 };
 
-/** A missing catalyst or an explicit `none` (trend-alone) is the weak kind. */
+/** A missing catalyst or an explicit `none` (trend-alone) is the weak kind. A
+ *  company description / boilerplate is kept OUT of the catalyst at extraction
+ *  time (catalyst-extraction-quality M2, `src/lib/catalyst-extract.ts`), so it
+ *  surfaces here as `null` → weak, rather than masquerading as an `other`
+ *  catalyst that passes. */
 export function isWeakCatalyst(
   catalystType: CatalystType | null | undefined,
 ): boolean {
