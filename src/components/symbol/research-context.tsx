@@ -153,14 +153,19 @@ export function SymbolResearchProvider({
  * Note explaining a Perplexity-sourced section that has no data, so the analyst
  * consensus + AI summary islands degrade consistently. Returns null when OK.
  */
-export function perplexityNote(status: PerplexityStatus): string | null {
+export function perplexityNote(
+  status: PerplexityStatus,
+  reason?: string | null,
+): string | null {
   switch (status) {
     case "off":
       return "AI research is off (a metered Perplexity add-on, off by default) — see the research links below.";
     case "capped":
       return "Today’s research limit was reached (the daily cap keeps cost bounded) — see the research links below.";
     case "unavailable":
-      return "Research is unavailable right now — see the research links below.";
+      return reason
+        ? `Research unavailable — ${reason}. See the research links below.`
+        : "Research is unavailable right now — see the research links below.";
     default:
       return null;
   }

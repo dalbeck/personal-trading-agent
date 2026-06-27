@@ -35,7 +35,7 @@ export function AnalystConsensus() {
   const research = state.status === "loaded" ? state.research : null;
   const c = research?.consensus ?? null;
   const note =
-    research && !c ? perplexityNote(research.perplexity) : null;
+    research && !c ? perplexityNote(research.perplexity, research.perplexityReason) : null;
 
   return (
     <section
