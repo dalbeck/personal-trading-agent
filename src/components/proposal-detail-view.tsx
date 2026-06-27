@@ -110,7 +110,13 @@ export function ProposalDetailView({
             {p.action.toUpperCase()}
           </Badge>
           <h1 className="font-serif text-3xl font-semibold leading-none text-fg">
-            {p.symbol}
+            <Link
+              href={`/symbol/${p.symbol}`}
+              title={`Open ${p.symbol} research`}
+              className="rounded-[3px] underline-offset-4 transition-colors hover:text-link hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              {p.symbol}
+            </Link>
           </h1>
           {lenses.map((l) => (
             <Badge key={l.strategy} tone={strategyStyle[l.strategy].tone}>
