@@ -1,4 +1,9 @@
-import { convictionTierFromScore, type ConvictionTier } from "./conviction";
+import {
+  CONVICTION_UNKNOWN_QUALITY_CAP,
+  CONVICTION_UNKNOWN_QUALITY_DRAG,
+  convictionTierFromScore,
+  type ConvictionTier,
+} from "./conviction";
 import { atr, sma, type Ohlc } from "./indicators";
 import { resolveStopPrice } from "./risk/validators";
 import type { Strategy } from "./strategy";
@@ -57,6 +62,11 @@ export interface BuildManualProposalInput {
    *  well-covered dividend lifts conviction; an uncovered / at-risk one drags.
    *  Ignored for trend. Null/absent when there's no dividend signal. */
   dividendFloor?: { covered: boolean; atRisk: boolean } | null;
+  /** Whether the VALUE lens's key quality data (cash-flow) is KNOWN
+   *  (conviction-honesty M1). Unknown is a **penalty, not neutral**: it drags the
+   *  value conviction AND caps it below "high" — a value play whose cash flow we
+   *  can't verify is never high-conviction. Defaults to true (back-compat / trend). */
+  qualityDataKnown?: boolean;
   /** Fractional shares allowed (charter: yes). Default true. */
   allowFractional?: boolean;
   riskLimits?: { perPositionRiskPct?: number; perPositionSizePct?: number };
@@ -152,6 +162,7 @@ export function buildManualProposalDraft(
           rewardRisk,
           hasCatalyst,
           dividendFloor: input.dividendFloor ?? null,
+          qualityDataKnown: input.qualityDataKnown ?? true,
         })
       : scoreConviction({
           entry,
@@ -278,6 +289,7 @@ function scoreValueConviction(s: {
   rewardRisk: number;
   hasCatalyst: boolean;
   dividendFloor: { covered: boolean; atRisk: boolean } | null;
+  qualityDataKnown: boolean;
 }): number {
   // Discount (0.35): cheap relative to the long-term trend is the value zone.
   // Below the 200-day scores full; modestly above is neutral; well above is poor
@@ -310,6 +322,15 @@ function scoreValueConviction(s: {
 
   const score =
     0.35 * discount + 0.15 * offHigh + 0.25 * rr + 0.1 * catalyst + 0.15 * dividend;
+
+  // Unknown key quality data (cash-flow) is a PENALTY, not neutral
+  // (conviction-honesty M1): drag the score AND cap it below "high" so a value
+  // play whose cash flow we can't verify can never read high-conviction.
+  if (!s.qualityDataKnown) {
+    return clamp01(
+      Math.min(score * CONVICTION_UNKNOWN_QUALITY_DRAG, CONVICTION_UNKNOWN_QUALITY_CAP),
+    );
+  }
   return clamp01(score);
 }
 

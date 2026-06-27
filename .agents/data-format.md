@@ -307,6 +307,23 @@ cap, 3) and `minSectorsTarget` (sector spread, 3); `selectDiscoveryCandidates`
 (`src/lib/discovery.ts`) does the pure best-in-sector / spread selection. Both
 fields default to `null` so older records still validate.
 
+**Conviction honesty (conviction-honesty M1).** Two honesty rules layer onto the
+above. (1) **Unknown key quality data is a penalty, not neutral:** when a **value**
+proposal's **cash-flow** data is unknown (`qualityDataKnown=false`, fed from
+`hasCashFlowData`), `scoreValueConviction` (`src/lib/proposal-builder.ts`, pure +
+unit-tested) drags the score (`CONVICTION_UNKNOWN_QUALITY_DRAG`) **and caps it
+below "high"** (`CONVICTION_UNKNOWN_QUALITY_CAP` < `CONVICTION_HIGH_MIN`, both in
+`src/lib/conviction.ts`) — a value play whose cash flow we can't verify can never
+read high-conviction. (2) **Conviction is a ranking signal, NOT a verdict — the
+red-team verdict is the headline.** The UI subordinates conviction: the detail
+header shows the **red-team verdict prominently** (semantic pill), and the
+conviction badge is rendered through the verdict-aware `convictionDisplay`
+(`src/lib/conviction-display.ts`, pure + unit-tested) — framed as a "signal" and,
+when the matching red-team **rejects**, shown **muted** with a "red-team reject ·
+ranking only" note (never a bare green "high" on a rejected proposal). No
+data-model change for (2) — display only; the score penalty (1) is stored in
+`convictionScore`/`convictionTier` at build time.
+
 **Red-team verdict (structured rationale).** The prosecutor's verdict on a
 proposal is **structured, not one text blob** (`RedTeamVerdictSchema` in
 `src/lib/schemas.ts`):

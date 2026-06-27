@@ -27,6 +27,7 @@ import type { Ohlc } from "@/lib/indicators";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 import { TradeProposalSchema } from "@/lib/schemas";
 import { assessDividendFloor } from "@/lib/dividend";
+import { hasCashFlowData } from "@/lib/cash-flow";
 import type {
   CashFlowQuality,
   DividendSignals,
@@ -301,6 +302,9 @@ export async function analyzeSymbol(
       ? { catalyst: dividendFloor.floorText, catalystType: "other" as const }
       : {}),
     dividendFloor: { covered: dividendFloor.covered, atRisk: dividendFloor.atRisk },
+    // Conviction-honesty M1: unknown cash-flow drags + caps value conviction
+    // below "high" — a value play we can't quality-check isn't high-conviction.
+    qualityDataKnown: hasCashFlowData(research.cashFlow),
   };
 
   const trendDraft = buildManualProposalDraft({ ...researchInput, strategy: "trend" });
