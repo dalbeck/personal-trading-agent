@@ -143,6 +143,10 @@ export interface ResearchProvider {
   readonly name: string;
   /** Returns context, or `null` when off / capped / unavailable. Never throws. */
   research(query: ResearchQuery): Promise<ResearchResult | null>;
+  /** The diagnostic for the most recent `research()` call on this instance, or
+   *  null if it has not been called. Lets the orchestrator surface a specific
+   *  failure reason without changing `research()`'s return contract. */
+  lastDiagnostic?(): import("./diagnostics").ResearchDiagnostic | null;
 }
 
 /** Which source actually supplied a field group, for honest per-section tagging. */
