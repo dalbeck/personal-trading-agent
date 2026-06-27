@@ -18,6 +18,9 @@ import type { PerplexityStatus } from "./types";
 export type ResearchOutcome =
   | "ok"
   | "no-api-key"
+  // Reserved for callers that route the off-state through the ring (e.g. a future
+  // provider wrapper); not emitted by the current Perplexity provider — the
+  // orchestrator decides "off" before research() is ever called.
   | "provider-off"
   | "daily-cap-reached"
   | "http-error"
@@ -50,7 +53,7 @@ export function researchReasonText(d: ResearchDiagnostic): string | null {
       return null;
     case "no-api-key":
       return "no API key configured";
-    case "provider-off":
+    case "provider-off": // reserved — not emitted by the current provider; see type definition
       return "research off";
     case "daily-cap-reached":
       return "daily research cap reached";
@@ -75,7 +78,7 @@ export function diagnosticToStatus(d: ResearchDiagnostic): PerplexityStatus {
   switch (d.outcome) {
     case "ok":
       return "ok";
-    case "provider-off":
+    case "provider-off": // reserved — not emitted by the current provider; see type definition
       return "off";
     case "daily-cap-reached":
       return "capped";

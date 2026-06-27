@@ -11,6 +11,17 @@ export function formatDiagnosticLine(d: ResearchDiagnostic): string {
   return `${d.symbol} · ${reason ?? "ok"} · ${d.latencyMs}ms${cost}`;
 }
 
+/** Format the RFC3339 `at` timestamp as a compact "h:mm AM/PM ET" string. Pure. */
+const timeFmt = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "America/New_York",
+});
+
+export function formatDiagnosticTime(at: string): string {
+  return `${timeFmt.format(new Date(at))} ET`;
+}
+
 /**
  * Research-provider health (research-observability M1). The last research calls'
  * outcome / reason / latency / cost, so a silent failure (the LLY cash-flow
@@ -39,12 +50,20 @@ export function ResearchHealthPanel({
       <p
         className={`mt-3 text-sm font-medium ${ok ? "text-fg" : "text-warning"}`}
       >
-        Last call: {formatDiagnosticLine(latest)}
+        Last call:{" "}
+        <time
+          dateTime={latest.at}
+          className="text-xs font-normal text-fg-muted tabular-nums"
+        >
+          {formatDiagnosticTime(latest.at)}
+        </time>{" "}
+        · {formatDiagnosticLine(latest)}
       </p>
       {rest.length > 0 ? (
         <ul className="mt-3 flex flex-col gap-1 text-xs text-fg-muted">
           {rest.map((d, i) => (
             <li key={`${d.at}-${i}`} className="tabular-nums">
+              <time dateTime={d.at}>{formatDiagnosticTime(d.at)}</time> ·{" "}
               {formatDiagnosticLine(d)}
             </li>
           ))}
