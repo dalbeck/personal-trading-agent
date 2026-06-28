@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getEvaluationScorecard, getLiveBookPerformance } from "./eval";
+import {
+  getEvaluationScorecard,
+  getLiveBookPerformance,
+  getNetPerformance,
+} from "./eval";
 import type { JournalEntry, PortfolioSnapshot } from "@/lib/types";
 
 /**
@@ -78,6 +82,84 @@ describe("getEvaluationScorecard paper scoping", () => {
     // live buy without a stop must not count as a paper stop violation.
     expect(card.integrity.realMoneyPathTouched).toBe(false);
     expect(card.integrity.ordersWithoutStop).toBe(0);
+  });
+});
+
+describe("getNetPerformance", () => {
+  const netSnapshot: PortfolioSnapshot = {
+    ...paperSnapshot,
+    equity: 1_000,
+    positions: [],
+    equityCurve: [
+      { date: "2026-01-01", equity: 1_000 },
+      { date: "2026-04-01", equity: 1_100 }, // +10% gross over 90 days
+    ],
+  } as unknown as PortfolioSnapshot;
+
+  const buy: JournalEntry = {
+    ...paperTrade,
+    qty: 10,
+    price: 100, // notional 1000 → $0.50 slippage at 5 bps
+    timestamp: "2026-02-01T09:41:00-05:00",
+    riskPct: 0.015,
+  } as unknown as JournalEntry;
+
+  it("reports net-of-cost return, SPY, the annualized excess headline, and clean rails", async () => {
+    const perf = await getNetPerformance({
+      costConfig: {
+        fixedApiAnnualUsd: 0,
+        slippageBpsPerSide: 5,
+        commissionPerTradeUsd: 0,
+      },
+      readLatestSnapshotImpl: async () => netSnapshot,
+      readJournalImpl: async () => [buy],
+      readDiagnosticsImpl: async () =>
+        [
+          {
+            at: "2026-02-15T10:00:00Z",
+            provider: "perplexity",
+            symbol: "MSFT",
+            outcome: "ok",
+            latencyMs: 100,
+            cost: 0.01,
+          },
+        ] as never,
+      // SPY +6% over the window, no drawdown.
+      fetchCloses: async () => [
+        { date: "2026-01-01", equity: 100 },
+        { date: "2026-04-01", equity: 106 },
+      ],
+    });
+
+    expect(perf.windowDays).toBe(90);
+    expect(perf.grossReturnPct).toBeCloseTo(0.1, 6);
+    // drag = (metered 0.01 + slippage 0.50) / 1000
+    expect(perf.costDragPct).toBeCloseTo(0.00051, 8);
+    expect(perf.netReturnPct).toBeCloseTo(0.09949, 6);
+    expect(perf.benchmarkReturnPct).toBeCloseTo(0.06, 6);
+    // net annualized (~0.43) beats SPY annualized (~0.27) → positive headline.
+    expect(perf.netExcessAnnualizedPct).not.toBeNull();
+    expect(perf.netExcessAnnualizedPct!).toBeGreaterThan(0);
+    expect(perf.rails.totalBreaches).toBe(0);
+  });
+
+  it("scopes rails + cost to the paper book (a live trade doesn't add slippage)", async () => {
+    const perf = await getNetPerformance({
+      costConfig: {
+        fixedApiAnnualUsd: 0,
+        slippageBpsPerSide: 5,
+        commissionPerTradeUsd: 0,
+      },
+      readLatestSnapshotImpl: async () => netSnapshot,
+      readJournalImpl: async () => [
+        buy,
+        { ...buy, id: "live", account: "live", qty: 1000, price: 1000 } as JournalEntry,
+      ],
+      readDiagnosticsImpl: async () => [],
+      fetchCloses: async () => [],
+    });
+    // Only the paper buy's $0.50 slippage — the live trade is excluded.
+    expect(perf.costDragPct).toBeCloseTo(0.0005, 8);
   });
 });
 
