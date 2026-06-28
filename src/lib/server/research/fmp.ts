@@ -10,17 +10,25 @@ import type { ResearchProvider, ResearchResult } from "./types";
 import { mapFmpToResearch, type FmpRaw } from "./fmp-map";
 
 /**
- * Financial Modeling Prep (FMP) v3 adapter — a keyed, default-off, capped
- * fundamentals provider (see `.agents/infra.md`). CONTEXT ONLY: fundamentals /
- * cash-flow / dividend / profile for research; never order pricing or execution.
+ * Financial Modeling Prep (FMP) **stable** adapter — a keyed, default-off,
+ * capped fundamentals provider (see `.agents/infra.md`). CONTEXT ONLY:
+ * fundamentals / cash-flow / dividend / profile for research; never order
+ * pricing or execution.
+ *
+ * Targets FMP's stable API (`/stable/...`, query-param style: `?symbol=…&apikey=…`).
+ * The legacy v3 routes (`/api/v3/...`) 403 "Legacy Endpoint" for keys issued
+ * after 2025-08-31 — this adapter was migrated off them (see the spec).
  *
  * Default-off: with no `FMP_API_KEY`, no requests are ever made and the
- * provider returns null on every call. Each invocation issues up to 5 parallel
- * FMP v3 HTTP requests (profile, ratios-ttm, key-metrics-ttm, cash-flow-statement,
- * stock_dividend); the daily cap counts **invocations** (not individual requests).
+ * provider returns null on every call. Each invocation issues up to 6 parallel
+ * stable HTTP requests (profile, ratios-ttm, key-metrics-ttm, cash-flow-statement,
+ * balance-sheet-statement, dividends); the daily cap counts **invocations** (not
+ * individual requests).
  *
- * NOTE: the FMP v3 field mapping below was written against FMP's docs without a
- * live key; verify against a real key before setting FMP_API_KEY in production.
+ * Free-tier caveat: a free FMP plan symbol-gates the statement endpoints
+ * (HTTP 402 "not available under your current subscription") for non-whitelisted
+ * symbols — profile still returns 200, so a gated symbol yields profile-only data
+ * (cashFlow/dividend null) and the orchestrator falls through to Perplexity.
  */
 
 export interface FmpOpts {
@@ -33,7 +41,7 @@ export interface FmpOpts {
 }
 
 const DEFAULT_URL =
-  process.env.FMP_API_URL ?? "https://financialmodelingprep.com/api/v3";
+  process.env.FMP_API_URL ?? "https://financialmodelingprep.com/stable";
 
 export function createFmpProvider(opts?: FmpOpts): ResearchProvider {
   const apiKey = opts?.apiKey ?? process.env.FMP_API_KEY ?? "";
@@ -92,14 +100,15 @@ export function createFmpProvider(opts?: FmpOpts): ResearchProvider {
 
       const sym = encodeURIComponent(query.symbol);
 
-      // Fetch all 5 endpoints in parallel. Note: cash-flow-statement already
-      // has query params (period + limit), so we use &apikey= not ?apikey=.
+      // Fetch all 6 stable endpoints in parallel. Stable uses the query-param
+      // style (`?symbol=…&apikey=…`), NOT the v3 path-param style.
       const urls = [
-        `${apiUrl}/profile/${sym}?apikey=${apiKey}`,
-        `${apiUrl}/ratios-ttm/${sym}?apikey=${apiKey}`,
-        `${apiUrl}/key-metrics-ttm/${sym}?apikey=${apiKey}`,
-        `${apiUrl}/cash-flow-statement/${sym}?period=annual&limit=5&apikey=${apiKey}`,
-        `${apiUrl}/historical-price-full/stock_dividend/${sym}?apikey=${apiKey}`,
+        `${apiUrl}/profile?symbol=${sym}&apikey=${apiKey}`,
+        `${apiUrl}/ratios-ttm?symbol=${sym}&apikey=${apiKey}`,
+        `${apiUrl}/key-metrics-ttm?symbol=${sym}&apikey=${apiKey}`,
+        `${apiUrl}/cash-flow-statement?symbol=${sym}&period=annual&limit=5&apikey=${apiKey}`,
+        `${apiUrl}/balance-sheet-statement?symbol=${sym}&period=annual&limit=1&apikey=${apiKey}`,
+        `${apiUrl}/dividends?symbol=${sym}&apikey=${apiKey}`,
       ] as const;
 
       const settled = await Promise.allSettled(
@@ -173,14 +182,21 @@ export function createFmpProvider(opts?: FmpOpts): ResearchProvider {
         }
       }
 
-      const [profileJson, ratiosTtmJson, keyMetricsTtmJson, cashFlowJson, dividendJson] =
-        await Promise.all(settled.map(parseBody));
+      const [
+        profileJson,
+        ratiosTtmJson,
+        keyMetricsTtmJson,
+        cashFlowJson,
+        balanceSheetJson,
+        dividendJson,
+      ] = await Promise.all(settled.map(parseBody));
 
       const raw: FmpRaw = {
         profile: profileJson,
         ratiosTtm: ratiosTtmJson,
         keyMetricsTtm: keyMetricsTtmJson,
         cashFlow: cashFlowJson,
+        balanceSheet: balanceSheetJson,
         dividendHistory: dividendJson,
       };
 
