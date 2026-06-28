@@ -31,7 +31,7 @@ and routines must follow this. The runtime contracts live in
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
 | `data/research/` | `.json` | `ResearchUsageSchema` (per-day call counters: `usage-<date>.json` for Perplexity's metered cap + `usage-fmp-<date>.json` for FMP's separate cap) |
 | `data/research/cache/` | `.json` | symbol-research cache (`<SYMBOL>.json`, `fetchedAt`-stamped freshness, internal state — not a contract) |
-| `data/research/diagnostics.json` | `.json` | research-call diagnostics ring (array of diagnostic records, internal state — not a contract, excluded from validation) |
+| `data/research/diagnostics.json` | `.json` | research-call diagnostics ring (array of diagnostic records, internal state — not a contract, excluded from validation). Each record's **`cost`** (real billed Perplexity USD) is also summed by the **evaluation cost model** (`src/lib/eval/cost-model.ts`, server assembler `src/lib/server/cost.ts`) — the metered-API line of the cost-aware go/no-go scorecard. |
 
 **Tracked universe + account scoping (M2/M3).** The **watchlist** — the editable
 half of the tracked universe — is a small JSON state file
