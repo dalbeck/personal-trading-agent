@@ -1,6 +1,14 @@
-import type { TradeProposal } from "@/lib/types";
+import type {
+  CashFlowQuality,
+  RedTeamVerdict,
+  ResearchStatus,
+} from "@/lib/types";
+import type { Strategy } from "@/lib/strategy";
 import { hasCashFlowData } from "@/lib/cash-flow";
-import { hasDividendData } from "@/lib/dividend";
+import {
+  isResearchUnavailable,
+  researchUnavailableLabel,
+} from "@/lib/research-availability";
 
 /**
  * Approval-proximity reading (approval-proximity-meter spec) — a derived,
@@ -14,11 +22,33 @@ import { hasDividendData } from "@/lib/dividend";
  * **never contradict the verdict**. It is read-only, feeds nothing downstream,
  * and changes no red-team / conviction / gate logic.
  *
- * Pure: proposal in, reading out — unit-tested across each band, the
- * modulations, and the data-completeness cap.
+ * **Lens-aware (proximity-meter-lens-aware M0).** The input is the
+ * **currently-toggled lens**, not the proposal — so a dual-lens analysis updates
+ * the reading when the Trend/Value toggle flips (each lens carries its own
+ * verdict, conviction, and quality data). A `TradeProposal` (its top-level fields
+ * mirror the active lens) and a `ProposalLensBreakdown` both satisfy
+ * {@link ProximityInput}, so single-lens proposals read identically.
+ *
+ * Pure: a lens in, a reading out — unit-tested across each band, the
+ * modulations, the lens switch, and the applicable-vs-unavailable data cap.
  */
 
 export type ProximityVerdict = "approve" | "concern" | "reject";
+
+/**
+ * The minimal lens fields the proximity reading needs. Both a `TradeProposal`
+ * (top-level = the active lens) and a `ProposalLensBreakdown` (one toggled lens)
+ * are structurally assignable, which is what makes the meter lens-aware.
+ */
+export interface ProximityInput {
+  strategy: Strategy;
+  redTeam: RedTeamVerdict | null;
+  convictionScore: number | null;
+  /** The value lens's cash-flow block — null when absent / not a value lens. */
+  cashFlow: CashFlowQuality | null;
+  /** Whether the value-quality research was obtained (`ok`) or off/capped/failed. */
+  researchStatus: ResearchStatus | null;
+}
 
 export interface ProximityBand {
   key: ProximityVerdict;
@@ -86,7 +116,7 @@ const UNSCORED: ApprovalProximity = {
   drivers: [],
 };
 
-export function deriveApprovalProximity(p: TradeProposal): ApprovalProximity {
+export function deriveApprovalProximity(p: ProximityInput): ApprovalProximity {
   const verdict = p.redTeam?.verdict ?? null;
   if (!verdict) return UNSCORED;
 
@@ -104,29 +134,42 @@ export function deriveApprovalProximity(p: TradeProposal): ApprovalProximity {
 
   let value = band.floor + t * (band.ceil - band.floor);
 
-  // Data completeness — scoped to the VALUE lens, where cash-flow / dividend ARE
-  // the thesis (the conviction-honesty principle is value-specific). A trend
-  // proposal isn't "incomplete" for lacking cash-flow — that isn't part of its
-  // file — so it is never capped on that basis.
+  // Data completeness — scoped to the VALUE lens, where cash-flow IS the thesis
+  // (the conviction-honesty principle is value-specific). A trend proposal isn't
+  // "incomplete" for lacking cash-flow — that isn't part of its file — so it is
+  // never capped on that basis.
+  //
+  // **Applicable-vs-unavailable (proximity-meter-lens-aware M0).** Only cap when
+  // the quality data was EXPECTED BUT UNAVAILABLE, not when it's legitimately
+  // absent:
+  //   • cash-flow is expected for *every* value play. It caps only when it is
+  //     missing AND the value research did not come back `ok` (off / capped /
+  //     failed, per `researchStatus`) — i.e. we tried and couldn't get it.
+  //   • a missing DIVIDEND is "absent by nature": a value play needn't pay one
+  //     (e.g. NOW pays none). It NEVER caps on its own — the dividend floor is a
+  //     bonus signal, not a completeness requirement.
+  // So a non-payer with cash-flow present and research `ok` reads COMPLETE — no
+  // cap — even though its dividend block is null.
   const expectsQualityData = p.strategy === "value";
-  const cashMissing = expectsQualityData && !hasCashFlowData(p.cashFlow);
-  const divMissing = expectsQualityData && !hasDividendData(p.dividend);
-  const incomplete = cashMissing || divMissing;
+  const cashFlowPresent = hasCashFlowData(p.cashFlow);
+  const cashFlowUnavailable =
+    expectsQualityData && !cashFlowPresent && p.researchStatus !== "ok";
 
   let capped = false;
   let capValue: number | null = null;
   let capReason: string | null = null;
-  if (incomplete) {
+  if (cashFlowUnavailable) {
     capValue = Math.max(band.floor, band.ceil - CAP_BELOW_CEILING);
     if (value > capValue) value = capValue;
     capped = true;
-    const missing = [
-      cashMissing ? "cash-flow" : null,
-      divMissing ? "dividend" : null,
-    ]
-      .filter(Boolean)
-      .join(" + ");
-    capReason = `${missing} data missing`;
+    // Name the failure reason when we have one (off / capped / fetch failed);
+    // otherwise (legacy null status) stay generic.
+    const reason = isResearchUnavailable(p.researchStatus)
+      ? researchUnavailableLabel(p.researchStatus)
+      : null;
+    capReason = reason
+      ? `cash-flow data unavailable — ${reason}`
+      : "cash-flow data unavailable";
   }
 
   // "What's moving it" — top signals, in order: factors, conviction, data.
@@ -150,7 +193,7 @@ export function deriveApprovalProximity(p: TradeProposal): ApprovalProximity {
   }
   if (expectsQualityData) {
     drivers.push(
-      incomplete
+      cashFlowUnavailable
         ? { direction: "down", label: capReason! }
         : { direction: "up", label: "full data coverage" },
     );

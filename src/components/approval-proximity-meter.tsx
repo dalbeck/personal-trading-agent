@@ -9,9 +9,9 @@ import { redTeamVerdictStyle } from "@/lib/red-team-style";
 import {
   deriveApprovalProximity,
   type ApprovalProximity,
+  type ProximityInput,
   type ProximityVerdict,
 } from "@/lib/proposal-proximity";
-import type { TradeProposal } from "@/lib/types";
 
 /**
  * Approval-proximity meter (approval-proximity-meter spec) — a brand-new,
@@ -25,6 +25,11 @@ import type { TradeProposal } from "@/lib/types";
  * probability the model produced (see the italic subtitle + the pure
  * `deriveApprovalProximity`). Role tokens only (dark-mode safe); never
  * color-only (text labels + verdict pill + aria-label).
+ *
+ * **Lens-aware (proximity-meter-lens-aware M0).** It reads the
+ * **currently-toggled lens** (its verdict, conviction, and value-quality data),
+ * so a dual-lens analysis re-derives when the Trend/Value toggle flips. A
+ * single-lens proposal passes its lone lens and reads identically to before.
  */
 
 const SUBTITLE =
@@ -37,12 +42,8 @@ const bandTextColor: Record<ProximityVerdict, string> = {
   approve: "text-success",
 };
 
-export function ApprovalProximityMeter({
-  proposal,
-}: {
-  proposal: TradeProposal;
-}) {
-  const p = deriveApprovalProximity(proposal);
+export function ApprovalProximityMeter({ lens }: { lens: ProximityInput }) {
+  const p = deriveApprovalProximity(lens);
 
   // No red-team verdict yet → a calm placeholder, never a broken meter.
   if (p.verdict === null || p.value === null || p.band === null) {
