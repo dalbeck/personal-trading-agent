@@ -103,7 +103,19 @@
     order". Rendering the banner changes no gate.
   - **The scorecard is advisory, never blocking.** `planning/phase-2-evaluation-scorecard.md`
     informs the user; it is **not** a precondition for opening the gate or placing
-    any trade. The two human gates are the only real-money boundary.
+    any trade. The two human gates are the only real-money boundary. The
+    **cost-aware go/no-go scorecard** (`planning/cost-aware-scorecard-spec.md`)
+    layers on top, still advisory: an itemized **cost model** (`src/lib/eval/cost-model.ts`
+    — FMP amortized + real metered Perplexity cost from `data/research/diagnostics.json`
+    + modeled spread/slippage + $0 commission, all `EVAL_*`-configurable), a
+    **net-of-cost vs SPY** layer (`src/lib/eval/benchmark-relative.ts` — gross +
+    net + SPY, annualized; headline = net annualized excess vs SPY; zero-breach
+    rail-adherence line), and a **GO / NO-GO / NOT-YET** verdict
+    (`src/lib/eval/go-no-go.ts`): NOT-YET until ≥`EVAL_MIN_MONTHS`/3mo AND
+    ≥`EVAL_MIN_CLOSED_TRADES`/20 closed trades; then GO needs net annualized
+    excess vs SPY > margin, max drawdown ≤ SPY's (or `EVAL_MAX_DRAWDOWN_CAP_PCT`),
+    and zero rail breaches; else NO-GO naming the failed criterion. Paper-scoped,
+    surfaced on the Evaluation view — **changes no gate.**
   - **The one invariant kept:** the agent **never self-opens the live gate, never
     funds the account, and never places a real order without the user's explicit
     per-trade approval.** Configurable rails and overrides are all *human* actions
