@@ -48,6 +48,7 @@ export type CatalystSource = z.infer<typeof CatalystSourceSchema>;
 export type CatalystState = z.infer<typeof CatalystStateSchema>;
 export type DividendSignals = z.infer<typeof DividendSignalsSchema>;
 export type ResearchStatus = NonNullable<TradeProposal["researchStatus"]>;
+export type ResearchSourceTag = NonNullable<TradeProposal["cashFlowSource"]>;
 export type RedTeamFactor = z.infer<typeof RedTeamFactorSchema>;
 export type RedTeamVerdict = z.infer<typeof RedTeamVerdictSchema>;
 export type ProposalLensBreakdown = z.infer<typeof ProposalLensSchema>;

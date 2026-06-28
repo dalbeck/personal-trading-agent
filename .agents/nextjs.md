@@ -98,6 +98,22 @@
   research `ok` reads **complete, no cap**. Role tokens only (dark-mode safe), never
   color-only (text labels + verdict pill + `aria-label`), with an italic
   interpretive subtitle. It feeds nothing downstream.
+- **Source footnotes (proposal-source-footnotes M1).** Every displayed figure on
+  the detail page carries a small **superscript footnote marker** (`SourceMarker`,
+  a real anchor link with an `aria-label` like "source 2: FMP") that jumps to a
+  numbered **Sources card** (`ProposalSourcesCard`) placed in the sidebar **directly
+  under the Export card** — the single source of truth (rendered once; on narrow
+  screens the sidebar stacks below the main column, so the sources land at the
+  bottom). The pure `buildProposalSources` (`src/lib/proposal-sources.ts`,
+  unit-tested) derives the registry **lens-aware** from the active lens: technicals
+  → Alpaca (IEX); catalyst → Alpaca News (Benzinga) with the real `catalystSources`
+  URL, else the Perplexity curated-catalyst fallback; cash-flow / dividend → the
+  proposal's `cashFlowSource` / `dividendSource` (FMP / Perplexity, else "source not
+  tracked" — **never a guessed provider**); reward:risk, sizing, risk %, quantity,
+  conviction, model confidence, and the thesis synthesis → **Derived** (computed,
+  NOT a data provider — honesty matters). Metrics sharing a source share a number;
+  list items carry the matching `id` + `tabIndex={-1}` so the jump-link lands focus.
+  Provenance only — it reports, it never changes a value or makes a new external call.
 - The gated **approve / reject / review** flow + the precheck override dialog live in **`ProposalActions`** (`src/components/proposal-actions.tsx`) — same `/api/live/approve` + `/api/live/approve/precheck` endpoints, dry-run-sink semantics, and required override justification. **Acting lens:** the detail page passes the toggled lens to `ProposalActions`, which sends `actingLens` to both endpoints; the server resolves it with `resolveActiveLens` so the order uses **that lens's levels + red-team verdict** and the journal records a `lens:<strategy>` tag. Hard rails + gates unchanged. The page also carries **Re-run red-team** + **Refresh research**.
 - **Export (PDF + Markdown).** `GET /api/proposals/[id]/export?format=md|pdf` streams the full-context proposal as a download (read-only; the user's own data). The **pure** serializers live in `src/lib/proposal-export.ts` (`proposalToMarkdown` + `buildProposalPdfDocDefinition`, unit-tested + deterministic for a given `generatedAt`); the route only renders the PDF bytes and sets the download headers. Both include every section **per lens** (both lenses when dual) and a `Snapshot: … · Exported: … · point-in-time snapshot — not investment advice.` footer.
   - **PDF = pdfmake (0.3, pure JS, no native build, no browser/chromium)** — chosen over Playwright/puppeteer for the supply-chain posture. The route configures the singleton once: `setUrlAccessPolicy(() => false)` (never fetch external resources), `setLocalAccessPolicy` locked to the bundled Roboto font dir, then `addFonts` + `createPdf().getBuffer()`.

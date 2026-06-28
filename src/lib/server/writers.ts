@@ -598,6 +598,10 @@ export interface AdvisoryProposalInput {
   // The specific failure reason when research wasn't `ok` (research-observability
   // M1) — mirrors the active lens. Null when ok / older records.
   researchStatusReason?: TradeProposal["researchStatusReason"];
+  // Provenance of the value-quality blocks (proposal-source-footnotes M1) —
+  // mirrors the active lens. Schema-backed + default null.
+  cashFlowSource?: TradeProposal["cashFlowSource"];
+  dividendSource?: TradeProposal["dividendSource"];
   // When the levels were anchored to the live quote (fresh-entry-levels M1).
   // Schema-backed + default null, so a caller may omit it (older records).
   pricedAt?: TradeProposal["pricedAt"];

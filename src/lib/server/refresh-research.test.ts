@@ -30,6 +30,8 @@ function emptyResearch(): ResearchContext {
     dividend: null,
     researchStatus: "unavailable",
     researchStatusReason: "response truncated",
+    cashFlowSource: null,
+    dividendSource: null,
     usedPerplexity: false,
   };
 }
@@ -61,6 +63,8 @@ function fullResearch(): ResearchContext {
     },
     researchStatus: "ok",
     researchStatusReason: null,
+    cashFlowSource: null,
+    dividendSource: null,
     usedPerplexity: true,
   };
 }

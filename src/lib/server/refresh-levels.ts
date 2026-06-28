@@ -143,6 +143,19 @@ export async function refreshProposalLevels(
     if (lens) return lens.researchStatus ?? null;
     return proposal.strategy === strategy ? proposal.researchStatus ?? null : null;
   };
+  // Preserve the value-quality provenance (proposal-source-footnotes M1) across a
+  // refresh — the provider that supplied cash-flow/dividend is research metadata,
+  // not a price level, so re-anchoring must not wipe the source footnote.
+  const existingCashFlowSource = (strategy: Strategy) => {
+    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
+    if (lens) return lens.cashFlowSource ?? null;
+    return proposal.strategy === strategy ? proposal.cashFlowSource ?? null : null;
+  };
+  const existingDividendSource = (strategy: Strategy) => {
+    const lens = (proposal.lenses ?? []).find((l) => l.strategy === strategy);
+    if (lens) return lens.dividendSource ?? null;
+    return proposal.strategy === strategy ? proposal.dividendSource ?? null : null;
+  };
   // Preserve the catalyst's sources (catalyst-news-sources M1) across a refresh —
   // they are news evidence, not price levels, so re-anchoring must not wipe them.
   const existingCatalystSources = (strategy: Strategy) => {
@@ -214,6 +227,9 @@ export async function refreshProposalLevels(
           existingResearchStatus(d.strategy),
           existingCatalystSources(d.strategy),
           existingCatalystState(d.strategy),
+          null,
+          existingCashFlowSource(d.strategy),
+          existingDividendSource(d.strategy),
         ),
       )
     : [];
@@ -252,6 +268,10 @@ export async function refreshProposalLevels(
     dividend: existingDividend(active.strategy),
     researchStatus: existingResearchStatus(active.strategy),
     catalystState: existingCatalystState(active.strategy),
+    // Provenance of the value-quality blocks (proposal-source-footnotes M1) —
+    // mirror the active lens, preserved across the re-anchor.
+    cashFlowSource: existingCashFlowSource(active.strategy),
+    dividendSource: existingDividendSource(active.strategy),
     // Stamp the new anchor time so the freshness indicator + staleness guard reset.
     pricedAt: now.toISOString(),
   });

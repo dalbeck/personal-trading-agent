@@ -45,6 +45,8 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     dividend: null,
     researchStatus: null,
     researchStatusReason: null,
+    cashFlowSource: null,
+    dividendSource: null,
     pricedAt: null,
     researchAt: null,
     stagedPlan: null,

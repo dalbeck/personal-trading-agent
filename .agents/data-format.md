@@ -383,6 +383,23 @@ are unchanged. Defaults to `null` so trend records + older proposals still
 validate. (The research cache `CACHE_VERSION` was bumped so stale entries
 re-fetch with the new block; it is now **10**.)
 
+**Proposal `cashFlowSource` / `dividendSource` (proposal-source-footnotes M1).**
+A `TradeProposal` (and each `ProposalLensSchema` breakdown) carries
+**`cashFlowSource`** and **`dividendSource`** — a `ResearchSourceTag`
+(`fmp | perplexity | robinhood`, nullable) recording **which provider supplied**
+the value lens's cash-flow / dividend blocks, for the proposal detail page's
+**source footnotes**. They are **provenance only — they never change a value**.
+Populated at the producing layer from the research merge's `cashFlowSource` /
+`dividendSource` (`deriveProposalFromResearch` in `analyze-symbol.ts`; threaded
+through `draftToLens`), mirrored to the active lens at the top level, and
+**preserved across a "Refresh levels" re-anchor** (`refresh-levels.ts`, alongside
+the cash-flow/dividend blocks). Value lens only (trend null); `null` when the
+block is absent or the source wasn't recorded (older records → the footnote reads
+"source not tracked", never a guessed provider). The pure `buildProposalSources`
+(`src/lib/proposal-sources.ts`) turns these + the always-Alpaca technicals + the
+`catalystSources` (Alpaca News/Benzinga) + the computed/`Derived` values into the
+numbered Sources registry. Defaults to `null` so older records still validate.
+
 **Proposal `convictionScore` / `convictionTier` (M1 diversified discovery).** A
 `TradeProposal` also carries `convictionScore` (a `0–1` composite of the playbook
 signals — trend, momentum, relative strength, volume, R:R, catalyst) and

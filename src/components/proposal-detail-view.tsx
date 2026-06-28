@@ -11,6 +11,11 @@ import { ProposalResearchFreshness } from "@/components/proposal-research-freshn
 import { ProposalLevelsFreshness } from "@/components/proposal-levels-freshness";
 import { ProposalActions } from "@/components/proposal-actions";
 import { ApprovalProximityMeter } from "@/components/approval-proximity-meter";
+import {
+  ProposalSourcesCard,
+  SourceMarker,
+} from "@/components/proposal-sources-card";
+import { buildProposalSources } from "@/lib/proposal-sources";
 import { StagedEntryPlanCard } from "@/components/staged-entry-plan";
 import { CheckIcon, FlagIcon, ChevronRightIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -83,6 +88,11 @@ export function ProposalDetailView({
   );
   const [activeIdx, setActiveIdx] = useState(defaultIdx);
   const lens = lenses[activeIdx] ?? lenses[0];
+
+  // Per-metric source provenance (proposal-source-footnotes M1) — lens-aware, so
+  // the markers + Sources card follow the Trend/Value toggle (cash-flow /
+  // dividend provider + catalyst sources live on the active lens).
+  const sources = buildProposalSources(p, lens);
 
   const advisory = isAdvisoryProposal(p);
   const liveApprovable = p.account === "live" && !advisory;
@@ -246,6 +256,7 @@ export function ProposalDetailView({
 
           <Section
             title="Pre-trade checklist"
+            marker={<SourceMarker source={sources.sourceFor("technical")} />}
             note={
               dual
                 ? `Judged under the ${STRATEGY_LABEL[lens.strategy].toLowerCase()} mandate.`
@@ -273,6 +284,7 @@ export function ProposalDetailView({
             isResearchUnavailable(lens.researchStatus)) ? (
             <Section
               title="Cash-flow quality"
+              marker={<SourceMarker source={sources.sourceFor("cashFlow")} />}
               note="The value floor-vs-trap signal — does the business fund itself?"
             >
               {hasCashFlowData(lens.cashFlow) ? (
@@ -290,6 +302,7 @@ export function ProposalDetailView({
           {lens.strategy === "value" && hasDividendData(lens.dividend) ? (
             <Section
               title="Dividend sustainability"
+              marker={<SourceMarker source={sources.sourceFor("dividend")} />}
               note="Is the dividend a real floor — paid to wait, or a value trap?"
             >
               <DividendBlock dividend={lens.dividend} />
@@ -305,7 +318,10 @@ export function ProposalDetailView({
             </Section>
           ) : null}
 
-          <Section title="Research">
+          <Section
+            title="Research"
+            marker={<SourceMarker source={sources.sourceFor("catalyst")} />}
+          >
             {lens.catalyst ? (
               <p className="text-pretty text-sm leading-relaxed text-fg">
                 {lens.catalyst}
@@ -397,6 +413,7 @@ export function ProposalDetailView({
 
           <Section
             title="Sizing math"
+            marker={<SourceMarker source={sources.sourceFor("technical")} />}
             note={
               dual
                 ? `For the ${STRATEGY_LABEL[lens.strategy].toLowerCase()} lens — approving uses these levels.`
@@ -439,6 +456,7 @@ export function ProposalDetailView({
               <MathRow
                 label="Reward : risk"
                 value={rr ? formatRatio(rr.ratio) : "—"}
+                marker={<SourceMarker source={sources.sourceFor("derived")} />}
               />
               <MathRow
                 label="Model confidence"
@@ -478,26 +496,39 @@ export function ProposalDetailView({
               </a>
             </div>
           </Section>
+
+          {/* Source footnotes (proposal-source-footnotes M1) — the canonical
+              numbered registry the superscript markers jump to. Directly under
+              Export; on narrow screens the sidebar stacks below the main column,
+              so the sources land at the bottom of the page. Single source of
+              truth — rendered once. */}
+          <ProposalSourcesCard sources={sources} />
         </div>
       </div>
     </div>
   );
 }
 
-/** A titled block on the detail page — a serif sub-heading + an optional note. */
+/** A titled block on the detail page — a serif sub-heading + an optional note.
+ *  `marker` renders inline after the title (the source footnote marker). */
 function Section({
   title,
   note,
+  marker,
   children,
 }: {
   title: string;
   note?: string;
+  marker?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-2.5 rounded-card border border-line bg-surface-raised p-5">
       <div>
-        <h2 className="font-serif text-base font-semibold text-fg">{title}</h2>
+        <h2 className="font-serif text-base font-semibold text-fg">
+          {title}
+          {marker}
+        </h2>
         {note ? <p className="mt-0.5 text-xs text-fg-muted">{note}</p> : null}
       </div>
       {children}
@@ -532,11 +563,23 @@ function CheckChip({ status }: { status: CheckStatus }) {
   );
 }
 
-/** One labelled figure in the sizing-math grid. */
-function MathRow({ label, value }: { label: string; value: string }) {
+/** One labelled figure in the sizing-math grid. `marker` (optional) renders the
+ *  source footnote marker inline after the label. */
+function MathRow({
+  label,
+  value,
+  marker,
+}: {
+  label: string;
+  value: string;
+  marker?: ReactNode;
+}) {
   return (
     <>
-      <dt className="text-fg-muted">{label}</dt>
+      <dt className="text-fg-muted">
+        {label}
+        {marker}
+      </dt>
       <dd className="text-right font-medium tabular-nums text-fg">{value}</dd>
     </>
   );
