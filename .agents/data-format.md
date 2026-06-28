@@ -29,7 +29,7 @@ and routines must follow this. The runtime contracts live in
 | `data/news/` | `.json` | `NewsFileSchema` (array of material items, one file per day) |
 | `data/fills/` | `.json` | _(added in Phase 2)_ |
 | `data/logs/` | `.json` | `RunLogSchema` (one per routine run) |
-| `data/research/` | `.json` | `ResearchUsageSchema` (per-day metered-API call counter) |
+| `data/research/` | `.json` | `ResearchUsageSchema` (per-day call counters: `usage-<date>.json` for Perplexity's metered cap + `usage-fmp-<date>.json` for FMP's separate cap) |
 | `data/research/cache/` | `.json` | symbol-research cache (`<SYMBOL>.json`, `fetchedAt`-stamped freshness, internal state — not a contract) |
 | `data/research/diagnostics.json` | `.json` | research-call diagnostics ring (array of diagnostic records, internal state — not a contract, excluded from validation) |
 
@@ -282,7 +282,7 @@ dividend *satisfies* the floor requirement but does **not** auto-approve — the
 red-team stays categorical and may still weigh timing. Surfaced as a dividend stat
 block (`src/components/dividend-block.tsx`, glossary tooltips). Mirrors the active
 lens at the top level; defaults to null so older records still validate. (Research
-cache `CACHE_VERSION` bumped to 7.)
+cache `CACHE_VERSION` was bumped for this; it is now **10**.)
 
 **Proposal `pricedAt` (fresh-entry-levels M1).** A `TradeProposal` carries
 **`pricedAt`** (ISO datetime, nullable) — when the levels (entry/stop/target/
@@ -380,8 +380,8 @@ only), and a **cash-flow stat block** in the value breakdown
 (`src/components/cash-flow-block.tsx`, glossary tooltips on FCF / FCF yield /
 interest coverage). **Value lens only** — the trend lens, gates, and hard rails
 are unchanged. Defaults to `null` so trend records + older proposals still
-validate. (The research cache `CACHE_VERSION` bumped to 6 so stale entries
-re-fetch with the new block.)
+validate. (The research cache `CACHE_VERSION` was bumped so stale entries
+re-fetch with the new block; it is now **10**.)
 
 **Proposal `convictionScore` / `convictionTier` (M1 diversified discovery).** A
 `TradeProposal` also carries `convictionScore` (a `0–1` composite of the playbook
