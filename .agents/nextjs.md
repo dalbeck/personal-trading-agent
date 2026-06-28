@@ -77,6 +77,20 @@
 - The full-context proposal **modal** (M5 read-more) is **superseded by a dedicated page** (`src/app/proposals/[id]/page.tsx`). The slim proposals table (`ProposalsList`) is the index — each row is a **`<Link>` to `/proposals/[id]`**, not a modal trigger. Deep-linkable; an unknown id → `notFound()`.
 - The page is a server component (reads the one proposal by id + `getLiveTradingStatus`) that renders the client **`ProposalDetailView`**: header (side pill, serif ticker, **strategy badge(s)**, status, and — for **dual-lens** analyses — the glanceable dual-verdict summary + a Trend/Value **toggle**), then thesis, the strategy-aware **checklist** (`buildChecklist`), sizing math + R:R bar, research, and the **red-team reasoning** for the active lens.
 - **Dual-lens (manual analyze).** A **manual** analyze-a-symbol proposal carries BOTH the trend and value breakdowns in `proposal.lenses` (dual-lens M1); the detail page shows a glanceable `Trend: reject · Value: concern` summary + a Trend/Value **toggle** that switches the whole active breakdown (thesis, checklist, levels, sizing, research, red-team). `buildProposalLenses` (`src/lib/proposal-lens.ts`, pure + tested) derives the per-lens views; single-lens proposals (**discovery** stays single-lens, older records) have `lenses: []` and render one lens with no toggle. `AnalyzeSymbolForm` has **no lens picker** — entering a ticker runs both lenses (research fetched once → Perplexity cap respected).
+- **Approval-proximity meter (sidebar, read-only).** The detail sidebar leads with
+  the **`ApprovalProximityMeter`** (`src/components/approval-proximity-meter.tsx`) —
+  an at-a-glance 0–100 read of how close the red-team is to approval vs. rejection,
+  **additive and separate** from the red-team block (which stays in the main column,
+  untouched). The value is **derived, never a model probability**: the pure
+  `deriveApprovalProximity` (`src/lib/proposal-proximity.ts`, unit-tested) **anchors
+  it to the verdict band** (reject 0–33 / concern 34–66 / approve 67–100 — so it can
+  never contradict the verdict) and only modulates *within* band by factor pressure +
+  `convictionScore`; missing **value-lens** structured data (`cashFlow`/`dividend`,
+  value strategy only — a trend proposal isn't "incomplete" for lacking cash-flow)
+  **caps it below the band ceiling** with a lock chip, per the conviction-honesty
+  principle. Role tokens only (dark-mode safe), never color-only (text labels +
+  verdict pill + `aria-label`), with an italic interpretive subtitle. It feeds
+  nothing downstream.
 - The gated **approve / reject / review** flow + the precheck override dialog live in **`ProposalActions`** (`src/components/proposal-actions.tsx`) — same `/api/live/approve` + `/api/live/approve/precheck` endpoints, dry-run-sink semantics, and required override justification. **Acting lens:** the detail page passes the toggled lens to `ProposalActions`, which sends `actingLens` to both endpoints; the server resolves it with `resolveActiveLens` so the order uses **that lens's levels + red-team verdict** and the journal records a `lens:<strategy>` tag. Hard rails + gates unchanged. The page also carries **Re-run red-team** + **Refresh research**.
 - **Export (PDF + Markdown).** `GET /api/proposals/[id]/export?format=md|pdf` streams the full-context proposal as a download (read-only; the user's own data). The **pure** serializers live in `src/lib/proposal-export.ts` (`proposalToMarkdown` + `buildProposalPdfDocDefinition`, unit-tested + deterministic for a given `generatedAt`); the route only renders the PDF bytes and sets the download headers. Both include every section **per lens** (both lenses when dual) and a `Snapshot: … · Exported: … · point-in-time snapshot — not investment advice.` footer.
   - **PDF = pdfmake (0.3, pure JS, no native build, no browser/chromium)** — chosen over Playwright/puppeteer for the supply-chain posture. The route configures the singleton once: `setUrlAccessPolicy(() => false)` (never fetch external resources), `setLocalAccessPolicy` locked to the bundled Roboto font dir, then `addFonts` + `createPdf().getBuffer()`.

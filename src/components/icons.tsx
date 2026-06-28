@@ -9,10 +9,12 @@ import {
   ChevronRight,
   ClipboardCheck,
   Flag,
+  Gauge,
   GraduationCap,
   Info,
   LayoutDashboard,
   Lightbulb,
+  Lock,
   type LucideProps,
   MessageSquare,
   Moon,
@@ -94,3 +96,5 @@ export const ChevronDownIcon = lucideIcon(ChevronDown);
 export const ChevronRightIcon = lucideIcon(ChevronRight);
 export const CheckIcon = lucideIcon(Check);
 export const FlagIcon = lucideIcon(Flag);
+export const GaugeIcon = lucideIcon(Gauge);
+export const LockIcon = lucideIcon(Lock);
