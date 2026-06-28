@@ -10,6 +10,8 @@ import {
   coerceNumberLike,
   coercePercentLike,
   companyNameFromDescription,
+  extractCashFlowFromText,
+  extractDividendFromText,
   extractJsonBlock,
   parseStructuredResearch,
 } from "./parse";
@@ -506,5 +508,62 @@ describe("parseStructuredResearch", () => {
         parseStructuredResearch("Prose.\n```json\n{not valid json}\n```").jsonStatus,
       ).toBe("parse-error");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractCashFlowFromText / extractDividendFromText (M3)
+// ---------------------------------------------------------------------------
+
+describe("extractCashFlowFromText", () => {
+  // The real MSFT prose shape from a live finance_search response.
+  const prose =
+    "Operating Cash Flow (TTM): Microsoft generated operating cash flow of $114.4 billion, indicating strong cash generation. " +
+    "Free Cash Flow: Microsoft's free cash flow for the latest fiscal year is approximately $83.0 billion. " +
+    "Net Debt: Microsoft holds net debt of $50.3 billion, calculated as total debt minus total cash.";
+
+  it("pulls operating cash flow, free cash flow, and net debt from prose", () => {
+    const raw = extractCashFlowFromText(prose);
+    expect(raw).not.toBeNull();
+    // Feed through the same coercer the provider uses.
+    const cf = coerceCashFlow(raw, { marketCap: 3.8e12 });
+    expect(cf).not.toBeNull();
+    expect(cf!.operatingCashFlow).toBeCloseTo(114.4e9, -8);
+    expect(cf!.freeCashFlow).toBeCloseTo(83.0e9, -8);
+    expect(cf!.netDebt).toBeCloseTo(50.3e9, -8);
+    // fcfYield is derived from FCF / market cap.
+    expect(cf!.fcfYield).toBeCloseTo(83.0e9 / 3.8e12, 4);
+  });
+
+  it("handles compact magnitude suffixes (83B, 114.4B)", () => {
+    const raw = extractCashFlowFromText(
+      "Free cash flow was 83B and operating cash flow 114.4B this year.",
+    );
+    const cf = coerceCashFlow(raw, {});
+    expect(cf!.freeCashFlow).toBeCloseTo(83e9, -8);
+    expect(cf!.operatingCashFlow).toBeCloseTo(114.4e9, -8);
+  });
+
+  it("returns null when no cash-flow figure is labeled (no bare-number false positives)", () => {
+    expect(
+      extractCashFlowFromText("The company was founded in 1975 and has 220000 employees."),
+    ).toBeNull();
+    expect(extractCashFlowFromText("")).toBeNull();
+  });
+});
+
+describe("extractDividendFromText", () => {
+  it("pulls a labeled dividend yield and payout ratio from prose", () => {
+    const raw = extractDividendFromText(
+      "The dividend yield is about 0.7% and the payout ratio is roughly 30%.",
+    );
+    expect(raw).not.toBeNull();
+    const d = coerceDividend(raw, {});
+    expect(d!.dividendYield).toBeCloseTo(0.007, 4);
+    expect(d!.payoutRatio).toBeCloseTo(0.3, 4);
+  });
+
+  it("returns null when no dividend figure is labeled", () => {
+    expect(extractDividendFromText("Microsoft is a software company.")).toBeNull();
   });
 });

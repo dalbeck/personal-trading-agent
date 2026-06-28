@@ -390,6 +390,81 @@ export function coerceDividend(
   return hasAny ? result : null;
 }
 
+// ---------------------------------------------------------------------------
+// Prose / finance_results extraction (perplexity-cashflow-extraction M3)
+//
+// The Agent API's `finance_search` is unreliable about emitting a clean JSON
+// block: the structured `finance_results` content is often empty, and the real
+// figures land in the model's PROSE ("Operating Cash Flow (TTM): $114.4
+// billion … Free Cash Flow: ~$83.0 billion … Net Debt: $50.3 billion"). So when
+// the JSON block lacks cashFlow/dividend, recover the labeled figures from the
+// finance_results content + prose rather than depending solely on the JSON echo.
+// Best-effort: no labeled figure → null → the caller falls through to FMP.
+// ---------------------------------------------------------------------------
+
+/** A money token in prose: "$114.4 billion", "83.0B", "$50.3 billion". Requires
+ *  a `$` and/or a magnitude word so bare integers/years aren't matched. */
+const PROSE_MONEY =
+  String.raw`(\$\s?-?\d[\d,]*(?:\.\d+)?\s*(?:trillion|billion|million|thousand|[TBMK])?|-?\d[\d,]*(?:\.\d+)?\s*(?:trillion|billion|million|thousand)\b|-?\d[\d,]*(?:\.\d+)?\s?[TBMK]\b)`;
+
+/** Find the first money figure that follows `label` within the same sentence. */
+function findLabeledMoney(text: string, label: string): string | null {
+  const re = new RegExp(
+    `${label}[^.\\n]{0,80}?${PROSE_MONEY}`,
+    "i",
+  );
+  const m = text.match(re);
+  return m ? m[1].trim() : null;
+}
+
+/** Find the first percent figure that follows `label` within the same sentence. */
+function findLabeledPercent(text: string, label: string): string | null {
+  const re = new RegExp(
+    `${label}[^.\\n]{0,80}?(-?\\d[\\d,]*(?:\\.\\d+)?)\\s*(?:%|percent)`,
+    "i",
+  );
+  const m = text.match(re);
+  return m ? `${m[1].trim()}%` : null;
+}
+
+/**
+ * Pull cash-flow money figures out of free text (finance_results content +
+ * prose). Returns a raw object suitable for `coerceCashFlow`, or null when no
+ * labeled figure is present. Only the money lines are extracted here; fcfYield
+ * is derived downstream from freeCashFlow + market cap by `coerceCashFlow`.
+ */
+export function extractCashFlowFromText(text: string): {
+  operatingCashFlow: string | null;
+  freeCashFlow: string | null;
+  netDebt: string | null;
+} | null {
+  if (!text) return null;
+  const operatingCashFlow = findLabeledMoney(text, "operating cash flow");
+  const freeCashFlow = findLabeledMoney(text, "free cash flow");
+  const netDebt = findLabeledMoney(text, "net debt");
+  if (operatingCashFlow === null && freeCashFlow === null && netDebt === null) {
+    return null;
+  }
+  return { operatingCashFlow, freeCashFlow, netDebt };
+}
+
+/**
+ * Pull dividend percentages out of free text. Returns a raw object suitable for
+ * `coerceDividend`, or null when neither a dividend yield nor a payout ratio is
+ * labeled. fcfCoverage/streak are not reliably stated in prose, so they stay
+ * null (FMP supplies them when available).
+ */
+export function extractDividendFromText(text: string): {
+  dividendYield: string | null;
+  payoutRatio: string | null;
+} | null {
+  if (!text) return null;
+  const dividendYield = findLabeledPercent(text, "dividend yield");
+  const payoutRatio = findLabeledPercent(text, "payout ratio");
+  if (dividendYield === null && payoutRatio === null) return null;
+  return { dividendYield, payoutRatio };
+}
+
 function coerceConsensus(raw: unknown): ResearchConsensus | null {
   const c = asRecord(raw);
   if (!c) return null;
