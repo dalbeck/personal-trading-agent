@@ -1,11 +1,20 @@
 /**
- * Pure mappers that translate Financial Modeling Prep (FMP) v3 JSON responses
- * into the repo's existing research shapes. No fetch, no server-only — fully
- * unit-testable.
+ * Pure mappers that translate Financial Modeling Prep (FMP) **stable** API JSON
+ * responses into the repo's existing research shapes. No fetch, no server-only —
+ * fully unit-testable.
  *
- * FMP v3 endpoints return arrays; we defensively read [0]. A missing / renamed
- * field → null (never throws). Each group returns null when no usable field
- * exists, mirroring the `hasAny` pattern in parse.ts.
+ * Targets the stable API (`/stable/...`, query-param style) — the legacy v3
+ * routes 403 "Legacy Endpoint" for keys issued after 2025-08-31. Field names
+ * were verified against live stable payloads (see the spec's live-probe
+ * findings): profile uses `marketCap`/`exchange` (was `mktCap`/`exchangeShortName`);
+ * ratios-ttm uses `priceToEarningsRatioTTM` / `debtToEquityRatioTTM` /
+ * `interestCoverageRatioTTM` / `dividendPayoutRatioTTM` (was the un-prefixed
+ * forms); cash-flow uses `netDividendsPaid` (was `dividendsPaid`); the dividends
+ * endpoint returns a **flat array** (was `{ historical: [...] }`).
+ *
+ * Statement endpoints return arrays; we defensively read [0]. A missing /
+ * renamed field → null (never throws). Each group returns null when no usable
+ * field exists, mirroring the `hasAny` pattern in parse.ts.
  */
 
 import type { CashFlowQuality, DividendSignals } from "@/lib/types";
@@ -23,16 +32,20 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * The parsed JSON bodies returned by FMP v3 endpoints. Each field matches what
- * FMP's JSON body looks like after `await res.json()`:
- * - profile / ratios-ttm / key-metrics-ttm / cash-flow-statement → arrays
- * - dividends → `{ historical: [...] }`
+ * The parsed JSON bodies returned by FMP **stable** endpoints. Each field
+ * matches what FMP's JSON body looks like after `await res.json()`:
+ * - profile / ratios-ttm / key-metrics-ttm / cash-flow-statement /
+ *   balance-sheet-statement → arrays
+ * - dividends → a flat array `[{ date, dividend, ... }, ...]`
  */
 export type FmpRaw = {
   profile?: unknown;
   ratiosTtm?: unknown;
   keyMetricsTtm?: unknown;
   cashFlow?: unknown;
+  balanceSheet?: unknown;
+  /** Stable `dividends` payload: a flat array (legacy `{ historical: [...] }`
+   *  is still accepted by `dividendStreakAndCagr` for back-compat). */
   dividendHistory?: unknown;
 };
 
@@ -95,8 +108,9 @@ export function fcfTrendFromRows(
  *   - dividendCagr: (latest / oldest) ** (1 / span) - 1 over up to 5 full
  *     years; null when < 2 full years or non-positive endpoints
  *
- * Input shape: `{ historical: [{ date: string; dividend: number }, ...] }`
- * (desc order, as FMP returns it).
+ * Accepts either the **stable** flat array `[{ date, dividend }, ...]` or the
+ * legacy `{ historical: [{ date, dividend }, ...] }` shape (both desc order, as
+ * FMP returns them).
  */
 export function dividendStreakAndCagr(historical: unknown): {
   growthStreakYears: number | null;
@@ -104,13 +118,17 @@ export function dividendStreakAndCagr(historical: unknown): {
 } {
   const nil = { growthStreakYears: null, dividendCagr: null };
 
-  if (!historical || typeof historical !== "object") return nil;
-  const h = historical as Record<string, unknown>;
-  if (!Array.isArray(h.historical)) return nil;
+  // Stable returns a bare array; legacy wraps it in `{ historical: [...] }`.
+  const rows = Array.isArray(historical)
+    ? historical
+    : historical && typeof historical === "object"
+      ? (historical as Record<string, unknown>).historical
+      : null;
+  if (!Array.isArray(rows)) return nil;
 
   // Sum dividends and count payments per calendar year
   const byYear = new Map<number, { total: number; count: number }>();
-  for (const entry of h.historical) {
+  for (const entry of rows) {
     if (!entry || typeof entry !== "object") continue;
     const e = entry as Record<string, unknown>;
     const dateStr = coerceStr(e.date);
@@ -185,7 +203,8 @@ function mapProfile(
     sector: coerceStr(p.sector),
     industry: coerceStr(p.industry),
     country: coerceStr(p.country),
-    exchange: coerceStr(p.exchangeShortName),
+    // stable: `exchange` (e.g. "NASDAQ"); legacy used `exchangeShortName`
+    exchange: coerceStr(p.exchange ?? p.exchangeShortName),
     ipoDate: coerceStr(p.ipoDate),
     description: coerceStr(p.description),
   };
@@ -203,15 +222,18 @@ function mapFundamentals(
   const ratios = firstElem(ratiosTtmArr);
   const km = firstElem(keyMetricsTtmArr);
 
-  // marketCap: profile.mktCap, fallback to key-metrics.marketCapTTM
+  // marketCap: stable exposes it on both profile (`marketCap`) and key-metrics
+  // (`marketCap`, was `marketCapTTM` on v3). Prefer profile, fall back to either.
   const marketCap =
-    coerceMoneyLike(prof?.mktCap) ??
-    coerceMoneyLike(km?.marketCapTTM);
+    coerceMoneyLike(prof?.marketCap ?? prof?.mktCap) ??
+    coerceMoneyLike(km?.marketCap ?? km?.marketCapTTM);
 
   const result: ResearchFundamentals = {
     marketCap,
-    peRatio: coerceNumberLike(ratios?.peRatioTTM),
-    eps: coerceNumberLike(km?.netIncomePerShareTTM),
+    // stable: `priceToEarningsRatioTTM` (was `peRatioTTM`)
+    peRatio: coerceNumberLike(ratios?.priceToEarningsRatioTTM ?? ratios?.peRatioTTM),
+    // stable: EPS lives on ratios-ttm as `netIncomePerShareTTM`
+    eps: coerceNumberLike(ratios?.netIncomePerShareTTM ?? km?.netIncomePerShareTTM),
     // dividendYieldTTM is already a fraction (0.0044) — use coerceNumberLike, NOT coercePercentLike
     dividendYield: coerceNumberLike(ratios?.dividendYieldTTM),
   };
@@ -224,10 +246,12 @@ function mapCashFlow(
   ratiosTtmArr: unknown,
   keyMetricsTtmArr: unknown,
   cashFlowArr: unknown,
+  balanceSheetArr: unknown,
 ): CashFlowQuality | null {
   const ratios = firstElem(ratiosTtmArr);
   const km = firstElem(keyMetricsTtmArr);
   const cf0 = firstElem(cashFlowArr);
+  const bs0 = firstElem(balanceSheetArr);
 
   const result: CashFlowQuality = {
     operatingCashFlow: coerceMoneyLike(cf0?.operatingCashFlow),
@@ -235,9 +259,13 @@ function mapCashFlow(
     fcfTrend: fcfTrendFromRows(cashFlowArr),
     // freeCashFlowYieldTTM is already a fraction — coerceNumberLike
     fcfYield: coerceNumberLike(km?.freeCashFlowYieldTTM),
-    netDebt: null, // not populated in M2 (no balance-sheet call)
-    debtToEquity: coerceNumberLike(ratios?.debtEquityRatioTTM),
-    interestCoverage: coerceNumberLike(ratios?.interestCoverageTTM),
+    // stable exposes netDebt directly on the balance sheet (was left null on v3)
+    netDebt: coerceMoneyLike(bs0?.netDebt),
+    // stable: `debtToEquityRatioTTM` / `interestCoverageRatioTTM` (was un-prefixed)
+    debtToEquity: coerceNumberLike(ratios?.debtToEquityRatioTTM ?? ratios?.debtEquityRatioTTM),
+    interestCoverage: coerceNumberLike(
+      ratios?.interestCoverageRatioTTM ?? ratios?.interestCoverageTTM,
+    ),
   };
 
   const hasAny = Object.values(result).some((v) => v !== null);
@@ -252,13 +280,19 @@ function mapDividend(
   const ratios = firstElem(ratiosTtmArr);
   const cf0 = firstElem(cashFlowArr);
 
-  // dividendYieldTTM and payoutRatioTTM are fractions → coerceNumberLike
+  // dividendYieldTTM and the payout ratio are fractions → coerceNumberLike.
+  // stable: `dividendPayoutRatioTTM` (was `payoutRatioTTM`).
   const dividendYield = coerceNumberLike(ratios?.dividendYieldTTM);
-  const payoutRatio = coerceNumberLike(ratios?.payoutRatioTTM);
+  const payoutRatio = coerceNumberLike(
+    ratios?.dividendPayoutRatioTTM ?? ratios?.payoutRatioTTM,
+  );
 
-  // FCF payout = abs(dividendsPaid) / freeCashFlow
+  // FCF payout = abs(dividends paid) / freeCashFlow. stable: `netDividendsPaid`
+  // / `commonDividendsPaid` (v3 `dividendsPaid` is now null).
   const freeCashFlow = coerceMoneyLike(cf0?.freeCashFlow);
-  const dividendsPaid = coerceMoneyLike(cf0?.dividendsPaid);
+  const dividendsPaid = coerceMoneyLike(
+    cf0?.netDividendsPaid ?? cf0?.commonDividendsPaid ?? cf0?.dividendsPaid,
+  );
 
   let fcfPayout: number | null = null;
   let fcfCoverage: number | null = null;
@@ -294,9 +328,9 @@ function mapDividend(
 // ---------------------------------------------------------------------------
 
 /**
- * Map FMP v3 raw JSON responses into the repo's research shapes. Each group
- * is independently null-able — a missing or broken endpoint returns null for
- * that group without affecting the others. Never throws.
+ * Map FMP **stable** raw JSON responses into the repo's research shapes. Each
+ * group is independently null-able — a missing or broken endpoint returns null
+ * for that group without affecting the others. Never throws.
  */
 export function mapFmpToResearch(raw: FmpRaw): {
   fundamentals: ResearchFundamentals | null;
@@ -312,7 +346,12 @@ export function mapFmpToResearch(raw: FmpRaw): {
         raw.keyMetricsTtm,
       ),
       profile: mapProfile(raw.profile),
-      cashFlow: mapCashFlow(raw.ratiosTtm, raw.keyMetricsTtm, raw.cashFlow),
+      cashFlow: mapCashFlow(
+        raw.ratiosTtm,
+        raw.keyMetricsTtm,
+        raw.cashFlow,
+        raw.balanceSheet,
+      ),
       dividend: mapDividend(raw.ratiosTtm, raw.cashFlow, raw.dividendHistory),
     };
   } catch {

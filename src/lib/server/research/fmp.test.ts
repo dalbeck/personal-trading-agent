@@ -12,40 +12,41 @@ const clock = () => new Date("2026-06-27T12:00:00.000Z");
 const DATE = "2026-06-27";
 
 // ---------------------------------------------------------------------------
-// Realistic FMP v3 fixture bodies
+// Realistic FMP STABLE fixture bodies (field names mirror live stable payloads).
 // ---------------------------------------------------------------------------
 
 const profileBody = JSON.stringify([
   {
-    mktCap: 2_800_000_000_000,
+    symbol: "AAPL",
+    marketCap: 2_800_000_000_000, // stable: `marketCap` (was `mktCap`)
     companyName: "Apple Inc.",
     website: "https://www.apple.com",
     ceo: "Tim Cook",
     sector: "Technology",
     industry: "Consumer Electronics",
-    country: "United States",
-    exchangeShortName: "NASDAQ",
+    country: "US",
+    exchange: "NASDAQ", // stable: `exchange` (was `exchangeShortName`)
     ipoDate: "1980-12-12",
-    fullTimeEmployees: 161000,
+    fullTimeEmployees: "161000", // stable returns this as a string
     description: "Apple Inc. designs, manufactures, and markets smartphones.",
   },
 ]);
 
 const ratiosTtmBody = JSON.stringify([
   {
-    peRatioTTM: 28.5,
+    priceToEarningsRatioTTM: 28.5, // was `peRatioTTM`
+    netIncomePerShareTTM: 6.42, // stable: EPS lives on ratios-ttm
     dividendYieldTTM: 0.0044,
-    payoutRatioTTM: 0.157,
-    debtEquityRatioTTM: 1.87,
-    interestCoverageTTM: 29.3,
+    dividendPayoutRatioTTM: 0.157, // was `payoutRatioTTM`
+    debtToEquityRatioTTM: 1.87, // was `debtEquityRatioTTM`
+    interestCoverageRatioTTM: 29.3, // was `interestCoverageTTM`
   },
 ]);
 
 const keyMetricsTtmBody = JSON.stringify([
   {
-    marketCapTTM: 2_800_000_000_000,
+    marketCap: 2_800_000_000_000, // stable: `marketCap` (was `marketCapTTM`)
     freeCashFlowYieldTTM: 0.041,
-    netIncomePerShareTTM: 6.42,
     enterpriseValueTTM: 2_900_000_000_000,
   },
 ]);
@@ -54,43 +55,51 @@ const cashFlowBody = JSON.stringify([
   {
     operatingCashFlow: 110_000_000_000,
     freeCashFlow: 100_000_000_000,
-    dividendsPaid: -15_000_000_000,
+    netDividendsPaid: -15_000_000_000, // stable: `netDividendsPaid` (was `dividendsPaid`)
+    dividendsPaid: null,
   },
   {
     operatingCashFlow: 95_000_000_000,
     freeCashFlow: 85_000_000_000,
-    dividendsPaid: -14_000_000_000,
+    netDividendsPaid: -14_000_000_000,
+    dividendsPaid: null,
   },
 ]);
 
-const dividendBody = JSON.stringify({
-  historical: [
-    { date: "2025-11-07", dividend: 0.25 },
-    { date: "2025-08-08", dividend: 0.25 },
-    { date: "2025-05-09", dividend: 0.25 },
-    { date: "2025-02-07", dividend: 0.25 },
-    { date: "2024-11-08", dividend: 0.24 },
-    { date: "2024-08-09", dividend: 0.24 },
-    { date: "2024-05-10", dividend: 0.24 },
-    { date: "2024-02-09", dividend: 0.24 },
-    { date: "2023-11-10", dividend: 0.23 },
-    { date: "2023-08-11", dividend: 0.23 },
-    { date: "2023-05-12", dividend: 0.23 },
-    { date: "2023-02-10", dividend: 0.23 },
-  ],
-});
+const balanceSheetBody = JSON.stringify([
+  { netDebt: 76_443_000_000, totalDebt: 112_377_000_000 },
+]);
 
-/** Build a mock fetchImpl that routes by URL path substring. */
+// stable `dividends`: a flat array (was `{ historical: [...] }`)
+const dividendBody = JSON.stringify([
+  { date: "2025-11-07", dividend: 0.25 },
+  { date: "2025-08-08", dividend: 0.25 },
+  { date: "2025-05-09", dividend: 0.25 },
+  { date: "2025-02-07", dividend: 0.25 },
+  { date: "2024-11-08", dividend: 0.24 },
+  { date: "2024-08-09", dividend: 0.24 },
+  { date: "2024-05-10", dividend: 0.24 },
+  { date: "2024-02-09", dividend: 0.24 },
+  { date: "2023-11-10", dividend: 0.23 },
+  { date: "2023-08-11", dividend: 0.23 },
+  { date: "2023-05-12", dividend: 0.23 },
+  { date: "2023-02-10", dividend: 0.23 },
+]);
+
+/** Build a mock fetchImpl that routes by stable URL path substring. */
 function makeFetchImpl(
   overrides: Record<string, () => Response> = {},
 ): typeof fetch {
   return (async (url: string | URL | Request) => {
     const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
-    if (urlStr.includes("stock_dividend")) {
-      return overrides["stock_dividend"]?.() ?? new Response(dividendBody, { status: 200 });
+    if (urlStr.includes("balance-sheet-statement")) {
+      return overrides["balance-sheet-statement"]?.() ?? new Response(balanceSheetBody, { status: 200 });
     }
     if (urlStr.includes("cash-flow-statement")) {
       return overrides["cash-flow-statement"]?.() ?? new Response(cashFlowBody, { status: 200 });
+    }
+    if (urlStr.includes("dividends")) {
+      return overrides["dividends"]?.() ?? new Response(dividendBody, { status: 200 });
     }
     if (urlStr.includes("key-metrics-ttm")) {
       return overrides["key-metrics-ttm"]?.() ?? new Response(keyMetricsTtmBody, { status: 200 });
@@ -150,6 +159,34 @@ describe("createFmpProvider", () => {
     expect(ring[0].outcome).toBe("ok");
   });
 
+  it("maps STABLE field names end-to-end (renamed ratios/profile fields + balance-sheet netDebt)", async () => {
+    const p = createFmpProvider({
+      apiKey: "test-key",
+      dataDir: dir,
+      now: clock,
+      fetchImpl: makeFetchImpl(),
+    });
+
+    const r = await p.research({ symbol: "AAPL" });
+
+    // profile renames
+    expect(r?.profile?.exchange).toBe("NASDAQ"); // from `exchange`
+    expect(r?.profile?.employees).toBe(161000); // from string "161000"
+    expect(r?.fundamentals?.marketCap).toBe(2_800_000_000_000); // from `marketCap`
+    // ratios-ttm renames
+    expect(r?.fundamentals?.peRatio).toBeCloseTo(28.5); // priceToEarningsRatioTTM
+    expect(r?.fundamentals?.eps).toBeCloseTo(6.42); // netIncomePerShareTTM (on ratios-ttm)
+    expect(r?.cashFlow?.debtToEquity).toBeCloseTo(1.87); // debtToEquityRatioTTM
+    expect(r?.cashFlow?.interestCoverage).toBeCloseTo(29.3); // interestCoverageRatioTTM
+    expect(r?.dividend?.payoutRatio).toBeCloseTo(0.157); // dividendPayoutRatioTTM
+    // balance-sheet netDebt (was null on v3)
+    expect(r?.cashFlow?.netDebt).toBe(76_443_000_000);
+    // dividends flat array → streak/cagr derived
+    expect(r?.dividend?.growthStreakYears).not.toBeNull();
+    // fcfPayout derived from abs(netDividendsPaid)/freeCashFlow
+    expect(r?.dividend?.fcfPayout).toBeCloseTo(15_000_000_000 / 100_000_000_000, 4);
+  });
+
   it("no-api-key: returns null, emits no-api-key, does NOT meter", async () => {
     const p = createFmpProvider({
       apiKey: "",
@@ -168,7 +205,8 @@ describe("createFmpProvider", () => {
       "ratios-ttm": () => new Response("Unauthorized", { status: 401 }),
       "key-metrics-ttm": () => new Response("Unauthorized", { status: 401 }),
       "cash-flow-statement": () => new Response("Unauthorized", { status: 401 }),
-      stock_dividend: () => new Response("Unauthorized", { status: 401 }),
+      "balance-sheet-statement": () => new Response("Unauthorized", { status: 401 }),
+      dividends: () => new Response("Unauthorized", { status: 401 }),
     });
 
     const p = createFmpProvider({
@@ -221,7 +259,8 @@ describe("createFmpProvider", () => {
       "ratios-ttm": () => new Response("[]", { status: 200 }),
       "key-metrics-ttm": () => new Response("[]", { status: 200 }),
       "cash-flow-statement": () => new Response("[]", { status: 200 }),
-      stock_dividend: () => new Response(JSON.stringify({ historical: [] }), { status: 200 }),
+      "balance-sheet-statement": () => new Response("[]", { status: 200 }),
+      dividends: () => new Response("[]", { status: 200 }),
     });
 
     const p = createFmpProvider({

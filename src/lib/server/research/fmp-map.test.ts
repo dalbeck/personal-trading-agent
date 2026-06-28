@@ -162,7 +162,7 @@ describe("mapFmpToResearch — full set", () => {
     expect(result.dividend?.fcfCoverage).toBeCloseTo(expected, 4);
   });
 
-  it("sets cashFlow.netDebt to null (not populated in M2)", () => {
+  it("sets cashFlow.netDebt to null when no balance-sheet is provided", () => {
     expect(result.cashFlow?.netDebt).toBeNull();
   });
 
@@ -272,6 +272,134 @@ describe("mapFmpToResearch — all-empty input", () => {
         cashFlow: null,
       }),
     ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mapFmpToResearch — STABLE payload shapes (renamed fields + flat dividends +
+// balance-sheet netDebt). Field names mirror live stable payloads.
+// ---------------------------------------------------------------------------
+
+describe("mapFmpToResearch — stable payload", () => {
+  const stableRaw = {
+    profile: [
+      {
+        symbol: "AAPL",
+        marketCap: 4_000_000_000_000, // stable: `marketCap` (was `mktCap`)
+        companyName: "Apple Inc.",
+        website: "https://www.apple.com",
+        ceo: "Timothy D. Cook",
+        sector: "Technology",
+        industry: "Consumer Electronics",
+        country: "US",
+        exchange: "NASDAQ", // stable: `exchange` (was `exchangeShortName`)
+        ipoDate: "1980-12-12",
+        fullTimeEmployees: "166000", // stable returns a string
+        description: "Apple Inc. designs consumer electronics.",
+      },
+    ],
+    ratiosTtm: [
+      {
+        priceToEarningsRatioTTM: 34.2, // was `peRatioTTM`
+        netIncomePerShareTTM: 8.33, // stable: EPS on ratios-ttm
+        dividendYieldTTM: 0.0037,
+        dividendPayoutRatioTTM: 0.127, // was `payoutRatioTTM`
+        debtToEquityRatioTTM: 0.795, // was `debtEquityRatioTTM`
+        interestCoverageRatioTTM: 25.1, // was `interestCoverageTTM`
+      },
+    ],
+    keyMetricsTtm: [
+      { marketCap: 4_000_000_000_000, freeCashFlowYieldTTM: 0.031 },
+    ],
+    cashFlow: [
+      {
+        operatingCashFlow: 111_482_000_000,
+        freeCashFlow: 98_767_000_000,
+        netDividendsPaid: -15_421_000_000, // stable (v3 `dividendsPaid` is null)
+        dividendsPaid: null,
+      },
+      {
+        operatingCashFlow: 100_000_000_000,
+        freeCashFlow: 90_000_000_000,
+        netDividendsPaid: -14_000_000_000,
+        dividendsPaid: null,
+      },
+    ],
+    balanceSheet: [{ netDebt: 76_443_000_000, totalDebt: 112_377_000_000 }],
+    // stable `dividends`: a flat array (NOT `{ historical: [...] }`)
+    dividendHistory: [
+      { date: "2025-11-07", dividend: 0.26 },
+      { date: "2025-08-08", dividend: 0.26 },
+      { date: "2025-05-09", dividend: 0.26 },
+      { date: "2025-02-07", dividend: 0.26 },
+      { date: "2024-11-08", dividend: 0.25 },
+      { date: "2024-08-09", dividend: 0.25 },
+      { date: "2024-05-10", dividend: 0.25 },
+      { date: "2024-02-09", dividend: 0.25 },
+      { date: "2023-11-10", dividend: 0.24 },
+      { date: "2023-08-11", dividend: 0.24 },
+      { date: "2023-05-12", dividend: 0.24 },
+      { date: "2023-02-10", dividend: 0.24 },
+    ],
+  };
+
+  const result = mapFmpToResearch(stableRaw);
+
+  it("maps stable profile.marketCap → fundamentals.marketCap", () => {
+    expect(result.fundamentals?.marketCap).toBe(4_000_000_000_000);
+  });
+  it("maps priceToEarningsRatioTTM → fundamentals.peRatio", () => {
+    expect(result.fundamentals?.peRatio).toBeCloseTo(34.2);
+  });
+  it("maps ratios netIncomePerShareTTM → fundamentals.eps", () => {
+    expect(result.fundamentals?.eps).toBeCloseTo(8.33);
+  });
+  it("maps stable profile.exchange → profile.exchange", () => {
+    expect(result.profile?.exchange).toBe("NASDAQ");
+  });
+  it("maps string fullTimeEmployees → profile.employees (int)", () => {
+    expect(result.profile?.employees).toBe(166000);
+  });
+  it("maps debtToEquityRatioTTM → cashFlow.debtToEquity", () => {
+    expect(result.cashFlow?.debtToEquity).toBeCloseTo(0.795);
+  });
+  it("maps interestCoverageRatioTTM → cashFlow.interestCoverage", () => {
+    expect(result.cashFlow?.interestCoverage).toBeCloseTo(25.1);
+  });
+  it("maps balance-sheet netDebt → cashFlow.netDebt", () => {
+    expect(result.cashFlow?.netDebt).toBe(76_443_000_000);
+  });
+  it("maps dividendPayoutRatioTTM → dividend.payoutRatio", () => {
+    expect(result.dividend?.payoutRatio).toBeCloseTo(0.127);
+  });
+  it("derives fcfPayout from abs(netDividendsPaid)/freeCashFlow", () => {
+    expect(result.dividend?.fcfPayout).toBeCloseTo(
+      15_421_000_000 / 98_767_000_000,
+      4,
+    );
+  });
+  it("derives a dividend growth streak from the flat dividends array", () => {
+    const streak = result.dividend?.growthStreakYears ?? null;
+    expect(streak).not.toBeNull();
+    expect(streak!).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("dividendStreakAndCagr — stable flat array", () => {
+  it("accepts a bare array (stable shape) the same as { historical: [...] }", () => {
+    const flat = [
+      { date: "2025-11-07", dividend: 0.26 },
+      { date: "2025-08-08", dividend: 0.26 },
+      { date: "2025-05-09", dividend: 0.26 },
+      { date: "2025-02-07", dividend: 0.26 },
+      { date: "2024-11-08", dividend: 0.25 },
+      { date: "2024-08-09", dividend: 0.25 },
+      { date: "2024-05-10", dividend: 0.25 },
+      { date: "2024-02-09", dividend: 0.25 },
+    ];
+    const result = dividendStreakAndCagr(flat);
+    expect(result.growthStreakYears).not.toBeNull();
+    expect(result.growthStreakYears!).toBeGreaterThanOrEqual(1);
   });
 });
 
