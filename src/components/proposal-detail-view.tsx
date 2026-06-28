@@ -10,6 +10,7 @@ import { DividendBlock } from "@/components/dividend-block";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
 import { ProposalLevelsFreshness } from "@/components/proposal-levels-freshness";
 import { ProposalActions } from "@/components/proposal-actions";
+import { ProposalExportActions } from "@/components/proposal-export-actions";
 import { ApprovalProximityMeter } from "@/components/approval-proximity-meter";
 import {
   ProposalSourcesCard,
@@ -476,25 +477,10 @@ export function ProposalDetailView({
 
           <Section title="Export">
             <p className="text-xs text-fg-muted">
-              Download the full context as a file — a point-in-time snapshot,{" "}
+              Download or copy the full context — a point-in-time snapshot,{" "}
               <span className="whitespace-nowrap">not investment advice.</span>
             </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <a
-                href={`/api/proposals/${p.id}/export?format=pdf`}
-                download
-                className="inline-flex items-center rounded-input border border-line bg-surface px-3 py-1.5 text-sm font-medium text-fg transition-colors hover:bg-surface-overlay focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                Export PDF
-              </a>
-              <a
-                href={`/api/proposals/${p.id}/export?format=md`}
-                download
-                className="inline-flex items-center rounded-input border border-line bg-surface px-3 py-1.5 text-sm font-medium text-fg transition-colors hover:bg-surface-overlay focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                Export Markdown
-              </a>
-            </div>
+            <ProposalExportActions proposal={p} />
           </Section>
 
           {/* Source footnotes (proposal-source-footnotes M1) — the canonical

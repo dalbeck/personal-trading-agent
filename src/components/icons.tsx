@@ -4,10 +4,13 @@ import {
   ArrowUpRight,
   Banknote,
   BarChart3,
+  Braces,
   Check,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
+  Copy,
+  Download,
   Flag,
   Gauge,
   GraduationCap,
@@ -98,3 +101,8 @@ export const CheckIcon = lucideIcon(Check);
 export const FlagIcon = lucideIcon(Flag);
 export const GaugeIcon = lucideIcon(Gauge);
 export const LockIcon = lucideIcon(Lock);
+
+// Export actions (proposal-export-actions M2)
+export const CopyIcon = lucideIcon(Copy);
+export const DownloadIcon = lucideIcon(Download);
+export const BracesIcon = lucideIcon(Braces);
