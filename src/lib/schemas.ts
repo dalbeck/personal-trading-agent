@@ -305,6 +305,15 @@ export const DividendSignalsSchema = z
 export const ResearchStatus = z.enum(["ok", "off", "capped", "unavailable"]);
 
 /**
+ * Which provider supplied a value-quality block — cash-flow / dividend
+ * (proposal-source-footnotes M1). Mirrors the research merge's `ResearchOrigin`
+ * so the proposal can carry the **provenance** of those figures for the source
+ * footnotes; `null` when the block is absent or the source isn't tracked (older
+ * records). Provenance only — it never changes a value.
+ */
+export const ResearchSourceTag = z.enum(["fmp", "perplexity", "robinhood"]);
+
+/**
  * One **lens breakdown** carried by a dual-lens proposal (dual-lens M1). The
  * manual analyze-a-symbol pipeline now evaluates a ticker under **both** the
  * trend and value mandates and produces **one** proposal holding both
@@ -361,6 +370,11 @@ export const ProposalLensSchema = z
     // M1) — e.g. "HTTP 402 (check API billing)". Surfaced on the detail view +
     // export. Null when ok / older records.
     researchStatusReason: z.string().nullable().default(null),
+    // Which provider supplied `cashFlow` / `dividend` (proposal-source-footnotes
+    // M1) — for the source footnotes. Value lens only; null for trend / older
+    // records or when the block is absent. Provenance only — never a value.
+    cashFlowSource: ResearchSourceTag.nullable().default(null),
+    dividendSource: ResearchSourceTag.nullable().default(null),
   })
   .strict();
 
@@ -496,6 +510,10 @@ export const TradeProposalSchema = z
     // The specific failure reason when research wasn't `ok` (research-observability
     // M1) — mirrors the active lens. Null when ok / older records.
     researchStatusReason: z.string().nullable().default(null),
+    // Provenance of `cashFlow` / `dividend` (proposal-source-footnotes M1) —
+    // mirrors the active lens (carried only when value is active). Null otherwise.
+    cashFlowSource: ResearchSourceTag.nullable().default(null),
+    dividendSource: ResearchSourceTag.nullable().default(null),
     // When the levels (entry/stop/target/sizing) were anchored to the live Alpaca
     // quote (fresh-entry-levels M1). Set at analysis and updated on a "Refresh
     // levels" re-anchor; drives the "levels as of …" freshness indicator and the

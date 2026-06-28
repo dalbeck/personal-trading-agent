@@ -48,6 +48,8 @@ function singleLensFromTopLevel(p: TradeProposal): ProposalLensBreakdown {
     dividend: p.dividend,
     researchStatus: p.researchStatus,
     researchStatusReason: p.researchStatusReason,
+    cashFlowSource: p.cashFlowSource,
+    dividendSource: p.dividendSource,
   };
 }
 
