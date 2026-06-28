@@ -297,12 +297,14 @@ function mapDividend(
   let fcfPayout: number | null = null;
   let fcfCoverage: number | null = null;
 
-  if (
-    dividendsPaid !== null &&
-    freeCashFlow !== null &&
-    freeCashFlow !== 0
-  ) {
-    const absDivPaid = Math.abs(dividendsPaid);
+  // Only meaningful when the company actually pays a dividend. A non-payer
+  // reports dividendsPaid 0, and abs(0) would make coverage divide by zero
+  // (→ Infinity, which the proposal schema rejects, crashing analyze).
+  const absDivPaid =
+    dividendsPaid !== null && Math.abs(dividendsPaid) > 0
+      ? Math.abs(dividendsPaid)
+      : null;
+  if (absDivPaid !== null && freeCashFlow !== null && freeCashFlow !== 0) {
     fcfPayout = absDivPaid / freeCashFlow;
     fcfCoverage = freeCashFlow / absDivPaid;
   }
@@ -319,8 +321,16 @@ function mapDividend(
     dividendCagr,
   };
 
-  const hasAny = Object.values(result).some((v) => v !== null);
-  return hasAny ? result : null;
+  // A company that pays no dividend (zero/absent yield + payout, no dividends
+  // paid) carries no value-floor signal — emit null rather than a block of
+  // zeros so the dividend floor stays "na" instead of a phantom assessment.
+  const paysDividend =
+    (dividendYield !== null && dividendYield > 0) ||
+    (payoutRatio !== null && payoutRatio > 0) ||
+    absDivPaid !== null;
+  const hasSignal =
+    paysDividend || growthStreakYears !== null || dividendCagr !== null;
+  return hasSignal ? result : null;
 }
 
 // ---------------------------------------------------------------------------

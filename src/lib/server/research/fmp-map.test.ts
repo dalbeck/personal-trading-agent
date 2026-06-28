@@ -236,6 +236,43 @@ describe("mapFmpToResearch — marketCapTTM fallback", () => {
 });
 
 // ---------------------------------------------------------------------------
+// mapFmpToResearch — non-paying company (zero dividend, positive FCF)
+// A name like NOW pays no dividend: FMP returns dividendYieldTTM/payoutRatioTTM 0
+// and cash-flow netDividendsPaid 0. Coverage must NOT divide by zero (→ Infinity,
+// which the proposal schema rejects), and the dividend block carries no floor
+// signal, so it should be null — not a block of zeros.
+// ---------------------------------------------------------------------------
+
+describe("mapFmpToResearch — non-paying company", () => {
+  const nonPayingRaw = {
+    profile: [{ companyName: "ServiceNow, Inc.", mktCap: 101_460_000_000 }],
+    ratiosTtm: [{ dividendYieldTTM: 0, dividendPayoutRatioTTM: 0 }],
+    keyMetricsTtm: [{ freeCashFlowYieldTTM: 0.045 }],
+    cashFlow: [
+      { operatingCashFlow: 5_444_000_000, freeCashFlow: 4_576_000_000, netDividendsPaid: 0 },
+      { operatingCashFlow: 4_500_000_000, freeCashFlow: 3_800_000_000, netDividendsPaid: 0 },
+    ],
+    dividendHistory: [],
+  };
+
+  it("does not produce an Infinite fcfCoverage when no dividend is paid", () => {
+    const result = mapFmpToResearch(nonPayingRaw);
+    // fcfCoverage must be a finite number or null — never Infinity.
+    expect(result.dividend?.fcfCoverage ?? null).not.toBe(Infinity);
+  });
+
+  it("returns a null dividend block for a company that pays no dividend", () => {
+    const result = mapFmpToResearch(nonPayingRaw);
+    expect(result.dividend).toBeNull();
+  });
+
+  it("still populates the cashFlow block for a non-payer", () => {
+    const result = mapFmpToResearch(nonPayingRaw);
+    expect(result.cashFlow?.freeCashFlow).toBe(4_576_000_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // mapFmpToResearch — all-empty input → all null, never throws
 // ---------------------------------------------------------------------------
 

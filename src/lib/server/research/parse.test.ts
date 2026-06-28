@@ -291,6 +291,22 @@ describe("coerceDividend", () => {
     expect(coerceDividend(null)).toBeNull();
     expect(coerceDividend({ dividendYield: "n/a", payoutRatio: "unknown" })).toBeNull();
   });
+
+  it("returns null for a non-payer block (zero yield/payout), ignoring a volunteered coverage", () => {
+    // A name like NOW pays no dividend; the model sometimes still volunteers a
+    // zero yield/payout with a phantom fcfCoverage. That carries no floor signal,
+    // so it must be null — not a block of zeros.
+    expect(
+      coerceDividend({
+        dividendYield: 0,
+        payoutRatio: 0,
+        fcfPayout: 0,
+        fcfCoverage: 1,
+        growthStreakYears: 0,
+        dividendCagr: 0,
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("parseStructuredResearch", () => {
