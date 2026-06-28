@@ -150,7 +150,7 @@ describe("createFmpProvider", () => {
     expect(p.lastDiagnostic?.()?.symbol).toBe("AAPL");
 
     // metered exactly once
-    expect(await getResearchCallCount(DATE, { dataDir: dir })).toBe(1);
+    expect(await getResearchCallCount(DATE, { dataDir: dir, key: "fmp" })).toBe(1);
 
     // diagnostic persisted to the ring
     const ring = await readResearchDiagnostics({ dataDir: dir });
@@ -196,7 +196,7 @@ describe("createFmpProvider", () => {
 
     expect(await p.research({ symbol: "AAPL" })).toBeNull();
     expect(p.lastDiagnostic?.()?.outcome).toBe("no-api-key");
-    expect(await getResearchCallCount(DATE, { dataDir: dir })).toBe(0);
+    expect(await getResearchCallCount(DATE, { dataDir: dir, key: "fmp" })).toBe(0);
   });
 
   it("http-error 401: returns null, emits http-error with status 401", async () => {
@@ -220,7 +220,7 @@ describe("createFmpProvider", () => {
     const d = p.lastDiagnostic?.();
     expect(d?.outcome).toBe("http-error");
     expect(d?.httpStatus).toBe(401);
-    expect(await getResearchCallCount(DATE, { dataDir: dir })).toBe(0);
+    expect(await getResearchCallCount(DATE, { dataDir: dir, key: "fmp" })).toBe(0);
   });
 
   it("timeout: returns null, emits timeout when all fetches throw TimeoutError", async () => {
@@ -250,7 +250,7 @@ describe("createFmpProvider", () => {
 
     expect(await p.research({ symbol: "AAPL" })).toBeNull();
     expect(p.lastDiagnostic?.()?.outcome).toBe("daily-cap-reached");
-    expect(await getResearchCallCount(DATE, { dataDir: dir })).toBe(0);
+    expect(await getResearchCallCount(DATE, { dataDir: dir, key: "fmp" })).toBe(0);
   });
 
   it("parse-error / all-empty bodies: returns null, emits parse-error, does NOT meter", async () => {
@@ -272,6 +272,6 @@ describe("createFmpProvider", () => {
 
     expect(await p.research({ symbol: "AAPL" })).toBeNull();
     expect(p.lastDiagnostic?.()?.outcome).toBe("parse-error");
-    expect(await getResearchCallCount(DATE, { dataDir: dir })).toBe(0);
+    expect(await getResearchCallCount(DATE, { dataDir: dir, key: "fmp" })).toBe(0);
   });
 });

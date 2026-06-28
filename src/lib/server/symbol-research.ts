@@ -19,18 +19,25 @@ import type {
 } from "./research/types";
 
 /**
- * Orchestrates the symbol page's research from the cheapest source first:
+ * Orchestrates the symbol page's research, by field, from the most reliable
+ * source for each kind of data (fmp-primary-for-fundamentals M2):
  *
  *   1. **Robinhood** `get_equity_fundamentals` (read-only, no metered cost) is
  *      preferred for fundamentals + company profile.
- *   2. **Perplexity** `finance_search` (metered, capped) fills the gaps
- *      field-by-field and is the ONLY source of analyst consensus + the AI
- *      narrative — so it auto-loads as a fallback, not for data Robinhood already
- *      has.
+ *   2. **FMP** (free, structured) is the **primary** source of structured
+ *      cash-flow / dividend signals and fills core fundamentals/profile gaps —
+ *      purpose-built financial statements beat Perplexity's LLM-echoed JSON
+ *      (which truncates / skips the cash-flow category). Structured chain:
+ *      **FMP → Perplexity → unavailable**.
+ *   3. **Perplexity** `finance_search` (metered, capped) is the ONLY source of
+ *      the analyst consensus + the AI narrative + catalysts, and is the
+ *      structured fallback when FMP has no value data (e.g. a free-tier-gated
+ *      symbol).
  *
- * The merged payload is **cached per-symbol-per-day**, so a refresh or
- * navigate-away-and-back never re-spends. Always resolves (never throws) — every
- * field is nullable and the UI renders "—".
+ * Each field carries a source tag (`fundamentalsSource` / `profileSource` /
+ * `cashFlowSource` / `dividendSource`). The merged payload is **cached
+ * per-symbol-per-day**, so a refresh or navigate-away-and-back never re-spends.
+ * Always resolves (never throws) — every field is nullable and the UI renders "—".
  */
 
 /** Soft max-age: cached research older than this auto-refetches (the daily cap
@@ -57,9 +64,11 @@ interface GetSymbolResearchOpts {
   dailyCap?: number;
 }
 
-/** Pure merge: Robinhood preferred for fundamentals/profile (field-by-field),
- *  Perplexity fills gaps and supplies consensus + the AI summary, FMP fills
- *  cashFlow/dividend/fundamentals when Perplexity did not supply value data. */
+/** Pure merge (fmp-primary-for-fundamentals M2): Robinhood preferred for
+ *  fundamentals/profile (field-by-field); **FMP is primary** for structured
+ *  cash-flow/dividend and beats Perplexity for core fundamentals/profile gaps;
+ *  Perplexity supplies consensus + the AI summary + catalysts and is the
+ *  structured fallback. Source tags reflect the FMP → Perplexity order. */
 export function mergeSymbolResearch(args: {
   rh: { fundamentals: ResearchFundamentals; profile: ResearchProfile } | null;
   perplexity: ResearchResult | null;
@@ -69,54 +78,58 @@ export function mergeSymbolResearch(args: {
   perplexityReason: string | null;
 }): SymbolResearch {
   const { rh, perplexity, fmp, robinhoodConnected, perplexityStatus, perplexityReason } = args;
+  // Structured fundamentals/profile: Robinhood first (free), then FMP (primary,
+  // reliable structured data), then Perplexity. Field-by-field so a gap in one
+  // source is filled by the next.
   const rf = rh?.fundamentals ?? null;
-  const pf = perplexity?.fundamentals ?? null;
   const ff = fmp?.fundamentals ?? null;
+  const pf = perplexity?.fundamentals ?? null;
   const fundamentals: ResearchFundamentals | null =
-    rf || pf || ff
+    rf || ff || pf
       ? {
-          marketCap: rf?.marketCap ?? pf?.marketCap ?? ff?.marketCap ?? null,
-          peRatio: rf?.peRatio ?? pf?.peRatio ?? ff?.peRatio ?? null,
-          eps: rf?.eps ?? pf?.eps ?? ff?.eps ?? null,
-          dividendYield: rf?.dividendYield ?? pf?.dividendYield ?? ff?.dividendYield ?? null,
+          marketCap: rf?.marketCap ?? ff?.marketCap ?? pf?.marketCap ?? null,
+          peRatio: rf?.peRatio ?? ff?.peRatio ?? pf?.peRatio ?? null,
+          eps: rf?.eps ?? ff?.eps ?? pf?.eps ?? null,
+          dividendYield: rf?.dividendYield ?? ff?.dividendYield ?? pf?.dividendYield ?? null,
         }
       : null;
 
   const rp = rh?.profile ?? null;
-  const pp = perplexity?.profile ?? null;
   const fp = fmp?.profile ?? null;
+  const pp = perplexity?.profile ?? null;
   const profile: ResearchProfile | null =
-    rp || pp || fp
+    rp || fp || pp
       ? {
-          name: rp?.name ?? pp?.name ?? fp?.name ?? null,
-          domain: rp?.domain ?? pp?.domain ?? fp?.domain ?? null,
-          ceo: rp?.ceo ?? pp?.ceo ?? fp?.ceo ?? null,
-          employees: rp?.employees ?? pp?.employees ?? fp?.employees ?? null,
-          sector: rp?.sector ?? pp?.sector ?? fp?.sector ?? null,
-          industry: rp?.industry ?? pp?.industry ?? fp?.industry ?? null,
-          country: rp?.country ?? pp?.country ?? fp?.country ?? null,
-          exchange: rp?.exchange ?? pp?.exchange ?? fp?.exchange ?? null,
-          ipoDate: rp?.ipoDate ?? pp?.ipoDate ?? fp?.ipoDate ?? null,
-          description: rp?.description ?? pp?.description ?? fp?.description ?? null,
+          name: rp?.name ?? fp?.name ?? pp?.name ?? null,
+          domain: rp?.domain ?? fp?.domain ?? pp?.domain ?? null,
+          ceo: rp?.ceo ?? fp?.ceo ?? pp?.ceo ?? null,
+          employees: rp?.employees ?? fp?.employees ?? pp?.employees ?? null,
+          sector: rp?.sector ?? fp?.sector ?? pp?.sector ?? null,
+          industry: rp?.industry ?? fp?.industry ?? pp?.industry ?? null,
+          country: rp?.country ?? fp?.country ?? pp?.country ?? null,
+          exchange: rp?.exchange ?? fp?.exchange ?? pp?.exchange ?? null,
+          ipoDate: rp?.ipoDate ?? fp?.ipoDate ?? pp?.ipoDate ?? null,
+          description: rp?.description ?? fp?.description ?? pp?.description ?? null,
         }
       : null;
 
-  const cashFlow = perplexity?.cashFlow ?? fmp?.cashFlow ?? null;
-  const dividend = perplexity?.dividend ?? fmp?.dividend ?? null;
+  // Structured value data: FMP is primary, Perplexity is the fallback.
+  const cashFlow = fmp?.cashFlow ?? perplexity?.cashFlow ?? null;
+  const dividend = fmp?.dividend ?? perplexity?.dividend ?? null;
 
   return {
     fundamentals,
-    fundamentalsSource: rf ? "robinhood" : pf ? "perplexity" : ff ? "fmp" : null,
+    fundamentalsSource: rf ? "robinhood" : ff ? "fmp" : pf ? "perplexity" : null,
     profile,
-    profileSource: rp ? "robinhood" : pp ? "perplexity" : fp ? "fmp" : null,
+    profileSource: rp ? "robinhood" : fp ? "fmp" : pp ? "perplexity" : null,
     consensus: perplexity?.consensus ?? null,
     summary: perplexity?.summary ?? "",
     earnings: perplexity?.earnings ?? [],
     catalysts: perplexity?.catalysts ?? [],
     cashFlow,
-    cashFlowSource: perplexity?.cashFlow ? "perplexity" : fmp?.cashFlow ? "fmp" : null,
+    cashFlowSource: fmp?.cashFlow ? "fmp" : perplexity?.cashFlow ? "perplexity" : null,
     dividend,
-    dividendSource: perplexity?.dividend ? "perplexity" : fmp?.dividend ? "fmp" : null,
+    dividendSource: fmp?.dividend ? "fmp" : perplexity?.dividend ? "perplexity" : null,
     finance: perplexity?.finance ?? [],
     sections: buildFinanceSections(perplexity?.finance ?? []),
     categories: perplexity?.categories ?? [],
@@ -180,12 +193,22 @@ export async function getSymbolResearch(
   const providerOn = provider.name !== "off";
   const fetchRh = opts?.fetchRobinhood ?? getRobinhoodFundamentals;
 
-  const [rh, pplx] = await Promise.all([
+  // FMP is the PRIMARY structured source (fmp-primary-for-fundamentals M2), so
+  // it's consulted on every fetch (not lazily, as in the old Perplexity-first
+  // chain) and runs in parallel with Robinhood + Perplexity. It's free and uses
+  // its OWN daily counter, so this never spends down Perplexity's metered cap.
+  const fmpProvider = opts?.fmpProvider ?? getFundamentalsFallbackProvider();
+  const fmpOn = fmpProvider.name !== "off";
+
+  const [rh, pplx, fmp] = await Promise.all([
     robinhoodConnected
       ? Promise.resolve(fetchRh(symbol)).catch(() => null)
       : Promise.resolve(null),
     providerOn
       ? Promise.resolve(provider.research({ symbol })).catch(() => null)
+      : Promise.resolve(null),
+    fmpOn
+      ? Promise.resolve(fmpProvider.research({ symbol })).catch(() => null)
       : Promise.resolve(null),
   ]);
 
@@ -206,23 +229,6 @@ export async function getSymbolResearch(
     const used = await getResearchCallCount(date, { dataDir });
     perplexityStatus = used >= cap ? "capped" : "unavailable";
   }
-
-  // FMP fallback (harden-research-fallback M2): spend an FMP call whenever the
-  // VALUE-quality data (cashFlow/dividend) is missing — even if Perplexity did
-  // parse some fundamentals. The prior guard also required `fundamentals` to be
-  // null, so a partial or truncated Perplexity result (fundamentals present, the
-  // cashFlow/dividend tail cut off — the LLY failure) skipped FMP and left the
-  // value lens "data unavailable". A truncated fetch now returns null entirely
-  // (research-output-completes M1), so `!pplx?.cashFlow && !pplx?.dividend`
-  // covers both that and the partial case; FMP fundamentals never override
-  // Perplexity's (the merge prefers Perplexity), so this only fills the gap.
-  const needFmp = !pplx?.cashFlow && !pplx?.dividend;
-  const fmpProvider = opts?.fmpProvider ?? getFundamentalsFallbackProvider();
-  const fmpOn = fmpProvider.name !== "off";
-  const fmp =
-    needFmp && fmpOn
-      ? await Promise.resolve(fmpProvider.research({ symbol })).catch(() => null)
-      : null;
 
   const merged = mergeSymbolResearch({
     rh,
