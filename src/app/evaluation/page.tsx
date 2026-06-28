@@ -21,7 +21,11 @@ import {
   ZapIcon,
 } from "@/components/icons";
 import { formatCurrency, formatPercent, toneForValue } from "@/lib/format";
-import { getEvaluationScorecard, getLiveBookPerformance } from "@/lib/server/eval";
+import {
+  getEvaluationScorecard,
+  getLiveBookPerformance,
+  getNetPerformance,
+} from "@/lib/server/eval";
 import { getGovernanceScorecard } from "@/lib/server/governance";
 import { getViewMode } from "@/lib/server/mode";
 import type { GovernanceScorecard } from "@/lib/eval/governance";
@@ -362,37 +366,46 @@ export default async function EvaluationPage() {
     );
   }
 
-  const [card, governance] = await Promise.all([
+  const [card, governance, net] = await Promise.all([
     getEvaluationScorecard(),
     getGovernanceScorecard(),
+    getNetPerformance(),
   ]);
-  const { window, returns, benchmark, trades, integrity, reliability } = card;
+  const { window, returns, trades, integrity, reliability } = card;
 
-  // Diverging bars comparing desk vs benchmark return + the excess. Rows are
-  // omitted only when a side is unavailable — no value is altered or synthesized.
-  const perfRows = [
-    benchmark.deskReturnPct === null
+  // Diverging bars comparing strategy gross / net-of-cost / SPY cumulative
+  // return. Rows are omitted only when a side is unavailable — no value is
+  // altered or synthesized.
+  const netRows = [
+    net.grossReturnPct === null
       ? null
       : {
-          label: "Desk",
-          value: benchmark.deskReturnPct,
-          valueText: pct(benchmark.deskReturnPct),
+          label: "Gross",
+          value: net.grossReturnPct,
+          valueText: pct(net.grossReturnPct),
         },
-    benchmark.benchmarkReturnPct === null
+    net.netReturnPct === null
       ? null
       : {
-          label: benchmark.symbol,
-          value: benchmark.benchmarkReturnPct,
-          valueText: pct(benchmark.benchmarkReturnPct),
+          label: "Net of cost",
+          value: net.netReturnPct,
+          valueText: pct(net.netReturnPct),
         },
-    benchmark.excessReturnPct === null
+    net.benchmarkReturnPct === null
       ? null
       : {
-          label: "Excess (alpha)",
-          value: benchmark.excessReturnPct,
-          valueText: pct(benchmark.excessReturnPct),
+          label: net.benchmarkSymbol,
+          value: net.benchmarkReturnPct,
+          valueText: pct(net.benchmarkReturnPct),
         },
   ].filter((r): r is NonNullable<typeof r> => r !== null);
+
+  // Drawdown gap (magnitudes): positive = strategy drew down more than SPY.
+  const ddExcess =
+    net.strategyMaxDrawdownPct !== null && net.benchmarkMaxDrawdownPct !== null
+      ? Math.abs(net.strategyMaxDrawdownPct) -
+        Math.abs(net.benchmarkMaxDrawdownPct)
+      : null;
 
   return (
     <div className="flex flex-col gap-10">
@@ -405,102 +418,119 @@ export default async function EvaluationPage() {
       <VerdictHero verdict={card.verdict} window={window} />
 
       <Section
-        title="1 · Performance vs benchmark"
-        note={`Desk equity curve vs ${benchmark.symbol}. ${benchmark.symbol} drawdown/volatility come from its daily closes (Alpaca data API); a — means the series was unavailable.`}
+        title={`1 · Net-of-cost performance vs ${net.benchmarkSymbol}`}
+        note={`The headline question: does the strategy beat ${net.benchmarkSymbol} after the real run-cost? Returns are annualized over the ${net.windowDays}-day window; net = gross − the modeled cost drag. ${net.benchmarkSymbol} return/drawdown come from its daily closes (Alpaca data API); a — means the series was unavailable.`}
       >
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
           <div className="grid grid-cols-2 gap-3">
             <KpiCard
-              label="Excess return"
-              value={pct(benchmark.excessReturnPct)}
+              label={`Net excess vs ${net.benchmarkSymbol} (annualized)`}
+              value={pct(net.netExcessAnnualizedPct)}
               icon={ScaleIcon}
               tone={
-                benchmark.excessReturnPct === null
+                net.netExcessAnnualizedPct === null
                   ? "neutral"
-                  : toneForValue(benchmark.excessReturnPct)
+                  : toneForValue(net.netExcessAnnualizedPct)
               }
             />
             <KpiCard
-              label="Desk return"
-              value={pct(benchmark.deskReturnPct)}
+              label={`${net.benchmarkSymbol} return (annualized)`}
+              value={pct(net.benchmarkAnnualizedPct)}
+              icon={ScaleIcon}
+              tone={
+                net.benchmarkAnnualizedPct === null
+                  ? "neutral"
+                  : toneForValue(net.benchmarkAnnualizedPct)
+              }
+            />
+            <KpiCard
+              label="Net of cost (annualized)"
+              value={pct(net.netAnnualizedPct)}
               icon={TrendingUpIcon}
               tone={
-                benchmark.deskReturnPct === null
+                net.netAnnualizedPct === null
                   ? "neutral"
-                  : toneForValue(benchmark.deskReturnPct)
+                  : toneForValue(net.netAnnualizedPct)
               }
             />
             <KpiCard
-              label="Simple Sharpe"
-              value={num(returns.sharpe)}
-              icon={ZapIcon}
-            />
-            <KpiCard
-              label="Return ÷ max-DD"
-              value={num(returns.returnOverMaxDd)}
-              icon={ScaleIcon}
+              label="Gross (annualized)"
+              value={pct(net.grossAnnualizedPct)}
+              icon={TrendingUpIcon}
+              tone={
+                net.grossAnnualizedPct === null
+                  ? "neutral"
+                  : toneForValue(net.grossAnnualizedPct)
+              }
             />
           </div>
 
           <Card className="flex flex-col gap-5">
             <div>
               <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-muted">
-                Desk vs {benchmark.symbol} — total return
+                Gross vs net vs {net.benchmarkSymbol} — cumulative return
               </h3>
-              {perfRows.length > 0 ? (
+              {netRows.length > 0 ? (
                 <DivergingBars
-                  ariaLabel={`Desk return ${pct(
-                    benchmark.deskReturnPct,
-                  )}, ${benchmark.symbol} return ${pct(
-                    benchmark.benchmarkReturnPct,
-                  )}, excess ${pct(benchmark.excessReturnPct)}.`}
-                  rows={perfRows}
+                  ariaLabel={`Gross return ${pct(
+                    net.grossReturnPct,
+                  )}, net-of-cost ${pct(net.netReturnPct)}, ${
+                    net.benchmarkSymbol
+                  } ${pct(net.benchmarkReturnPct)}.`}
+                  rows={netRows}
                 />
               ) : (
                 <p className="text-sm text-fg-muted">
-                  Return series unavailable — cannot chart desk vs benchmark
-                  yet.
+                  Return series unavailable — cannot chart performance yet.
                 </p>
               )}
             </div>
 
             <div className="border-t border-line pt-1">
               <Row
-                label="Max drawdown — desk"
-                value={pct(benchmark.deskMaxDrawdownPct, { signed: false })}
-                tone={benchmark.deskMaxDrawdownPct ? "loss" : "neutral"}
+                label="Net excess (cumulative)"
+                value={pct(net.netExcessReturnPct)}
+                tone={
+                  net.netExcessReturnPct === null
+                    ? "neutral"
+                    : toneForValue(net.netExcessReturnPct)
+                }
               />
               <Row
-                label={`Max drawdown — ${benchmark.symbol}`}
-                value={pct(benchmark.benchmarkMaxDrawdownPct, {
-                  signed: false,
-                })}
-                tone={benchmark.benchmarkMaxDrawdownPct ? "loss" : "neutral"}
+                label="Cost drag (over window)"
+                value={pct(net.costDragPct, { signed: false })}
+                tone={net.costDragPct > 0 ? "loss" : "neutral"}
               />
               <Row
-                label="Drawdown vs benchmark"
+                label="Max drawdown — strategy"
+                value={pct(net.strategyMaxDrawdownPct, { signed: false })}
+                tone={net.strategyMaxDrawdownPct ? "loss" : "neutral"}
+              />
+              <Row
+                label={`Max drawdown — ${net.benchmarkSymbol}`}
+                value={pct(net.benchmarkMaxDrawdownPct, { signed: false })}
+                tone={net.benchmarkMaxDrawdownPct ? "loss" : "neutral"}
+              />
+              <Row
+                label={`Drawdown vs ${net.benchmarkSymbol}`}
                 value={
-                  benchmark.drawdownExcessPct === null
+                  ddExcess === null
                     ? DASH
-                    : `${benchmark.drawdownExcessPct > 0 ? "+" : ""}${(
-                        benchmark.drawdownExcessPct * 100
-                      ).toFixed(2)}pp`
+                    : `${ddExcess > 0 ? "+" : ""}${(ddExcess * 100).toFixed(
+                        2,
+                      )}pp`
                 }
                 tone={
-                  benchmark.drawdownExcessPct === null
-                    ? "neutral"
-                    : benchmark.drawdownExcessPct > 0
-                      ? "loss"
-                      : "gain"
+                  ddExcess === null ? "neutral" : ddExcess > 0 ? "loss" : "gain"
                 }
               />
               <Row
-                label="Volatility — desk (per-period stdev)"
-                value={pct(returns.volatility, { signed: false })}
+                label="Simple Sharpe / Return ÷ max-DD"
+                value={`${num(returns.sharpe)} / ${num(returns.returnOverMaxDd)}`}
               />
               <Row
-                label={`Volatility — ${benchmark.symbol}`}
-                value={pct(benchmark.benchmarkVolatility, { signed: false })}
+                label="Volatility — strategy / per-period stdev"
+                value={pct(net.strategyVolatility, { signed: false })}
               />
             </div>
           </Card>
@@ -600,8 +630,20 @@ export default async function EvaluationPage() {
                 ? "Live snapshot present"
                 : "No real-money path touched"}
             </IntegrityChip>
+            <IntegrityChip ok={net.rails.totalBreaches === 0}>
+              {net.rails.totalBreaches === 0
+                ? "Zero hard-rail breaches"
+                : `${net.rails.totalBreaches} hard-rail breach${
+                    net.rails.totalBreaches === 1 ? "" : "es"
+                  }`}
+            </IntegrityChip>
           </div>
           <div>
+            <Row
+              label="Rail adherence — risk / size / count / orders-per-day breaches"
+              value={`${net.rails.perPositionRisk} / ${net.rails.positionSize} / ${net.rails.concurrentPositions} / ${net.rails.ordersPerDay}`}
+              tone={net.rails.totalBreaches === 0 ? "gain" : "loss"}
+            />
             <Row
               label="Orders blocked by risk rails"
               value={String(integrity.ordersBlockedByRules)}
