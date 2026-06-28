@@ -85,12 +85,19 @@
   `deriveApprovalProximity` (`src/lib/proposal-proximity.ts`, unit-tested) **anchors
   it to the verdict band** (reject 0–33 / concern 34–66 / approve 67–100 — so it can
   never contradict the verdict) and only modulates *within* band by factor pressure +
-  `convictionScore`; missing **value-lens** structured data (`cashFlow`/`dividend`,
-  value strategy only — a trend proposal isn't "incomplete" for lacking cash-flow)
-  **caps it below the band ceiling** with a lock chip, per the conviction-honesty
-  principle. Role tokens only (dark-mode safe), never color-only (text labels +
-  verdict pill + `aria-label`), with an italic interpretive subtitle. It feeds
-  nothing downstream.
+  `convictionScore`. **Lens-aware (proximity-meter-lens-aware M0):** it takes the
+  **currently-toggled lens** (a `ProposalLensBreakdown`, via the `ProximityInput`
+  shape both it and `TradeProposal` satisfy), so a dual-lens analysis re-derives —
+  verdict, conviction, cap — when the Trend/Value toggle flips; single-lens
+  proposals pass their lone lens and read identically. The data cap is **only for
+  value-quality data that was expected but unavailable**: a missing **cash-flow**
+  block caps (below the band ceiling, with a lock chip) **only when the value
+  research didn't come back `ok`** (off/capped/failed per `researchStatus` — we
+  tried and couldn't get it); a missing **dividend never caps** (a value play needn't
+  pay one — "absent by nature," e.g. NOW), and a non-payer with cash-flow present +
+  research `ok` reads **complete, no cap**. Role tokens only (dark-mode safe), never
+  color-only (text labels + verdict pill + `aria-label`), with an italic
+  interpretive subtitle. It feeds nothing downstream.
 - **Source footnotes (proposal-source-footnotes M1).** Every displayed figure on
   the detail page carries a small **superscript footnote marker** (`SourceMarker`,
   a real anchor link with an `aria-label` like "source 2: FMP") that jumps to a
