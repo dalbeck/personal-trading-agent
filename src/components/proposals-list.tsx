@@ -6,7 +6,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { SampleDataBadge } from "@/components/sample-data-badge";
 import { ChevronRightIcon } from "@/components/icons";
 import { confidenceBucket } from "@/lib/confidence";
-import { CONVICTION_TIERS, compareByConviction } from "@/lib/conviction";
+import { CONVICTION_TIERS } from "@/lib/conviction";
 import { convictionDisplay } from "@/lib/conviction-display";
 import { strategyStyle } from "@/lib/strategy-style";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
@@ -74,23 +74,17 @@ export function ProposalsList({
   // The "Today"/"Yesterday" boundary is captured once per mount so date headers
   // stay stable through re-renders (router.refresh, status updates).
   const [nowMs] = useState(() => Date.now());
-  // Within each day, sort high-conviction first (sorting, not hiding — all tiers
-  // render). Day order itself stays newest-first.
-  const groups = useMemo(
-    () =>
-      groupProposalsByDay(visible, nowMs).map((g) => ({
-        ...g,
-        items: [...g.items].sort(compareByConviction),
-      })),
-    [visible, nowMs],
-  );
+  // Group by ET day (newest day first) with the newest proposal at the top of
+  // each day — `groupProposalsByDay` already orders items newest-first by
+  // `createdAt`, so the day reads as a chronological feed.
+  const groups = useMemo(() => groupProposalsByDay(visible, nowMs), [visible, nowMs]);
 
   return (
     <>
       {hasTiers ? (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-xs text-fg-muted">
-            Sorted by conviction · all tiers shown
+            Newest first · all tiers shown
           </span>
           <div
             className="ml-auto inline-flex overflow-hidden rounded-pill border border-line"
