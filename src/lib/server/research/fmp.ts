@@ -40,6 +40,11 @@ export interface FmpOpts {
   now?: () => Date;
 }
 
+/** FMP's own per-day usage counter key — kept separate from Perplexity's metered
+ *  cap so the free, always-consulted FMP primary never throttles the paid API
+ *  (fmp-primary-for-fundamentals M2). */
+const FMP_USAGE_KEY = "fmp";
+
 const DEFAULT_URL =
   process.env.FMP_API_URL ?? "https://financialmodelingprep.com/stable";
 
@@ -92,7 +97,10 @@ export function createFmpProvider(opts?: FmpOpts): ResearchProvider {
 
       const date = clock().toISOString().slice(0, 10);
 
-      const used = await getResearchCallCount(date, { dataDir: opts?.dataDir });
+      const used = await getResearchCallCount(date, {
+        dataDir: opts?.dataDir,
+        key: FMP_USAGE_KEY,
+      });
       if (used >= dailyCap) {
         await emit(query.symbol, "daily-cap-reached", startedAt);
         return null;
@@ -233,7 +241,10 @@ export function createFmpProvider(opts?: FmpOpts): ResearchProvider {
         dividend: mapped.dividend,
       };
 
-      await bumpResearchCallCount(date, { dataDir: opts?.dataDir });
+      await bumpResearchCallCount(date, {
+        dataDir: opts?.dataDir,
+        key: FMP_USAGE_KEY,
+      });
       await emit(query.symbol, "ok", startedAt);
       return result;
     },

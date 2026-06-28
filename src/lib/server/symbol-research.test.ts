@@ -95,6 +95,58 @@ describe("mergeSymbolResearch", () => {
     expect(merged.summary).toBe("AI narrative.");
   });
 
+  it("prefers FMP over Perplexity for structured fundamentals/cashFlow/dividend (M2)", () => {
+    const fmp: ResearchResult = {
+      provider: "fmp",
+      symbol: "LLY",
+      summary: "",
+      sources: [],
+      usedAt: "2026-06-25T12:00:00Z",
+      finance: [],
+      categories: [],
+      tickers: [],
+      consensus: null,
+      earnings: [],
+      catalysts: [],
+      fundamentals: { marketCap: 8e11, peRatio: 52, eps: 14.2, dividendYield: 0.006 },
+      profile: null,
+      cashFlow: {
+        operatingCashFlow: null,
+        freeCashFlow: 5e9,
+        fcfTrend: "growing",
+        fcfYield: 0.032,
+        netDebt: 1e9,
+        debtToEquity: 0.4,
+        interestCoverage: 18,
+      },
+      dividend: {
+        dividendYield: 0.006,
+        payoutRatio: 0.3,
+        fcfPayout: null,
+        fcfCoverage: 4.5,
+        growthStreakYears: 10,
+        dividendCagr: null,
+      },
+    };
+    const merged = mergeSymbolResearch({
+      rh: null, // no Robinhood → FMP is the top structured source
+      perplexity: pplxResult(), // has fundamentals but no cashFlow/dividend
+      fmp,
+      robinhoodConnected: false,
+      perplexityStatus: "ok",
+      perplexityReason: null,
+    });
+    // FMP wins for structured fundamentals + value data.
+    expect(merged.fundamentalsSource).toBe("fmp");
+    expect(merged.fundamentals!.marketCap).toBe(8e11);
+    expect(merged.cashFlowSource).toBe("fmp");
+    expect(merged.cashFlow!.freeCashFlow).toBe(5e9);
+    expect(merged.dividendSource).toBe("fmp");
+    // Perplexity still owns the narrative + consensus.
+    expect(merged.summary).toBe("AI narrative.");
+    expect(merged.consensus!.rating).toBe("Buy");
+  });
+
   it("uses Perplexity for everything when Robinhood is absent", () => {
     const merged = mergeSymbolResearch({
       rh: null,
@@ -324,7 +376,7 @@ describe("getResearchFreshness", () => {
 });
 
 // ---------------------------------------------------------------------------
-// FMP fallback chain tests
+// FMP primary chain tests (fmp-primary-for-fundamentals M2)
 // ---------------------------------------------------------------------------
 
 function fmpResult(): ResearchResult {
@@ -370,7 +422,7 @@ function fmpResult(): ResearchResult {
   };
 }
 
-describe("FMP fallback chain", () => {
+describe("FMP primary chain", () => {
   it("uses FMP when Perplexity is down and Perplexity did not supply value data", async () => {
     const dir = await tmp();
     const fmpResearch = vi.fn(async () => fmpResult());
@@ -406,34 +458,10 @@ describe("FMP fallback chain", () => {
     expect(res.fundamentalsSource).toBe("fmp");
   });
 
-  it("calls FMP when Perplexity parsed fundamentals but supplied NO cashFlow/dividend (harden-research-fallback M2)", async () => {
-    // The post-M1 truncation/partial shape: Perplexity returns some fundamentals
-    // but the value-quality tail (cashFlow/dividend) is missing. The old guard
-    // (which also required fundamentals to be null) skipped FMP here, leaving the
-    // value lens "data unavailable". The loosened guard must fall through to FMP.
-    const dir = await tmp();
-    const fmpResearch = vi.fn(async () => fmpResult());
-    const fmpProvider: ResearchProvider = { name: "fmp", research: fmpResearch };
-
-    const res = await getSymbolResearch("MSFT", {
-      dataDir: dir,
-      robinhoodConnected: false,
-      // pplxResult() has fundamentals but no cashFlow/dividend.
-      provider: { name: "perplexity", research: async () => pplxResult() },
-      fmpProvider,
-      now: NOW,
-    });
-
-    expect(fmpResearch).toHaveBeenCalledOnce();
-    expect(res.cashFlow).not.toBeNull();
-    expect(res.cashFlowSource).toBe("fmp");
-    expect(res.dividend).not.toBeNull();
-    expect(res.dividendSource).toBe("fmp");
-    // Perplexity's fundamentals still win — FMP only filled the value-data gap.
-    expect(res.fundamentalsSource).toBe("perplexity");
-  });
-
-  it("does NOT call FMP when Perplexity supplied value data", async () => {
+  it("is consulted on every fetch and its structured value data is primary (over Perplexity)", async () => {
+    // M2: FMP is the primary structured source. Even when Perplexity also
+    // returns cashFlow/dividend, FMP's purpose-built figures win, and FMP is
+    // ALWAYS called (not lazily, as in the old Perplexity-first chain).
     const dir = await tmp();
     const fmpResearch = vi.fn(async () => fmpResult());
     const fmpProvider: ResearchProvider = { name: "fmp", research: fmpResearch };
@@ -467,7 +495,60 @@ describe("FMP fallback chain", () => {
       now: NOW,
     });
 
-    expect(fmpResearch).not.toHaveBeenCalled();
+    expect(fmpResearch).toHaveBeenCalledOnce(); // always consulted, not lazy
+    // FMP wins for structured value data + core fundamentals (RH absent here).
+    expect(res.cashFlowSource).toBe("fmp");
+    expect(res.cashFlow!.freeCashFlow).toBe(5e9); // FMP's figure, not Perplexity's 8e9
+    expect(res.dividendSource).toBe("fmp");
+    expect(res.fundamentalsSource).toBe("fmp");
+    // Perplexity still supplies the narrative + consensus + catalysts.
+    expect(res.summary).toBe("AI narrative.");
+    expect(res.consensus!.rating).toBe("Buy");
+  });
+
+  it("falls through to Perplexity for structured value data when FMP has none (FMP → Perplexity)", async () => {
+    // Free-tier-gated symbol: FMP returns profile/fundamentals but null cashFlow
+    // /dividend (402 on statements). Perplexity's parsed values must fill in.
+    const dir = await tmp();
+    const fmpGatedResult: ResearchResult = {
+      ...fmpResult(),
+      cashFlow: null,
+      dividend: null,
+    };
+    const fmpResearch = vi.fn(async () => fmpGatedResult);
+    const fmpProvider: ResearchProvider = { name: "fmp", research: fmpResearch };
+
+    const pplxWithValues: ResearchResult = {
+      ...pplxResult(),
+      cashFlow: {
+        operatingCashFlow: null,
+        freeCashFlow: 8e9,
+        fcfTrend: "stable",
+        fcfYield: 0.041,
+        netDebt: null,
+        debtToEquity: null,
+        interestCoverage: 25,
+      },
+      dividend: {
+        dividendYield: 0.0072,
+        payoutRatio: 0.25,
+        fcfPayout: null,
+        fcfCoverage: 6,
+        growthStreakYears: 12,
+        dividendCagr: null,
+      },
+    };
+
+    const res = await getSymbolResearch("VEEV", {
+      dataDir: dir,
+      robinhoodConnected: false,
+      provider: { name: "perplexity", research: async () => pplxWithValues },
+      fmpProvider,
+      now: NOW,
+    });
+
+    expect(fmpResearch).toHaveBeenCalledOnce();
+    expect(res.cashFlow!.freeCashFlow).toBe(8e9); // Perplexity's, since FMP had none
     expect(res.cashFlowSource).toBe("perplexity");
     expect(res.dividendSource).toBe("perplexity");
   });
