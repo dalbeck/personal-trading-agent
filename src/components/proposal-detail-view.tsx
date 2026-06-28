@@ -10,6 +10,7 @@ import { DividendBlock } from "@/components/dividend-block";
 import { ProposalResearchFreshness } from "@/components/proposal-research-freshness";
 import { ProposalLevelsFreshness } from "@/components/proposal-levels-freshness";
 import { ProposalActions } from "@/components/proposal-actions";
+import { ApprovalProximityMeter } from "@/components/approval-proximity-meter";
 import { StagedEntryPlanCard } from "@/components/staged-entry-plan";
 import { CheckIcon, FlagIcon, ChevronRightIcon } from "@/components/icons";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -387,8 +388,12 @@ export function ProposalDetailView({
           </Section>
         </div>
 
-        {/* Side rail — sizing math + the gated actions. */}
+        {/* Side rail — at-a-glance approval proximity, sizing math, gated actions. */}
         <div className="flex flex-col gap-6">
+          {/* Read-only quick read of how close the red-team is to approval. The
+              red-team detail block stays in the main column, untouched. */}
+          <ApprovalProximityMeter proposal={p} />
+
           <Section
             title="Sizing math"
             note={
