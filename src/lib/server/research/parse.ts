@@ -386,8 +386,18 @@ export function coerceDividend(
     dividendCagr: coercePercentLike(d.dividendCagr),
   };
 
-  const hasAny = Object.values(result).some((v) => v !== null);
-  return hasAny ? result : null;
+  // A company that pays no dividend carries no value-floor signal. Some models
+  // still volunteer a zero yield/payout with a phantom coverage; emit null
+  // rather than a block of zeros (which would otherwise win the research merge
+  // over an FMP null and read as a real, assessable dividend). Positive yield,
+  // payout, growth streak, or CAGR is the only evidence of an actual dividend —
+  // coverage alone, absent any of those, is not.
+  const paysDividend =
+    (result.dividendYield ?? 0) > 0 ||
+    (result.payoutRatio ?? 0) > 0 ||
+    (result.growthStreakYears ?? 0) > 0 ||
+    (result.dividendCagr ?? 0) > 0;
+  return paysDividend ? result : null;
 }
 
 // ---------------------------------------------------------------------------

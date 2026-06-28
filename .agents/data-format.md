@@ -557,3 +557,23 @@ fabricated content as if it were live — a real trust hazard for a trading tool
   - `pnpm validate:data` validates the live `data/` directory.
 - A file in the wrong format for its directory (e.g. a stray `.json` in
   `decision-journal/`) is a validation failure, not a silent skip.
+
+### Non-finite numbers fail validation (research-adapter gotcha)
+
+zod `z.number()` rejects `Infinity` / `NaN` with a misleading `"expected number,
+received number"` error, so any derived ratio must guard its divisor. Two live
+cases in the research adapters (`src/lib/server/research/`):
+
+- **Dividend coverage on a non-payer.** `fcfCoverage = freeCashFlow /
+  abs(dividendsPaid)` divides by zero when a name pays no dividend (FMP reports
+  `netDividendsPaid: 0`). Pre-paid-FMP this was masked because cash-flow 402'd to
+  null; once cash-flow populated, the `Infinity` crashed the whole `analyzeSymbol`
+  at proposal validation (the research cache hid it — `JSON.stringify(Infinity)`
+  serializes to `null`, so the bug is only visible in-memory). Guard the divisor
+  (`fmp-map.ts`).
+- **A non-paying company has no dividend block.** Both adapters now emit
+  `dividend: null` (not a block of zeros) when there's no positive yield, payout,
+  growth streak, or CAGR — `fmp-map.ts` `mapDividend` and `parse.ts`
+  `coerceDividend`. The merge (`symbol-research.ts`) is `fmp ?? perplexity ?? null`,
+  so a Perplexity zero-block (with a hallucinated coverage) would otherwise win
+  over an FMP null and read as a real, assessable dividend.
