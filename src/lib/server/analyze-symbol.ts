@@ -36,6 +36,7 @@ import type {
   DividendSignals,
   ProposalLensBreakdown,
   RedTeamVerdict,
+  ResearchSourceTag,
   ResearchStatus,
   TradeProposal,
 } from "@/lib/types";
@@ -78,6 +79,10 @@ export interface ResearchContext {
   researchStatus: ResearchStatus;
   /** Specific failure reason when research wasn't ok (research-observability M1). */
   researchStatusReason: string | null;
+  /** Which provider supplied `cashFlow` / `dividend` (proposal-source-footnotes
+   *  M1) — from the research merge, for the source footnotes. Null when absent. */
+  cashFlowSource: ResearchSourceTag | null;
+  dividendSource: ResearchSourceTag | null;
   /** True when the metered Perplexity provider supplied the context (for the
    *  caller to surface that a daily-capped call was spent). */
   usedPerplexity: boolean;
@@ -157,6 +162,8 @@ export async function fetchResearchContext(
       dividend: r.dividend ?? null,
       researchStatus: valueDataPresent ? "ok" : r.perplexity,
       researchStatusReason: valueDataPresent ? null : r.perplexityReason,
+      cashFlowSource: r.cashFlowSource ?? null,
+      dividendSource: r.dividendSource ?? null,
       usedPerplexity: r.perplexity === "ok",
     };
   } catch {
@@ -179,6 +186,8 @@ export async function fetchResearchContext(
       dividend: null,
       researchStatus: "unavailable",
       researchStatusReason: null,
+      cashFlowSource: null,
+      dividendSource: null,
       usedPerplexity: false,
     };
   }
@@ -271,6 +280,8 @@ export function draftToLens(
   catalystSources: CatalystSource[] = [],
   catalystState: CatalystState | null = null,
   researchStatusReason: string | null = null,
+  cashFlowSource: ResearchSourceTag | null = null,
+  dividendSource: ResearchSourceTag | null = null,
 ): ProposalLensBreakdown {
   return {
     strategy: d.strategy,
@@ -300,6 +311,10 @@ export function draftToLens(
     // Research availability is a value-lens concern (its quality data); trend null.
     researchStatus: d.strategy === "value" ? researchStatus : null,
     researchStatusReason: d.strategy === "value" ? researchStatusReason : null,
+    // Provenance of the value-quality blocks (proposal-source-footnotes M1) —
+    // value lens only, mirroring the cashFlow/dividend attachment above.
+    cashFlowSource: d.strategy === "value" ? cashFlowSource : null,
+    dividendSource: d.strategy === "value" ? dividendSource : null,
   };
 }
 
@@ -414,6 +429,8 @@ export async function analyzeSymbol(
       dividend: proposal.dividend,
       researchStatus: proposal.researchStatus,
       researchStatusReason: proposal.researchStatusReason,
+      cashFlowSource: proposal.cashFlowSource,
+      dividendSource: proposal.dividendSource,
       pricedAt: proposal.pricedAt,
       researchAt: proposal.researchAt,
       lenses,
@@ -581,6 +598,8 @@ export async function deriveProposalFromResearch(
       catalystSources,
       valueCatalystState,
       researchStatusReason,
+      research.cashFlowSource,
+      research.dividendSource,
     ),
   ];
 
@@ -596,6 +615,10 @@ export async function deriveProposalFromResearch(
     active.draft.strategy === "value" ? researchStatus : null;
   const activeResearchStatusReason =
     active.draft.strategy === "value" ? researchStatusReason : null;
+  const activeCashFlowSource =
+    active.draft.strategy === "value" ? research.cashFlowSource : null;
+  const activeDividendSource =
+    active.draft.strategy === "value" ? research.dividendSource : null;
   const activeCatalystState =
     active.draft.strategy === "value" ? valueCatalystState : catalystState;
 
@@ -616,6 +639,8 @@ export async function deriveProposalFromResearch(
     dividend: activeDividend,
     researchStatus: activeResearchStatus,
     researchStatusReason: activeResearchStatusReason,
+    cashFlowSource: activeCashFlowSource,
+    dividendSource: activeDividendSource,
     lenses,
   });
 

@@ -85,12 +85,35 @@
   `deriveApprovalProximity` (`src/lib/proposal-proximity.ts`, unit-tested) **anchors
   it to the verdict band** (reject 0–33 / concern 34–66 / approve 67–100 — so it can
   never contradict the verdict) and only modulates *within* band by factor pressure +
-  `convictionScore`; missing **value-lens** structured data (`cashFlow`/`dividend`,
-  value strategy only — a trend proposal isn't "incomplete" for lacking cash-flow)
-  **caps it below the band ceiling** with a lock chip, per the conviction-honesty
-  principle. Role tokens only (dark-mode safe), never color-only (text labels +
-  verdict pill + `aria-label`), with an italic interpretive subtitle. It feeds
-  nothing downstream.
+  `convictionScore`. **Lens-aware (proximity-meter-lens-aware M0):** it takes the
+  **currently-toggled lens** (a `ProposalLensBreakdown`, via the `ProximityInput`
+  shape both it and `TradeProposal` satisfy), so a dual-lens analysis re-derives —
+  verdict, conviction, cap — when the Trend/Value toggle flips; single-lens
+  proposals pass their lone lens and read identically. The data cap is **only for
+  value-quality data that was expected but unavailable**: a missing **cash-flow**
+  block caps (below the band ceiling, with a lock chip) **only when the value
+  research didn't come back `ok`** (off/capped/failed per `researchStatus` — we
+  tried and couldn't get it); a missing **dividend never caps** (a value play needn't
+  pay one — "absent by nature," e.g. NOW), and a non-payer with cash-flow present +
+  research `ok` reads **complete, no cap**. Role tokens only (dark-mode safe), never
+  color-only (text labels + verdict pill + `aria-label`), with an italic
+  interpretive subtitle. It feeds nothing downstream.
+- **Source footnotes (proposal-source-footnotes M1).** Every displayed figure on
+  the detail page carries a small **superscript footnote marker** (`SourceMarker`,
+  a real anchor link with an `aria-label` like "source 2: FMP") that jumps to a
+  numbered **Sources card** (`ProposalSourcesCard`) placed in the sidebar **directly
+  under the Export card** — the single source of truth (rendered once; on narrow
+  screens the sidebar stacks below the main column, so the sources land at the
+  bottom). The pure `buildProposalSources` (`src/lib/proposal-sources.ts`,
+  unit-tested) derives the registry **lens-aware** from the active lens: technicals
+  → Alpaca (IEX); catalyst → Alpaca News (Benzinga) with the real `catalystSources`
+  URL, else the Perplexity curated-catalyst fallback; cash-flow / dividend → the
+  proposal's `cashFlowSource` / `dividendSource` (FMP / Perplexity, else "source not
+  tracked" — **never a guessed provider**); reward:risk, sizing, risk %, quantity,
+  conviction, model confidence, and the thesis synthesis → **Derived** (computed,
+  NOT a data provider — honesty matters). Metrics sharing a source share a number;
+  list items carry the matching `id` + `tabIndex={-1}` so the jump-link lands focus.
+  Provenance only — it reports, it never changes a value or makes a new external call.
 - The gated **approve / reject / review** flow + the precheck override dialog live in **`ProposalActions`** (`src/components/proposal-actions.tsx`) — same `/api/live/approve` + `/api/live/approve/precheck` endpoints, dry-run-sink semantics, and required override justification. **Acting lens:** the detail page passes the toggled lens to `ProposalActions`, which sends `actingLens` to both endpoints; the server resolves it with `resolveActiveLens` so the order uses **that lens's levels + red-team verdict** and the journal records a `lens:<strategy>` tag. Hard rails + gates unchanged. The page also carries **Re-run red-team** + **Refresh research**.
 - **Export (PDF + Markdown).** `GET /api/proposals/[id]/export?format=md|pdf` streams the full-context proposal as a download (read-only; the user's own data). The **pure** serializers live in `src/lib/proposal-export.ts` (`proposalToMarkdown` + `buildProposalPdfDocDefinition`, unit-tested + deterministic for a given `generatedAt`); the route only renders the PDF bytes and sets the download headers. Both include every section **per lens** (both lenses when dual) and a `Snapshot: … · Exported: … · point-in-time snapshot — not investment advice.` footer.
   - **Copy Markdown + Export JSON (proposal-export-actions M2).** The Export card carries four actions via the client `ProposalExportActions` (`src/components/proposal-export-actions.tsx`): the two **unchanged** downloads (PDF / Markdown — same routes, same bytes), plus **Copy Markdown** (copies the *same* markdown to the clipboard via `navigator.clipboard.writeText`, with a transient "Copied" state) and **Export JSON** (downloads the **raw proposal object** as `<id>.json`). The seams are pure + client-safe in `src/lib/proposal-export-client.ts` (`copyProposalMarkdown` **fetches the existing `?format=md` route** — never forks the markdown generator — and `proposalJsonString` serializes the canonical proposal so it round-trips against `TradeProposalSchema`); `fetch` / `clipboard` are injectable so the clipboard write + the JSON round-trip are unit-tested.

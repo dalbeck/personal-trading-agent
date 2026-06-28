@@ -47,6 +47,8 @@ function lens(
     dividend: null,
     researchStatus: null,
     researchStatusReason: null,
+    cashFlowSource: null,
+    dividendSource: null,
     ...overrides,
   };
 }
