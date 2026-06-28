@@ -391,8 +391,9 @@ export function ProposalDetailView({
         {/* Side rail — at-a-glance approval proximity, sizing math, gated actions. */}
         <div className="flex flex-col gap-6">
           {/* Read-only quick read of how close the red-team is to approval. The
-              red-team detail block stays in the main column, untouched. */}
-          <ApprovalProximityMeter proposal={p} />
+              red-team detail block stays in the main column, untouched. Reads the
+              ACTIVE lens, so it re-derives with the Trend/Value toggle. */}
+          <ApprovalProximityMeter lens={lens} />
 
           <Section
             title="Sizing math"

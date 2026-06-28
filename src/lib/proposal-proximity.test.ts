@@ -31,6 +31,7 @@ function prop(over: Partial<{
   cashFlow: unknown;
   dividend: unknown;
   redTeam: unknown;
+  researchStatus: "ok" | "off" | "capped" | "unavailable" | null;
 }>): TradeProposal {
   return {
     strategy: "trend",
@@ -38,6 +39,7 @@ function prop(over: Partial<{
     cashFlow: null,
     dividend: null,
     redTeam: null,
+    researchStatus: null,
     ...over,
   } as unknown as TradeProposal;
 }
@@ -163,6 +165,85 @@ describe("deriveApprovalProximity — data completeness cap", () => {
     expect(r.capped).toBe(false);
     // no data-coverage chip for trend (cash-flow isn't its thesis)
     expect(r.drivers.some((d) => /data/i.test(d.label))).toBe(false);
+  });
+});
+
+describe("deriveApprovalProximity — lens-aware (the Trend/Value toggle)", () => {
+  it("reads each lens by its own verdict, so toggling the lens changes the band", () => {
+    // The detail page passes the currently-toggled lens. A dual-lens analysis can
+    // disagree (e.g. Trend rejects, Value is a concern) — the meter must follow
+    // the lens it is given, not a single proposal-level verdict.
+    const trendLens = deriveApprovalProximity(
+      prop({ strategy: "trend", redTeam: redTeam("reject") }),
+    );
+    const valueLens = deriveApprovalProximity(
+      prop({ strategy: "value", redTeam: redTeam("concern"), cashFlow: CASH_FLOW, researchStatus: "ok" }),
+    );
+
+    expect(trendLens.verdict).toBe("reject");
+    expect(trendLens.band?.key).toBe("reject");
+    expect(valueLens.verdict).toBe("concern");
+    expect(valueLens.band?.key).toBe("concern");
+    // The two readings land in different bands — the visible effect of the toggle.
+    expect(valueLens.value!).toBeGreaterThan(trendLens.value!);
+  });
+});
+
+describe("deriveApprovalProximity — applicable vs. unavailable data cap", () => {
+  it("does NOT cap a non-dividend payer with cash-flow present and research ok (the NOW case)", () => {
+    // NOW pays no dividend by nature → dividend block null is EXPECTED, not a gap.
+    // Cash-flow is present (FMP) and research came back ok → the file is complete.
+    const r = deriveApprovalProximity(
+      prop({
+        strategy: "value",
+        redTeam: redTeam("concern", ["supports"]),
+        convictionScore: 0.7,
+        cashFlow: CASH_FLOW,
+        dividend: null,
+        researchStatus: "ok",
+      }),
+    );
+    expect(r.capped).toBe(false);
+    expect(r.capValue).toBeNull();
+    expect(r.capReason).toBeNull();
+    expect(r.drivers).toContainEqual({ direction: "up", label: "full data coverage" });
+  });
+
+  it("still caps when cash-flow was expected but the fetch failed", () => {
+    // A genuine failure: research unavailable AND no cash-flow block → cap, and the
+    // reason names the failure (never conflated with 'absent by nature').
+    const r = deriveApprovalProximity(
+      prop({
+        strategy: "value",
+        redTeam: redTeam("approve", ["supports", "supports"]),
+        convictionScore: 0.9,
+        cashFlow: null,
+        dividend: null,
+        researchStatus: "unavailable",
+      }),
+    );
+    const cap = PROXIMITY_BANDS.approve.ceil - CAP_BELOW_CEILING;
+    expect(r.capped).toBe(true);
+    expect(r.value!).toBeLessThanOrEqual(cap);
+    expect(r.capValue).toBe(cap);
+    expect(r.capReason).toMatch(/cash-flow data unavailable/i);
+    expect(r.capReason).toMatch(/fetch failed/i);
+    expect(r.drivers).toContainEqual({ direction: "down", label: r.capReason! });
+  });
+
+  it("does NOT cap a value proposal for a missing dividend alone when cash-flow is present", () => {
+    // A missing dividend never independently caps — only expected-but-unavailable
+    // cash-flow does.
+    const r = deriveApprovalProximity(
+      prop({
+        strategy: "value",
+        redTeam: redTeam("approve", ["supports"]),
+        cashFlow: CASH_FLOW,
+        dividend: null,
+        researchStatus: "capped",
+      }),
+    );
+    expect(r.capped).toBe(false);
   });
 });
 
