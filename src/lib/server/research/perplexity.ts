@@ -1,6 +1,12 @@
 import "server-only";
 
-import { parseStructuredResearch } from "./parse";
+import {
+  coerceCashFlow,
+  coerceDividend,
+  extractCashFlowFromText,
+  extractDividendFromText,
+  parseStructuredResearch,
+} from "./parse";
 import { bumpResearchCallCount, getResearchCallCount } from "./usage";
 import {
   recordResearchDiagnostic,
@@ -137,6 +143,26 @@ function normalize(
   // JSON block, and use the prose with that block stripped as the summary.
   const structured = parseStructuredResearch(summary.trim());
 
+  // M3 (perplexity-cashflow-extraction): finance_search often emits no clean
+  // JSON cashFlow/dividend — the figures land in the finance_results content or
+  // the prose ("Operating Cash Flow (TTM): $114.4 billion …"). When the JSON
+  // block didn't carry them, recover the labeled figures from that text rather
+  // than depending solely on the model's JSON echo. Absence → null → the
+  // orchestrator falls through to FMP.
+  const proseCorpus = [...finance.map((f) => f.content), structured.summary]
+    .filter(Boolean)
+    .join("\n");
+  const cashFlow =
+    structured.cashFlow ??
+    coerceCashFlow(extractCashFlowFromText(proseCorpus), {
+      marketCap: structured.fundamentals?.marketCap,
+    });
+  const dividend =
+    structured.dividend ??
+    coerceDividend(extractDividendFromText(proseCorpus), {
+      dividendYield: structured.fundamentals?.dividendYield,
+    });
+
   const result: ResearchResult = {
     provider: "perplexity",
     symbol,
@@ -151,8 +177,8 @@ function normalize(
     consensus: structured.consensus,
     earnings: structured.earnings,
     catalysts: structured.catalysts,
-    cashFlow: structured.cashFlow,
-    dividend: structured.dividend,
+    cashFlow,
+    dividend,
   };
   const cost = extractCost(obj.usage);
   if (cost != null) result.cost = cost;
@@ -240,7 +266,8 @@ export function createPerplexityProvider(
       const input =
         query.question ??
         [
-          `Research ${query.symbol}. Output a fenced \`\`\`json code block FIRST — before any prose — with these exact keys, using null for anything you cannot verify (do not guess). The JSON block must be COMPLETE and valid; emit it before the summary so it is never the part that gets cut off:`,
+          `Research ${query.symbol}. Use finance_search to retrieve the CASH FLOW STATEMENT (operating cash flow, free cash flow, capital expenditure), net debt, and the DIVIDEND HISTORY — not just the quote and earnings. Report those figures explicitly.`,
+          `Output a fenced \`\`\`json code block FIRST — before any prose — with these exact keys, using null for anything you cannot verify (do not guess). The JSON block must be COMPLETE and valid; emit it before the summary so it is never the part that gets cut off:`,
           '{"profile":{"name":string|null,"domain":string|null,"ceo":string|null,"employees":number|null,"sector":string|null,"industry":string|null,"country":string|null,"exchange":string|null,"ipoDate":string|null,"description":string|null},' +
             '"fundamentals":{"marketCap":string|null,"peRatio":number|null,"eps":number|null,"dividendYield":string|null},' +
             '"consensus":{"rating":string|null,"targetMean":number|null,"targetHigh":number|null,"targetLow":number|null,"analystCount":number|null},' +

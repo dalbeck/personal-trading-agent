@@ -194,4 +194,98 @@ describe("createPerplexityProvider structured parse + truncation", () => {
     expect(sentBody).not.toBeNull();
     expect(sentBody!.max_output_tokens as number).toBeGreaterThanOrEqual(3500);
   });
+
+  it("explicitly requests the cash-flow statement + dividend history in the prompt (M3)", async () => {
+    let sentBody: { input?: string } | null = null;
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      sentBody = JSON.parse(init.body as string);
+      return agentResponse("```json\n{}\n```");
+    }) as unknown as typeof fetch;
+    const p = createPerplexityProvider({
+      apiKey: "k",
+      dataDir: dir,
+      now: clock,
+      fetchImpl,
+    });
+    await p.research({ symbol: "VEEV" });
+    expect(sentBody!.input).toMatch(/cash flow statement/i);
+    expect(sentBody!.input).toMatch(/dividend history/i);
+  });
+});
+
+describe("createPerplexityProvider prose cash-flow recovery (M3)", () => {
+  it("recovers cashFlow/dividend from prose when the JSON block omits them", async () => {
+    // JSON block carries profile + fundamentals but NO cashFlow/dividend keys;
+    // the figures live in the prose (the real finance_search shape).
+    const json = JSON.stringify({
+      profile: { name: "Microsoft" },
+      fundamentals: { marketCap: "3.8T" },
+    });
+    const prose =
+      "Operating Cash Flow (TTM): $114.4 billion. Free Cash Flow: approximately $83.0 billion. " +
+      "Net Debt: $50.3 billion. The dividend yield is 0.7% with a payout ratio of 25%.";
+    const text = `\`\`\`json\n${json}\n\`\`\`\n${prose}`;
+    const fetchImpl = (async () =>
+      agentResponse(text, 0.007)) as unknown as typeof fetch;
+    const p = createPerplexityProvider({
+      apiKey: "k",
+      dataDir: dir,
+      now: clock,
+      fetchImpl,
+    });
+
+    const result = await p.research({ symbol: "MSFT" });
+    expect(result).not.toBeNull();
+    expect(p.lastDiagnostic?.()?.outcome).toBe("ok");
+    expect(result!.cashFlow).not.toBeNull();
+    expect(result!.cashFlow!.freeCashFlow).toBeCloseTo(83e9, -8);
+    expect(result!.cashFlow!.netDebt).toBeCloseTo(50.3e9, -8);
+    // fcfYield derived from FCF / market cap (3.8T).
+    expect(result!.cashFlow!.fcfYield).toBeCloseTo(83e9 / 3.8e12, 4);
+    expect(result!.dividend).not.toBeNull();
+    expect(result!.dividend!.dividendYield).toBeCloseTo(0.007, 4);
+  });
+
+  it("leaves cashFlow/dividend null when neither JSON nor prose has figures (falls through to FMP)", async () => {
+    const json = JSON.stringify({
+      profile: { name: "Veeva" },
+      fundamentals: { marketCap: "28B" },
+    });
+    const prose =
+      "Veeva is a vertical-SaaS leader; the finance tool could not retrieve the requested statements.";
+    const text = `\`\`\`json\n${json}\n\`\`\`\n${prose}`;
+    const fetchImpl = (async () =>
+      agentResponse(text)) as unknown as typeof fetch;
+    const p = createPerplexityProvider({
+      apiKey: "k",
+      dataDir: dir,
+      now: clock,
+      fetchImpl,
+    });
+
+    const result = await p.research({ symbol: "VEEV" });
+    expect(result).not.toBeNull();
+    expect(result!.cashFlow).toBeNull();
+    expect(result!.dividend).toBeNull();
+  });
+
+  it("prefers the JSON block's cashFlow over prose when both are present", async () => {
+    const json = JSON.stringify({
+      fundamentals: { marketCap: "3.8T" },
+      cashFlow: { operatingCashFlow: "100B", freeCashFlow: "70B" },
+    });
+    const prose = "Free cash flow was approximately $83.0 billion."; // should be ignored
+    const text = `\`\`\`json\n${json}\n\`\`\`\n${prose}`;
+    const fetchImpl = (async () =>
+      agentResponse(text)) as unknown as typeof fetch;
+    const p = createPerplexityProvider({
+      apiKey: "k",
+      dataDir: dir,
+      now: clock,
+      fetchImpl,
+    });
+
+    const result = await p.research({ symbol: "MSFT" });
+    expect(result!.cashFlow!.freeCashFlow).toBeCloseTo(70e9, -8); // JSON wins, not prose's 83B
+  });
 });
