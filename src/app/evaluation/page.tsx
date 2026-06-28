@@ -4,9 +4,10 @@ import { KpiCard } from "@/components/overview/kpi-card";
 import { DivergingBars } from "@/components/charts/diverging-bars";
 import { Badge } from "@/components/ui/badge";
 import {
+  CostBreakdownCard,
+  GoNoGoPanel,
   IntegrityChip,
   ReliabilityTile,
-  VerdictHero,
 } from "@/components/evaluation/scorecard-cards";
 import {
   CheckIcon,
@@ -26,6 +27,8 @@ import {
   getLiveBookPerformance,
   getNetPerformance,
 } from "@/lib/server/eval";
+import { getCostModel } from "@/lib/server/cost";
+import { getGoNoGo } from "@/lib/server/go-no-go";
 import { getGovernanceScorecard } from "@/lib/server/governance";
 import { getViewMode } from "@/lib/server/mode";
 import type { GovernanceScorecard } from "@/lib/eval/governance";
@@ -366,12 +369,14 @@ export default async function EvaluationPage() {
     );
   }
 
-  const [card, governance, net] = await Promise.all([
+  const [card, governance, net, goNoGo, cost] = await Promise.all([
     getEvaluationScorecard(),
     getGovernanceScorecard(),
     getNetPerformance(),
+    getGoNoGo(),
+    getCostModel(),
   ]);
-  const { window, returns, trades, integrity, reliability } = card;
+  const { returns, trades, integrity, reliability } = card;
 
   // Diverging bars comparing strategy gross / net-of-cost / SPY cumulative
   // return. Rows are omitted only when a side is unavailable — no value is
@@ -414,8 +419,12 @@ export default async function EvaluationPage() {
         subtitle="Phase 2 paper-desk scorecard — the go/no-go gate to the Phase 3 live pilot. Computed live from data/ (snapshots, journal, proposals, run logs)."
       />
 
-      {/* FOCAL: the verdict hero — go/no-go verdict + reasons + window progress. */}
-      <VerdictHero verdict={card.verdict} window={window} />
+      {/* FOCAL: the cost-aware go/no-go decision — verdict + headline excess +
+          sample progress, with the modeled run-cost broken out beside it. */}
+      <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr] lg:items-start">
+        <GoNoGoPanel result={goNoGo} />
+        <CostBreakdownCard cost={cost} />
+      </div>
 
       <Section
         title={`1 · Net-of-cost performance vs ${net.benchmarkSymbol}`}
