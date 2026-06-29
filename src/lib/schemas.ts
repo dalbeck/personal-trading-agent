@@ -789,6 +789,14 @@ export const DiscoverySettingsSchema = z
      *  candidate carries `sleeve: "core-long"`, is judged by the core-long red-team
      *  lens, sized by target weight, and bound by the shared envelope + 6/day cap. */
     coreLongSleeveEnabled: z.boolean().default(false),
+    /** Whether discovery may ALSO surface **position-mid** (mid-term / position)
+     *  candidates (position-mid M4) — a weeks-to-quarters trend + fundamental
+     *  blend. Off by default; the human opts the mid sleeve in here, mirroring the
+     *  other sleeve flags. A discovery preference, NOT a safety rail: every mid
+     *  candidate carries `sleeve: "position-mid"`, is judged by the position-mid
+     *  red-team lens, sized risk-to-stop within its rails, and bound by the shared
+     *  envelope + 6/day cap. */
+    positionMidSleeveEnabled: z.boolean().default(false),
     updatedAt: isoDateTime.nullable().default(null),
   })
   .strict();

@@ -38,22 +38,31 @@ const verdictTone: Record<Verdict, string> = {
 export function AnalyzeSymbolForm({
   mode,
   coreLongEnabled = false,
+  positionMidEnabled = false,
 }: {
   mode: "paper" | "live";
   /** Whether the core-long sleeve is opted in (core-long M3) — gates the Core
-   *  picker. Off by default; the human enables it in the discovery settings. */
+   *  picker option. Off by default; enabled in the discovery settings. */
   coreLongEnabled?: boolean;
+  /** Whether the position-mid sleeve is opted in (position-mid M4) — gates the
+   *  Position picker option. Off by default. */
+  positionMidEnabled?: boolean;
 }) {
   const router = useRouter();
   const [symbol, setSymbol] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   // "swing" = the dual-lens (trend + value) path; "core-long" = a single
-  // target-weight core position (core-long M3).
-  const [sleeve, setSleeve] = useState<"swing" | "core-long">("swing");
+  // target-weight core position (M3); "position-mid" = a single risk-to-stop mid
+  // position (M4).
+  const [sleeve, setSleeve] = useState<"swing" | "core-long" | "position-mid">(
+    "swing",
+  );
   const [targetWeight, setTargetWeight] = useState("10"); // percent
 
+  const showPicker = coreLongEnabled || positionMidEnabled;
   const isCore = coreLongEnabled && sleeve === "core-long";
+  const isMid = positionMidEnabled && sleeve === "position-mid";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,7 +82,9 @@ export function AnalyzeSymbolForm({
         body: JSON.stringify(
           isCore
             ? { symbol: ticker, sleeve: "core-long", targetWeightPct: weightPct }
-            : { symbol: ticker },
+            : isMid
+              ? { symbol: ticker, sleeve: "position-mid" }
+              : { symbol: ticker },
         ),
       });
       const data = (await res.json()) as Outcome & { error?: string };
@@ -108,7 +119,7 @@ export function AnalyzeSymbolForm({
             className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm uppercase tracking-wide text-fg placeholder:normal-case placeholder:tracking-normal placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
-        {coreLongEnabled ? (
+        {showPicker ? (
           <label className="min-w-[9rem]">
             <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
               Sleeve
@@ -116,13 +127,20 @@ export function AnalyzeSymbolForm({
             <select
               value={sleeve}
               onChange={(e) =>
-                setSleeve(e.target.value as "swing" | "core-long")
+                setSleeve(
+                  e.target.value as "swing" | "core-long" | "position-mid",
+                )
               }
               aria-label="Analyze under sleeve"
               className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent"
             >
               <option value="swing">Swing (trend + value)</option>
-              <option value="core-long">Core (long)</option>
+              {positionMidEnabled ? (
+                <option value="position-mid">Position (mid)</option>
+              ) : null}
+              {coreLongEnabled ? (
+                <option value="core-long">Core (long)</option>
+              ) : null}
             </select>
           </label>
         ) : null}
@@ -154,6 +172,13 @@ export function AnalyzeSymbolForm({
             <span className="font-medium text-fg">core-long lens</span> — a
             buy-and-hold position sized to your target weight, no stop (a
             drawdown/review trigger instead)
+          </>
+        ) : isMid ? (
+          <>
+            {" "}under the{" "}
+            <span className="font-medium text-fg">position-mid lens</span> — a
+            weeks-to-quarters trade that blends trend with a fundamental thesis,
+            with a wider stop band
           </>
         ) : (
           <>

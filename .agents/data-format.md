@@ -286,6 +286,16 @@ universe permits ETFs/index funds and does not exclude SPY (`CORE_LONG_LIMITS`,
 in `data/control/discovery-settings.json` (off by default, mirroring
 `valueSleeveEnabled`).
 
+A **`position-mid`** proposal (position-mid M4) is single-lens and **risk-to-stop**
+(it reuses the swing builder with a **wider stop band** — `stopBandPct 0.12` vs the
+swing 8% — and the `POSITION_MID_LIMITS` 25% size cap; `requiresStop: true`, so a
+stopless mid entry is still rejected). It carries no `targetWeightPct` /
+`reviewTriggerPct` (those are core-long only). Produced by the manual analyze sleeve
+picker (`sleeve: "position-mid"` on `POST /api/proposals/analyze`); discovery
+surfacing is gated by **`positionMidSleeveEnabled`** (off by default). The sleeve —
+not the lens's `strategy` — drives its checklist + red-team lens (`buildProposalLenses`
+passes the proposal's sleeve for the single-lens core/mid proposals).
+
 **Proposal `researchStatus` (research-unavailable-state M3).** The **value lens's**
 research availability for its quality data — a `ResearchStatus`
 (`ok | off | capped | unavailable`, nullable; mirrors `PerplexityStatus`). Set

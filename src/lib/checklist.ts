@@ -328,12 +328,33 @@ function coreLongChecklist(p: ChecklistInput): CheckItem[] {
   ];
 }
 
+/**
+ * The mid-term / position mandate's checklist (position-mid M4). A weeks–quarters
+ * position trade that blends trend with fundamentals: it **still requires a stop**
+ * (a wider band than swing) and a reward:risk, but a **named fundamental thesis is
+ * allowed to lead** (a fundamental target is appropriate, not weak) and it **drops
+ * the breakout-volume item** — a mid entry isn't a momentum chase. An earnings
+ * event inside the holding window is tolerated rather than auto-disqualifying;
+ * that tolerance is judged by the position-mid red-team, not a structured field.
+ */
+function positionMidChecklist(p: ChecklistInput): CheckItem[] {
+  return [
+    rewardRiskItem(p),
+    riskCapItem(p),
+    stopItem(p, "Protective stop — wider band"),
+    targetItem(p, "Target — multi-week / fundamental"),
+    catalystItem(p, "Catalyst or thesis — why this quarter"),
+    redTeamItem(p),
+  ];
+}
+
 /** Build the derived pre-trade checklist for a proposal, by its sleeve (falling
  *  back to `strategy`). The two swing sleeves resolve to the same trend/value
  *  branch the bare `strategy` would, so swing checklists are byte-identical;
- *  `core-long` gets its own buy-and-hold checklist. */
+ *  `core-long` and `position-mid` get their own checklists. */
 export function buildChecklist(p: ChecklistInput): CheckItem[] {
   if (p.sleeve === "core-long") return coreLongChecklist(p);
+  if (p.sleeve === "position-mid") return positionMidChecklist(p);
   const strategy = p.sleeve ? sleeveToStrategy(p.sleeve) : p.strategy;
   return strategy === "value" ? valueChecklist(p) : trendChecklist(p);
 }

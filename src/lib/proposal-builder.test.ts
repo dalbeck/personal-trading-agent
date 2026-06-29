@@ -233,6 +233,33 @@ describe("buildManualProposalDraft", () => {
   });
 });
 
+describe("buildManualProposalDraft — wider stop band (position-mid M4)", () => {
+  it("places a wider stop than the swing default when stopBandPct is raised", () => {
+    // A HIGH-volatility flat series so the 2×ATR level is wider than the fixed
+    // band → the fixed band sets the stop and the wider band shows through.
+    const volatile = Array.from({ length: 60 }, (_, i) => ({
+      o: 100,
+      h: 108,
+      l: 92,
+      c: 100,
+      v: 1_000_000,
+      t: `d${i}`,
+    }));
+    const swing = buildManualProposalDraft({ symbol: "MSFT", bars: volatile, quote: 100, equity: 10_000 });
+    const mid = buildManualProposalDraft({
+      symbol: "MSFT",
+      bars: volatile,
+      quote: 100,
+      equity: 10_000,
+      stopBandPct: 0.12,
+    });
+    expect(swing).not.toBeNull();
+    expect(mid).not.toBeNull();
+    // A wider band → a lower stop (more room) → larger per-share risk.
+    expect(mid!.stopPrice).toBeLessThan(swing!.stopPrice);
+  });
+});
+
 describe("buildCoreLongProposalDraft (core-long M3)", () => {
   it("sizes by target weight, carries no stop, and sets a review trigger", () => {
     const d = buildCoreLongProposalDraft({

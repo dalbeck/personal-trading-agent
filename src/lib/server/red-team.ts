@@ -209,16 +209,20 @@ export type RedTeamExec = (prompt: string) => Promise<string>;
 export type RedTeamOutcome = "allow" | "downsize" | "block";
 
 export function buildProsecutorPrompt(p: RedTeamProposal): string {
-  // Core-long is its own lens — never merged with trend/value/mid (core-long M3).
+  // Each sleeve has its own lens — never merged (core-long M3 / position-mid M4).
   const isCore = p.sleeve === "core-long";
+  const isMid = p.sleeve === "position-mid";
   const isValue =
     !isCore &&
+    !isMid &&
     (p.sleeve ? sleeveToStrategy(p.sleeve) : p.strategy) === "value";
   const mandateLabel = isCore
     ? "LONG-TERM / CORE"
-    : isValue
-      ? "VALUE / MEAN-REVERSION"
-      : "TREND";
+    : isMid
+      ? "MID-TERM / POSITION"
+      : isValue
+        ? "VALUE / MEAN-REVERSION"
+        : "TREND";
   // catalyst-state-honesty M2: a FAILED fetch is "unavailable", NOT a real
   // "no catalyst" — the prosecutor must not reject on that basis.
   const catalystUnavailable = p.catalystState === "unavailable";
@@ -227,19 +231,23 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     : `- Catalyst: ${p.catalyst ? p.catalyst : "none stated"} (${p.catalystType ?? "unspecified"})`;
   const attackLine = isCore
     ? "Attack the weakest link: OVERPAYING vs long-term value, thesis drift / a speculative 'story' stock dressed up as core, OVER-CONCENTRATION vs the target allocation, weak FUND QUALITY (expense ratio / tracking error / structure) for an ETF, or an unrealistic long-term return assumption."
-    : isValue
-      ? "Attack the weakest link: a deteriorating / broken business under a bid, the absence of a real catalyst or floor, a falling-knife with no support, an unrealistic target, or a thin reward/risk."
-      : "Attack the weakest link: crowded positioning, valuation, event/earnings risk, a stop that is too wide for the catalyst, weak relative strength, or a thin reward/risk.";
+    : isMid
+      ? "Attack the weakest link: a BROKEN multi-week trend, a DETERIORATING fundamental story (falling revenue/margins, cut guidance), an IMMINENT BINARY event whose downside exceeds the risk, a stop too wide for the thesis, or a loose target / thin reward-risk."
+      : isValue
+        ? "Attack the weakest link: a deteriorating / broken business under a bid, the absence of a real catalyst or floor, a falling-knife with no support, an unrealistic target, or a thin reward/risk."
+        : "Attack the weakest link: crowded positioning, valuation, event/earnings risk, a stop that is too wide for the catalyst, weak relative strength, or a thin reward/risk.";
   const mandateNoun = isCore
     ? "long-term / core"
-    : isValue
-      ? "value / mean-reversion"
-      : "trend";
+    : isMid
+      ? "mid-term / position"
+      : isValue
+        ? "value / mean-reversion"
+        : "trend";
   const levelsLine = isCore
     ? `- Sizing: target weight ${p.targetWeightPct != null ? `${(p.targetWeightPct * 100).toFixed(0)}%` : "unspecified"} · review trigger ${p.reviewTriggerPct != null ? `−${(p.reviewTriggerPct * 100).toFixed(0)}%` : "none"} · no protective stop (by design)`
     : `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"} (${p.targetType ?? "unspecified"})`;
   const lines = [
-    `You are a HOSTILE RED-TEAM PROSECUTOR reviewing a proposed PAPER ${isCore ? "long-term / core position" : "swing trade"}, judged under the desk's ${mandateLabel} mandate.`,
+    `You are a HOSTILE RED-TEAM PROSECUTOR reviewing a proposed PAPER ${isCore ? "long-term / core position" : isMid ? "mid-term / position trade" : "swing trade"}, judged under the desk's ${mandateLabel} mandate.`,
     "You are a different model family from the one that proposed it. Your job is to REFUTE the thesis, not to agree.",
     "DEFAULT TO NO. Only return approve if the thesis is genuinely robust against your strongest objections.",
     attackLine,
@@ -265,9 +273,9 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
   // Cash-flow quality + dividend sustainability are VALUE-lens signals only —
   // surface the figures in the order block so the prosecutor weighs the
   // floor-vs-trap tell and recognizes a real dividend floor.
-  if (isValue || isCore) {
-    // Cash-flow quality is the business-quality tell for both value and core (a
-    // core single name must be a durable, self-funding business); a core ETF/index
+  if (isValue || isCore || isMid) {
+    // Cash-flow quality is the business-quality tell for value, core, and the mid
+    // blend (a deteriorating fundamental story is a mid strike); a core ETF/index
     // simply has no cash-flow data and is judged on fund quality instead.
     lines.push(`- ${cashFlowBriefing(p.cashFlow, p.researchStatus, p.sector)}`);
   }
@@ -286,6 +294,14 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
       "FOR AN ETF / INDEX FUND, judge FUND QUALITY: is the expense ratio LOW (a high fee compounds against the holder for years), is tracking error tight, and is the structure / liquidity sound? A high-expense, poorly-tracking, or thin/exotic fund is a real objection — say so in the Edge factor.",
       "PROSECUTE AN UNREALISTIC LONG-TERM RETURN ASSUMPTION. A thesis premised on an implausible compounding / growth rate over the holding horizon is weak.",
       "A target anchored to long-term fundamental value (or, for a fund, a sensible long-horizon expectation) is APPROPRIATE for this sleeve. A core ETF/index may legitimately have NO price target — do NOT call that weak. A sell-side analyst_price target is still borrowed conviction.",
+    );
+  } else if (isMid) {
+    lines.push(
+      "MID-TERM / POSITION MANDATE — judge as a weeks-to-quarters position trade that BLENDS trend with fundamentals:",
+      "A MULTI-WEEK THESIS IS EXPECTED. This is NOT a day/week swing. The absence of an IMMEDIATE momentum trigger (a fresh breakout, a same-day volume spike) is NOT by itself a reason to reject — a sound multi-week trend + fundamental thesis stands on its own. Do NOT demand a same-day catalyst or punish 'no momentum right now'.",
+      "AN EARNINGS EVENT INSIDE THE HOLDING WINDOW IS TOLERATED. A weeks-to-quarters hold will often span an earnings date; that is EXPECTED here and is NOT an automatic disqualifier (unlike a swing trade). Weigh it as risk to size around — NOT an auto-reject — UNLESS it is an IMMINENT BINARY event whose downside exceeds the position's risk.",
+      "A NAMED FUNDAMENTAL THESIS MAY LEAD. A fundamental / valuation rationale (earnings growth, a margin inflection, a re-rating) is IN MANDATE for this sleeve, and a target anchored to fundamental value is APPROPRIATE (do NOT call it weak). A sell-side analyst_price or unspecified target is still weak.",
+      "STILL PROSECUTE, even here: a BROKEN multi-week trend (the trend has actually rolled over / structure broken, not merely a pullback), a DETERIORATING fundamental story (falling revenue / margins, cut guidance, slashed targets — weigh the Cash-flow quality line), an IMMINENT BINARY that exceeds the risk, or a LOOSE target / thin reward-risk. These remain strikes.",
     );
   } else if (isValue) {
     lines.push(
