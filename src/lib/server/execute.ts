@@ -142,6 +142,8 @@ export async function executeProposal(
       relativeVolume: proposal.relativeVolume ?? null,
       catalyst: proposal.catalyst ?? null,
       catalystType: proposal.catalystType ?? null,
+      // Sector (red-team-fixes Issue 1) — suppress financial-sector leverage factors.
+      sector: proposal.sector ?? null,
       thesis: proposal.thesis,
       reasoning: proposal.reasoning,
       research: proposal.research,

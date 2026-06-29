@@ -423,6 +423,8 @@ function toRedTeamProposal(o: ApprovalOrder): RedTeamProposal {
     relativeVolume: o.relativeVolume ?? null,
     catalyst: o.catalyst ?? null,
     catalystType: o.catalystType ?? null,
+    // Sector (red-team-fixes Issue 1) — suppress financial-sector leverage factors.
+    sector: o.sector ?? null,
     thesis: o.thesis,
     reasoning: o.reasoning,
     research: o.research,

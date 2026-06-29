@@ -253,6 +253,9 @@ export function redTeamInput(
     relativeVolume: d.relativeVolume,
     catalyst: d.catalyst,
     catalystType: d.catalystType,
+    // The sector (red-team-fixes Issue 1) — so the prosecutor suppresses the
+    // generic leverage/coverage/net-debt value-trap factors for financials.
+    sector: d.sector ?? null,
     // The headlines behind the catalyst (catalyst-news-sources M1) — so the
     // prosecutor can see the catalyst is backed by real, datable news.
     catalystSources,

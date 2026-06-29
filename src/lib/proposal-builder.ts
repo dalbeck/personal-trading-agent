@@ -7,6 +7,7 @@ import {
 import { atr, sma, type Ohlc } from "./indicators";
 import { resolveStopPrice } from "./risk/validators";
 import { resolveCatalystState } from "./catalyst-state";
+import { MIN_REWARD_RISK } from "./risk-reward";
 import type { Strategy } from "./strategy";
 import type { CatalystState } from "./types";
 import { computeRelativeVolume } from "./volume";
@@ -30,7 +31,6 @@ const MIN_BARS = 30; // enough history for a meaningful ATR + trend read
 const ATR_PERIOD = 14;
 const DEFAULT_RISK_PCT = 0.02; // ≤ 2% of equity at risk to the stop (charter)
 const DEFAULT_SIZE_PCT = 0.2; // ≤ 20% of equity in one name (charter)
-const MIN_REWARD_RISK = 2; // charter playbook: reward/risk ≥ 2:1
 
 export type BuilderCatalystType =
   | "earnings_momentum"

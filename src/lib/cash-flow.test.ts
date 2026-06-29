@@ -4,6 +4,7 @@ import {
   assessCashFlowQuality,
   cashFlowTrendLabel,
   hasCashFlowData,
+  isFinancialSector,
 } from "@/lib/cash-flow";
 import type { CashFlowQuality } from "@/lib/types";
 
@@ -112,6 +113,52 @@ describe("assessCashFlowQuality", () => {
     });
     expect(r.status).toBe("na");
     expect(r.reasons).toEqual([]);
+  });
+
+  // Bank/financial leverage is by design (deposit-funded) — generic D/E and
+  // interest-coverage are category errors and must NOT fire for the sector.
+  it("does NOT flag heavy leverage / thin coverage for a Finance-sector name", () => {
+    const bank = {
+      ...EMPTY,
+      freeCashFlow: 500_000_000,
+      fcfTrend: "stable" as const,
+      netDebt: 18_630_000_000,
+      debtToEquity: 3.1,
+      interestCoverage: 0.3,
+    };
+    // Generic call would flag this on leverage + coverage.
+    expect(assessCashFlowQuality(bank).status).toBe("flag");
+    // Sector-aware call suppresses the misapplied leverage/coverage factors.
+    const r = assessCashFlowQuality(bank, { sector: "Finance" });
+    expect(r.reasons.join(" ")).not.toMatch(/leverage|debt|coverage/i);
+    expect(r.status).not.toBe("flag");
+  });
+
+  it("still flags genuine deterioration (negative FCF) for a Finance-sector name", () => {
+    const r = assessCashFlowQuality(
+      { ...STRONG, freeCashFlow: -200_000_000 },
+      { sector: "Financial Services" },
+    );
+    expect(r.status).toBe("flag");
+    expect(r.reasons.join(" ")).toMatch(/negative/i);
+  });
+});
+
+describe("isFinancialSector", () => {
+  it("is false for null / unknown / non-financial sectors", () => {
+    expect(isFinancialSector(null)).toBe(false);
+    expect(isFinancialSector(undefined)).toBe(false);
+    expect(isFinancialSector("Technology")).toBe(false);
+    expect(isFinancialSector("Healthcare")).toBe(false);
+  });
+
+  it("matches the Finance sector across provider label variants", () => {
+    expect(isFinancialSector("Finance")).toBe(true);
+    expect(isFinancialSector("Financials")).toBe(true);
+    expect(isFinancialSector("Financial Services")).toBe(true);
+    expect(isFinancialSector("Banks")).toBe(true);
+    expect(isFinancialSector("Insurance")).toBe(true);
+    expect(isFinancialSector("Capital Markets")).toBe(true);
   });
 });
 

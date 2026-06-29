@@ -289,7 +289,7 @@ export function ProposalDetailView({
               note="The value floor-vs-trap signal — does the business fund itself?"
             >
               {hasCashFlowData(lens.cashFlow) ? (
-                <CashFlowBlock cashFlow={lens.cashFlow} />
+                <CashFlowBlock cashFlow={lens.cashFlow} sector={p.sector} />
               ) : (
                 <ResearchUnavailableNotice
                   status={lens.researchStatus}

@@ -22,9 +22,17 @@ import type { ReactNode } from "react";
  * for the human + the value red-team to weigh, never a verdict. Renders nothing
  * when there's no usable data (the caller decides whether to show the block).
  */
-export function CashFlowBlock({ cashFlow }: { cashFlow: CashFlowQuality | null }) {
+export function CashFlowBlock({
+  cashFlow,
+  sector = null,
+}: {
+  cashFlow: CashFlowQuality | null;
+  /** GICS sector — suppresses the misapplied leverage/coverage value-trap
+   *  factors for Finance-sector names (red-team-fixes Issue 1). */
+  sector?: string | null;
+}) {
   if (!hasCashFlowData(cashFlow) || !cashFlow) return null;
-  const { status, reasons } = assessCashFlowQuality(cashFlow);
+  const { status, reasons } = assessCashFlowQuality(cashFlow, { sector });
 
   return (
     <div className="flex flex-col gap-3">
