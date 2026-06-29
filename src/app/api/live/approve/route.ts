@@ -6,6 +6,7 @@ import {
 } from "@/lib/server/writers";
 import { isAdvisoryProposal } from "@/lib/proposal-advisory";
 import { resolveActiveLens } from "@/lib/proposal-lens";
+import { sleeveOf } from "@/lib/sleeves";
 
 /**
  * Per-trade human approval endpoint (Phase 3 M3). The dashboard posts the
@@ -103,6 +104,10 @@ export async function POST(req: Request): Promise<Response> {
   const tags: string[] = [];
   if (proposal.origin === "manual-request") tags.push("manual-request");
   if (isDual) tags.push(`lens:${lens.strategy}`);
+  // Tag the trade with its sleeve (portfolio M5) so a holding can be attributed
+  // to a sleeve for allocation/drift. The acting sleeve = the proposal's sleeve
+  // when set (core/mid), else derived from the acting lens (swing trend/value).
+  tags.push(`sleeve:${sleeveOf({ sleeve: proposal.sleeve, strategy: lens.strategy })}`);
 
   // Staged-entry tranche (staged-entry-plan M2): when the human approves a
   // specific tranche, the order places THAT tranche's qty (a fraction of the full

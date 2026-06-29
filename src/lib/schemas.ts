@@ -632,6 +632,7 @@ export const ROUTINE_IDS = [
   "live-position-management",
   "end-of-day-summary",
   "weekly-review",
+  "portfolio-rebalance-review",
 ] as const;
 
 export const RunLogSchema = z
@@ -797,6 +798,46 @@ export const DiscoverySettingsSchema = z
      *  red-team lens, sized risk-to-stop within its rails, and bound by the shared
      *  envelope + 6/day cap. */
     positionMidSleeveEnabled: z.boolean().default(false),
+    updatedAt: isoDateTime.nullable().default(null),
+  })
+  .strict();
+
+/**
+ * One sleeve's target portfolio weight (portfolio M5). `targetWeightPct` is a
+ * fraction of total equity (0.6 === 60%). The set of targets is **human-set** —
+ * the agent reads it and proposes rebalances against it, but never edits it
+ * (charter-style discipline, like the rails and the charters themselves).
+ */
+export const AllocationTargetSchema = z
+  .object({
+    sleeve: Sleeve,
+    targetWeightPct: ratio,
+  })
+  .strict();
+
+/**
+ * The portfolio's target allocation across sleeves (portfolio M5). Empty by
+ * default — no mix is set until the human defines one; the agent never writes it.
+ * `driftBandPct` is how far a sleeve may drift from its target before a
+ * rebalancing suggestion fires (default 5 percentage points). `blendedBenchmark`
+ * labels the whole-portfolio benchmark. Duplicate sleeves are rejected and the
+ * targets may not sum to more than 100% (the remainder is cash).
+ */
+export const AllocationTargetsSchema = z
+  .object({
+    targets: z
+      .array(AllocationTargetSchema)
+      .default([])
+      .refine(
+        (t) => new Set(t.map((x) => x.sleeve)).size === t.length,
+        "each sleeve may appear at most once in the allocation targets",
+      )
+      .refine(
+        (t) => t.reduce((s, x) => s + x.targetWeightPct, 0) <= 1.0001,
+        "allocation target weights may not sum to more than 100%",
+      ),
+    driftBandPct: ratio.default(0.05),
+    blendedBenchmark: z.string().min(1).default("SPY total return"),
     updatedAt: isoDateTime.nullable().default(null),
   })
   .strict();
