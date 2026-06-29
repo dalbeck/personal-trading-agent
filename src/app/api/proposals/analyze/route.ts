@@ -1,5 +1,6 @@
 import { analyzeSymbol } from "@/lib/server/analyze-symbol";
 import { getViewMode } from "@/lib/server/mode";
+import { lensSleeveOf } from "@/lib/proposal-lens";
 
 /**
  * On-demand "analyze a symbol" route (Phase 3 M2). Runs the full pipeline —
@@ -92,7 +93,7 @@ export async function POST(req: Request): Promise<Response> {
     account: result.proposal.account,
     // Both lens verdicts at a glance (dual-lens M1): [{ strategy, verdict }, …].
     lenses: result.proposal.lenses.map((l) => ({
-      strategy: l.strategy,
+      sleeve: lensSleeveOf(l),
       verdict: l.redTeam?.verdict ?? null,
     })),
     railsOk: result.risk.ok,
