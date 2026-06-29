@@ -35,38 +35,22 @@ const verdictTone: Record<Verdict, string> = {
  * holding both breakdowns. It **places nothing**; a weak pick under both lenses
  * is flagged by the gates, never rubber-stamped. The book follows the view mode.
  */
-export function AnalyzeSymbolForm({
-  mode,
-  coreLongEnabled = false,
-  positionMidEnabled = false,
-}: {
-  mode: "paper" | "live";
-  /** Whether the core-long sleeve is opted in (core-long M3) — gates the Core
-   *  picker option. Off by default; enabled in the discovery settings. */
-  coreLongEnabled?: boolean;
-  /** Whether the position-mid sleeve is opted in (position-mid M4) — gates the
-   *  Position picker option. Off by default. */
-  positionMidEnabled?: boolean;
-}) {
+export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
   const router = useRouter();
   const [symbol, setSymbol] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  // "swing" = the dual-lens (trend + value) path; "core-long" = a single
-  // target-weight core position (M3); "position-mid" = a single risk-to-stop mid
-  // position (M4).
-  const [sleeve, setSleeve] = useState<"swing" | "core-long" | "position-mid">(
-    "swing",
+  // "all" = evaluate ALL sleeves and show the verdict matrix (the default — a
+  // manual analyze always shows the full picture, like the trend+value pair has
+  // always done); "core-long" = a single target-weight core position where you
+  // set the weight; "position-mid" = a single risk-to-stop mid position.
+  const [sleeve, setSleeve] = useState<"all" | "core-long" | "position-mid">(
+    "all",
   );
   const [targetWeight, setTargetWeight] = useState("10"); // percent
-  // Extra sleeves to ALSO evaluate on a swing analyze (verdict-matrix M7).
-  const [extraMid, setExtraMid] = useState(false);
-  const [extraCore, setExtraCore] = useState(false);
 
-  const showPicker = coreLongEnabled || positionMidEnabled;
-  const isCore = coreLongEnabled && sleeve === "core-long";
-  const isMid = positionMidEnabled && sleeve === "position-mid";
-  const isSwing = sleeve === "swing";
+  const isCore = sleeve === "core-long";
+  const isMid = sleeve === "position-mid";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,11 +73,11 @@ export function AnalyzeSymbolForm({
             : isMid
               ? { symbol: ticker, sleeve: "position-mid" }
               : {
+                  // Default: evaluate the swing pair PLUS position-mid + core-long
+                  // — a manual analyze always shows every sleeve's verdict. The
+                  // opt-in flags gate only autonomous discovery, not this.
                   symbol: ticker,
-                  extraSleeves: [
-                    ...(positionMidEnabled && extraMid ? ["position-mid"] : []),
-                    ...(coreLongEnabled && extraCore ? ["core-long"] : []),
-                  ],
+                  extraSleeves: ["position-mid", "core-long"],
                 },
         ),
       });
@@ -129,31 +113,23 @@ export function AnalyzeSymbolForm({
             className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm uppercase tracking-wide text-fg placeholder:normal-case placeholder:tracking-normal placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
-        {showPicker ? (
-          <label className="min-w-[9rem]">
-            <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
-              Sleeve
-            </span>
-            <select
-              value={sleeve}
-              onChange={(e) =>
-                setSleeve(
-                  e.target.value as "swing" | "core-long" | "position-mid",
-                )
-              }
-              aria-label="Analyze under sleeve"
-              className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              <option value="swing">Swing (trend + value)</option>
-              {positionMidEnabled ? (
-                <option value="position-mid">Position (mid)</option>
-              ) : null}
-              {coreLongEnabled ? (
-                <option value="core-long">Core (long)</option>
-              ) : null}
-            </select>
-          </label>
-        ) : null}
+        <label className="min-w-[9rem]">
+          <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+            Sleeve
+          </span>
+          <select
+            value={sleeve}
+            onChange={(e) =>
+              setSleeve(e.target.value as "all" | "core-long" | "position-mid")
+            }
+            aria-label="Analyze under sleeve"
+            className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+          >
+            <option value="all">All sleeves</option>
+            <option value="position-mid">Position (mid) only</option>
+            <option value="core-long">Core (long) only</option>
+          </select>
+        </label>
         {isCore ? (
           <label className="min-w-[8rem]">
             <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
@@ -174,39 +150,6 @@ export function AnalyzeSymbolForm({
         </Button>
       </form>
 
-      {isSwing && (positionMidEnabled || coreLongEnabled) ? (
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted">
-          <span className="font-medium uppercase tracking-wide">
-            Also evaluate
-          </span>
-          {positionMidEnabled ? (
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={extraMid}
-                onChange={(e) => setExtraMid(e.target.checked)}
-                className="accent-accent"
-              />
-              Position (mid)
-            </label>
-          ) : null}
-          {coreLongEnabled ? (
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={extraCore}
-                onChange={(e) => setExtraCore(e.target.checked)}
-                className="accent-accent"
-              />
-              Core (long)
-            </label>
-          ) : null}
-          <span className="text-fg-subtle">
-            — adds a per-sleeve verdict to the matrix on one proposal
-          </span>
-        </div>
-      ) : null}
-
       <p className="mt-2 text-pretty text-xs text-fg-muted">
         Runs the full pipeline (research → proposal → risk rails → red-team)
         {isCore ? (
@@ -226,9 +169,9 @@ export function AnalyzeSymbolForm({
         ) : (
           <>
             {" "}under{" "}
-            <span className="font-medium text-fg">
-              both the trend and value lenses
-            </span>
+            <span className="font-medium text-fg">every sleeve</span> — trend +
+            value, position-mid, and core-long — shown as a per-sleeve verdict
+            matrix on one proposal
           </>
         )}{" "}
         for the {mode} book and queues one candidate below. It places nothing; a
