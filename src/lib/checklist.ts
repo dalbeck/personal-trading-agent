@@ -81,6 +81,10 @@ export interface ChecklistInput {
   /** Cash-flow quality — the value lens's floor-vs-trap signal (value-cashflow
    *  M1). Value mandate only; null/absent for trend lenses. */
   cashFlow?: CashFlowQuality | null;
+  /** GICS sector. For Finance-sector names the cash-flow item suppresses the
+   *  generic leverage/coverage value-trap factors (red-team-fixes Issue 1) —
+   *  they are category errors for deposit-funded businesses. Null when unknown. */
+  sector?: string | null;
   /** Research availability (research-unavailable-state M3). When off/capped/failed
    *  the cash-flow item reads "Data unavailable" instead of a silent "—". */
   researchStatus?: ResearchStatus | null;
@@ -175,7 +179,9 @@ function catalystItem(p: ChecklistInput, label: string): CheckItem {
  * instead of a silent "—" that reads like "verified, nothing there".
  */
 function cashFlowItem(p: ChecklistInput): CheckItem {
-  const { status, detail } = assessCashFlowQuality(p.cashFlow ?? null);
+  const { status, detail } = assessCashFlowQuality(p.cashFlow ?? null, {
+    sector: p.sector,
+  });
   if (status === "na" && isResearchUnavailable(p.researchStatus)) {
     const reason = researchUnavailableLabel(p.researchStatus);
     return {

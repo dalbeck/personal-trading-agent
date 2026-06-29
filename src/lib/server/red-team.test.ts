@@ -244,6 +244,78 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).not.toMatch(/Dividend sustainability/i);
   });
 
+  it("suppresses generic leverage/coverage/net-debt for a Finance-sector VALUE name (Issue 1)", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      strategy: "value",
+      sector: "Finance",
+      cashFlow: {
+        operatingCashFlow: null,
+        freeCashFlow: 500_000_000,
+        fcfTrend: "stable",
+        fcfYield: 0.04,
+        netDebt: 18_630_000_000,
+        debtToEquity: 3.1,
+        interestCoverage: 0.3,
+      },
+    });
+    // The misapplied leverage/coverage figures are NOT surfaced for a bank.
+    expect(prompt).not.toContain("D/E 3.1");
+    expect(prompt).not.toMatch(/interest coverage 0\.3/i);
+    expect(prompt).not.toMatch(/net debt \$18/i);
+    // The prosecutor is explicitly told not to cite them.
+    expect(prompt).toMatch(/financial-sector/i);
+    expect(prompt).toMatch(/do NOT cite (D\/E|debt|net debt|interest coverage)/i);
+  });
+
+  it("still surfaces D/E + interest coverage for a NON-financial VALUE name", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      strategy: "value",
+      sector: "Industrials",
+      cashFlow: {
+        operatingCashFlow: null,
+        freeCashFlow: 500_000_000,
+        fcfTrend: "stable",
+        fcfYield: 0.04,
+        netDebt: 1_000_000_000,
+        debtToEquity: 1.2,
+        interestCoverage: 8,
+      },
+    });
+    expect(prompt).toContain("D/E 1.2");
+    expect(prompt).toMatch(/interest coverage 8/i);
+    expect(prompt).not.toMatch(/financial-sector/i);
+  });
+
+  it("trend: a volume-confirmed setup makes catalyst timing non-fatal (Issue 2)", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      strategy: "trend",
+      relativeVolume: 2.6,
+      catalyst: "Earnings Oct 23",
+      catalystType: "earnings_momentum",
+    });
+    // Volume-confirmed → why-now is satisfied; far-dated catalyst can't force a reject.
+    expect(prompt).toMatch(/volume-confirmed/i);
+    expect(prompt).toMatch(/satisfies the (\\"|")?why now/i);
+    expect(prompt).toMatch(/NOT (by itself )?(sufficient )?grounds to (reject|REJECT)/i);
+    expect(prompt).toMatch(/1\.3/); // the explicit, documented threshold
+  });
+
+  it("trend: an UNCONFIRMED-volume setup keeps the weak-catalyst framing", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      strategy: "trend",
+      relativeVolume: 0.98,
+      catalyst: null,
+      catalystType: null,
+      catalystState: "none",
+    });
+    expect(prompt).toMatch(/NO named catalyst.*WEAK/);
+    expect(prompt).not.toMatch(/volume-confirmed/i);
+  });
+
   it("keeps the shared hard rails in BOTH lenses", () => {
     for (const strategy of ["trend", "value"] as const) {
       const prompt = buildProsecutorPrompt({ ...proposal, strategy });

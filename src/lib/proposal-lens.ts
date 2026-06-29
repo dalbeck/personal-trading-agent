@@ -67,7 +67,14 @@ export function proposalBreakdowns(p: TradeProposal): ProposalLensBreakdown[] {
 export function buildProposalLenses(p: TradeProposal): ProposalLensView[] {
   return proposalBreakdowns(p).map((b) => ({
     ...b,
-    checklist: buildChecklist({ action: p.action, side: p.side, ...b }),
+    checklist: buildChecklist({
+      action: p.action,
+      side: p.side,
+      // Sector drives the financial-sector leverage suppression (red-team-fixes
+      // Issue 1) so the value-trap row matches the red team.
+      sector: p.sector,
+      ...b,
+    }),
   }));
 }
 

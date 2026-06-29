@@ -11,6 +11,11 @@ import { formatCurrency, formatPercent } from "./format";
 
 export type TradeAction = "buy" | "sell";
 
+/** The charter's minimum reward-to-risk — a shared red-team hard rail (a thinner
+ *  reward/risk is a strike). The single source of truth for the proposal builder,
+ *  the red-team prompt, and the Strategy page's Red Team rules view. */
+export const MIN_REWARD_RISK = 2;
+
 export interface RiskRewardInput {
   action: TradeAction;
   /** Entry price (the proposal's marketable-limit price). */

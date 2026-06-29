@@ -2,7 +2,13 @@ import "server-only";
 
 import { spawn } from "node:child_process";
 import { RedTeamVerdictSchema } from "@/lib/schemas";
-import { assessCashFlowQuality, hasCashFlowData } from "@/lib/cash-flow";
+import {
+  assessCashFlowQuality,
+  hasCashFlowData,
+  isFinancialSector,
+} from "@/lib/cash-flow";
+import { REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
+import { MIN_REWARD_RISK } from "@/lib/risk-reward";
 import {
   assessDividendFloor,
   dividendCoverage,
@@ -54,6 +60,11 @@ export interface RedTeamProposal {
    *  catalyst is weak; the prosecutor is told to flag it. */
   catalyst?: string | null;
   catalystType?: string | null;
+  /** GICS sector (e.g. "Finance"/"Financials"). For Finance-sector names the
+   *  prosecutor suppresses the generic leverage/coverage/net-debt value-trap
+   *  factors — they are category errors for deposit-funded businesses
+   *  (red-team-fixes Issue 1). Null/absent when unknown. */
+  sector?: string | null;
   /** The headlines that informed the catalyst (catalyst-news-sources M1) — the
    *  prosecutor sees the catalyst is backed by real, datable news (so it can't
    *  reject a catalyst-rich name as "catalyst-free" on a clean fetch). */
@@ -87,6 +98,7 @@ export interface RedTeamProposal {
 function cashFlowBriefing(
   cf: CashFlowQuality | null | undefined,
   researchStatus?: ResearchStatus | null,
+  sector?: string | null,
 ): string {
   if (!hasCashFlowData(cf ?? null) || !cf) {
     // research-unavailable-state M3: distinguish "research off/capped/failed" from
@@ -96,6 +108,10 @@ function cashFlowBriefing(
       ? `Cash-flow quality: DATA UNAVAILABLE (${reason}) — quality could NOT be verified; treat this as a weakness, not a free pass`
       : "Cash-flow quality: unknown (no FCF / leverage data returned — the floor cannot be verified, treat the absence as a weakness)";
   }
+  // red-team-fixes Issue 1: for Finance-sector names, drop the generic
+  // leverage/coverage/net-debt figures — they are category errors here and would
+  // misfire as value-trap signals (banks/insurers run high leverage by design).
+  const financial = isFinancialSector(sector);
   const bits: string[] = [];
   if (cf.freeCashFlow !== null) {
     bits.push(`FCF ${formatCompactCurrency(cf.freeCashFlow)}`);
@@ -107,15 +123,20 @@ function cashFlowBriefing(
   if (cf.operatingCashFlow !== null) {
     bits.push(`OCF ${formatCompactCurrency(cf.operatingCashFlow)}`);
   }
-  if (cf.netDebt !== null) {
+  if (!financial && cf.netDebt !== null) {
     bits.push(`net debt ${formatCompactCurrency(cf.netDebt)}`);
   }
-  if (cf.debtToEquity !== null) bits.push(`D/E ${cf.debtToEquity.toFixed(1)}`);
-  if (cf.interestCoverage !== null) {
+  if (!financial && cf.debtToEquity !== null) {
+    bits.push(`D/E ${cf.debtToEquity.toFixed(1)}`);
+  }
+  if (!financial && cf.interestCoverage !== null) {
     bits.push(`interest coverage ${cf.interestCoverage.toFixed(1)}x`);
   }
-  const { status } = assessCashFlowQuality(cf);
-  return `Cash-flow quality (${status}): ${bits.join(", ")}`;
+  const { status } = assessCashFlowQuality(cf, { sector });
+  const note = financial
+    ? " — FINANCIAL-SECTOR name: generic D/E, net debt, and interest coverage are CATEGORY ERRORS for a deposit-/float-funded business (high leverage is by design) — they are NOT solvency or value-trap signals; do NOT cite D/E, net debt, or interest coverage as a flaw here"
+    : "";
+  return `Cash-flow quality (${status}): ${bits.join(", ")}${note}`;
 }
 
 /** A concise dividend descriptor for the value prosecutor (dividend-floor M1),
@@ -214,7 +235,7 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
   // surface the figures in the order block so the prosecutor weighs the
   // floor-vs-trap tell and recognizes a real dividend floor.
   if (isValue) {
-    lines.push(`- ${cashFlowBriefing(p.cashFlow, p.researchStatus)}`);
+    lines.push(`- ${cashFlowBriefing(p.cashFlow, p.researchStatus, p.sector)}`);
     lines.push(`- ${dividendBriefing(p.dividend)}`);
   }
   lines.push(`- Thesis: ${p.thesis}`);
@@ -228,18 +249,38 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
       "DIVIDEND SUSTAINABILITY CAN BE THE FLOOR. Weigh the Dividend sustainability line above. A durable, well-covered dividend (FCF comfortably covers it, payout not stretched, a multi-year growth streak) IS a real value floor — downside protection that pays you to wait. When such a floor is present (it will be stated in the Catalyst line as a 'Dividend floor: …'), it SATISFIES the why-now/floor requirement: do NOT reject merely for 'no catalyst or floor.' BUT a safe dividend is NOT automatically a why-now price catalyst — a covered dividend can coexist with a multi-year price decline (a value trap that pays you to wait), so you MAY still reasonably weigh timing/why-now and land on concern. Do NOT let 'safe dividend' alone force an approve. An UNCOVERED or at-risk dividend (FCF doesn't cover it, payout stretched, cut risk) is a value-trap red flag, NOT a floor — call it out in the Edge factor.",
       "A target anchored to FUNDAMENTAL value is APPROPRIATE for this sleeve (do NOT call it weak). A sell-side analyst_price target is still weak (borrowed conviction); an unspecified target is weak. Note this in the Target factor.",
     );
+    // red-team-fixes Issue 1: a Finance-sector name's leverage is by design —
+    // neutralize the generic value-trap framing for it so the prosecutor never
+    // cites D/E / net debt / interest coverage as the fatal flaw.
+    if (isFinancialSector(p.sector)) {
+      lines.push(
+        "FINANCIAL-SECTOR NAME — LEVERAGE/COVERAGE CAVEAT (overrides the cash-flow value-trap framing above): this is a Finance-sector company (bank / insurer / capital markets). Debt-to-equity, 'net debt', and interest coverage computed the generic way are CATEGORY ERRORS here — such businesses are deposit-/float-funded and carry high leverage and large debt balances BY DESIGN, so a high D/E or a low 'interest coverage' is NORMAL and is NOT a solvency or value-trap signal. Do NOT cite D/E, net debt, or interest coverage as a flaw for this name. Judge the floor on catalyst / why-now quality and, where available, bank-appropriate metrics (ROA/ROE, capital adequacy, net interest margin, efficiency ratio, NPL/credit trend) instead.",
+      );
+    }
   } else {
+    // red-team-fixes Issue 2 — explicit TREND why-now precedence. A trend
+    // setup is structure-and-momentum driven, so a volume-confirmed entry
+    // (relative volume ≥ REL_VOLUME_BREAKOUT_MIN) ALREADY satisfies the
+    // "why now"; a far-dated or absent named catalyst may lower conviction but
+    // must NOT, on its own, force a reject. When volume does NOT confirm, the
+    // catalyst has to carry the why-now and the original weak-catalyst framing
+    // applies.
+    const volumeConfirmed =
+      p.relativeVolume != null && p.relativeVolume >= REL_VOLUME_BREAKOUT_MIN;
+    const catalystLineTrend = catalystUnavailable
+      ? "CATALYST (why NOW): the catalyst data is UNAVAILABLE (the fetch failed) — treat it as unverified, NOT confirmed-absent. Do NOT flag 'no catalyst' or reject on that basis here; note it should be re-fetched and weigh the technical thesis."
+      : volumeConfirmed
+        ? `CATALYST (why NOW) — TREND PRECEDENCE RULE: this is a TREND mandate (structure-and-momentum driven) and the entry is VOLUME-CONFIRMED (relative volume ${p.relativeVolume!.toFixed(2)}x ≥ ${REL_VOLUME_BREAKOUT_MIN}x avg). Volume-confirmed structure SATISFIES the "why now" for a trend setup. A far-dated, weak, or even absent named catalyst is NOT by itself sufficient grounds to REJECT — at most it LOWERS conviction (lean toward "concern"). Do NOT reject a volume-confirmed trend purely because its named catalyst (e.g. earnings) is weeks or months away.`
+        : `CATALYST (why NOW): with volume UNCONFIRMED (relative volume below ${REL_VOLUME_BREAKOUT_MIN}x avg or unknown), the catalyst must carry the why-now. A proposal with NO named catalyst (catalyst_type 'none' / trend alone) AND no volume confirmation is a momentum chase with nothing behind it — WEAK. Flag a missing or 'none' catalyst in the Edge factor and lean toward concern.`;
     lines.push(
-      catalystUnavailable
-        ? "CATALYST (why NOW): the catalyst data is UNAVAILABLE (the fetch failed) — treat it as unverified, NOT confirmed-absent. Do NOT flag 'no catalyst' or reject on that basis here; note it should be re-fetched and weigh the technical thesis."
-        : "CATALYST (why NOW): a sound entry names a catalyst — earnings momentum, product news, sector rotation, guidance, etc. A proposal with NO named catalyst (catalyst_type 'none' / trend alone) is a momentum chase with nothing behind it — WEAK. Flag a missing or 'none' catalyst in the Edge factor and lean toward concern.",
-      "VOLUME CONFIRMATION (soft signal — weigh it, do not treat as a hard rail): a breakout/momentum entry should come on ABOVE-AVERAGE relative volume (~1.3x or more); a pullback/reset entry should come on DECLINING / below-average volume. Relative volume well below 1x on a breakout, or a volume spike on a pullback, is a weakness — call it out in the Entry factor. Unknown volume is not itself a strike, but a breakout claim with no volume confirmation is weaker.",
+      catalystLineTrend,
+      "VOLUME CONFIRMATION (the trend why-now test): a breakout/momentum entry should come on ABOVE-AVERAGE relative volume (≥ 1.3x); a pullback/reset entry should come on DECLINING / below-average volume. Relative volume well below 1x on a breakout, or a volume spike on a pullback, is a weakness — call it out in the Entry factor. Unknown volume is not itself a strike, but a breakout claim with no volume confirmation is weaker.",
       "This is a TECHNICAL trend-following desk. The thesis must be PRIMARILY technical (trend, momentum, relative strength, volume, price structure). If the primary rationale is fundamental or valuation ('cheap', 'undervalued', 'earnings growth', 'analyst upgrade') rather than price/trend evidence, it is OUT OF MANDATE — penalize it in the Edge factor and lean toward reject or concern. Fundamentals are only a catalyst-check / disqualifier, never the primary reason to enter.",
       "A target anchored to a sell-side analyst_price — or left unspecified — is WEAK (the desk is borrowing someone else's number, not its own thesis); call it out in the Target factor.",
     );
   }
   lines.push(
-    "SHARED HARD RAILS (both mandates, unchanged): the entry needs a protective stop, reward/risk ≥ 2:1, and risk sized within the charter caps. A missing/too-wide stop or a thin reward/risk is a strike regardless of mandate.",
+    `SHARED HARD RAILS (both mandates, unchanged): the entry needs a protective stop, reward/risk ≥ ${MIN_REWARD_RISK}:1, and risk sized within the charter caps. A missing/too-wide stop or a thin reward/risk is a strike regardless of mandate.`,
   );
   if (p.reasoning) lines.push(`- Reasoning: ${p.reasoning}`);
   if (p.research) lines.push(`- Research: ${p.research}`);

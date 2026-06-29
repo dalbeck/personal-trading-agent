@@ -53,6 +53,8 @@ export async function sweepPendingRedTeam(opts?: {
         relativeVolume: p.relativeVolume,
         catalyst: p.catalyst,
         catalystType: p.catalystType,
+        // Sector (red-team-fixes Issue 1) — suppress financial-sector leverage factors.
+        sector: p.sector,
         // Carry the catalyst sources (catalyst-news-sources M1) + capture state
         // (catalyst-state-honesty M2) so the sweep judges on the full briefing and
         // never rejects an `unavailable` (failed-fetch) catalyst as "no catalyst".

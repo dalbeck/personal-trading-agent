@@ -51,6 +51,27 @@ const TREND_LABEL: Record<CashFlowTrend, string> = {
   declining: "Declining",
 };
 
+/**
+ * True for Finance-sector names (banks, insurers, capital markets, etc.). Generic
+ * leverage / coverage / net-debt metrics are CATEGORY ERRORS for these companies:
+ * they are deposit- (or float-) funded and carry high leverage and large debt
+ * balances by design, so a high debt-to-equity or a low "interest coverage"
+ * computed the generic way is normal, not a solvency or value-trap signal. The
+ * red-team + checklist gate those factors off for the sector (red-team-fixes
+ * Issue 1). Matches the major provider label variants (GICS "Financials", FMP
+ * "Financial Services", Robinhood "Finance") plus bank/insurance/capital-markets.
+ */
+export function isFinancialSector(sector: string | null | undefined): boolean {
+  if (!sector) return false;
+  const s = sector.toLowerCase();
+  return (
+    s.includes("financ") || // Finance, Financials, Financial Services
+    s.includes("bank") ||
+    s.includes("insurance") ||
+    s.includes("capital markets")
+  );
+}
+
 /** Short label for the FCF trend, or "—" when unknown. */
 export function cashFlowTrendLabel(
   trend: CashFlowQuality["fcfTrend"],
@@ -82,10 +103,16 @@ export function hasCashFlowData(cf: CashFlowQuality | null): boolean {
  */
 export function assessCashFlowQuality(
   cf: CashFlowQuality | null,
+  opts?: { sector?: string | null },
 ): CashFlowAssessment {
   if (!hasCashFlowData(cf) || !cf) {
     return { status: "na", detail: "—", reasons: [] };
   }
+
+  // Finance-sector names are deposit-/float-funded — generic leverage and
+  // interest-coverage are not valid solvency/value-trap signals, so suppress
+  // those factors for the sector (red-team-fixes Issue 1).
+  const financial = isFinancialSector(opts?.sector);
 
   const reasons: string[] = [];
   if (cf.freeCashFlow !== null && cf.freeCashFlow <= 0) {
@@ -95,12 +122,14 @@ export function assessCashFlowQuality(
     reasons.push("FCF declining");
   }
   if (
+    !financial &&
     cf.debtToEquity !== null &&
     cf.debtToEquity > CASH_FLOW_THRESHOLDS.debtToEquityHeavy
   ) {
     reasons.push(`high leverage (D/E ${cf.debtToEquity.toFixed(1)})`);
   }
   if (
+    !financial &&
     cf.interestCoverage !== null &&
     cf.interestCoverage < CASH_FLOW_THRESHOLDS.interestCoverageWeak
   ) {

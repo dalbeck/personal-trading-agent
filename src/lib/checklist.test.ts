@@ -153,6 +153,34 @@ describe("buildChecklist — value mandate", () => {
     expect(item(list, "Cash-flow quality")?.status).toBe("flag");
   });
 
+  it("does NOT flag Cash-flow quality on financial-sector leverage (red-team-fixes Issue 1)", () => {
+    const bank = {
+      operatingCashFlow: null,
+      freeCashFlow: 500_000_000,
+      fcfTrend: "stable" as const,
+      fcfYield: 0.04,
+      netDebt: 18_630_000_000,
+      debtToEquity: 3.1,
+      interestCoverage: 0.3,
+    };
+    // Without sector, generic leverage/coverage would flag it.
+    expect(
+      item(
+        buildChecklist(makeProposal({ strategy: "value", cashFlow: bank })),
+        "Cash-flow quality",
+      )?.status,
+    ).toBe("flag");
+    // With a Finance sector, those misapplied factors are suppressed.
+    expect(
+      item(
+        buildChecklist(
+          makeProposal({ strategy: "value", cashFlow: bank, sector: "Finance" }),
+        ),
+        "Cash-flow quality",
+      )?.status,
+    ).not.toBe("flag");
+  });
+
   it("leaves Cash-flow quality as na (never a false pass) with no data", () => {
     const list = buildChecklist(makeProposal({ strategy: "value" }));
     expect(item(list, "Cash-flow quality")?.status).toBe("na");

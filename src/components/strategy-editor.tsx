@@ -3,9 +3,14 @@
 import { useState, useTransition } from "react";
 import { saveStrategyDoc } from "@/app/strategy/actions";
 import { Markdown } from "@/components/markdown";
+import { RedTeamRulesView } from "@/components/strategy/red-team-rules-view";
 import { Button } from "@/components/ui/button";
 
 type Doc = { doc: string; title: string; content: string };
+
+/** The read-only, code-derived Red Team rules tab — not a strategy doc, so it
+ *  carries no Edit affordance and isn't written back to disk. */
+const RED_TEAM_TAB = "red-team";
 
 export function StrategyEditor({ docs }: { docs: Doc[] }) {
   const [contents, setContents] = useState<Record<string, string>>(() =>
@@ -20,8 +25,10 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
   } | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const isRedTeam = active === RED_TEAM_TAB;
   const current = contents[active] ?? "";
   const title = docs.find((d) => d.doc === active)?.title ?? active;
+  const heading = isRedTeam ? "Red Team" : `${title}.md`;
 
   function startEdit() {
     setDraft(current);
@@ -76,14 +83,34 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
             </button>
           );
         })}
+        <button
+          role="tab"
+          aria-selected={isRedTeam}
+          disabled={editing}
+          onClick={() => {
+            setActive(RED_TEAM_TAB);
+            setMessage(null);
+          }}
+          className={`rounded-pill px-4 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            isRedTeam
+              ? "bg-accent text-accent-foreground"
+              : "text-fg-muted hover:text-fg"
+          }`}
+        >
+          Red Team
+        </button>
       </div>
 
       <div className="rounded-card border border-line bg-surface-raised p-6">
         <div className="mb-5 flex items-center justify-between gap-3 border-b border-line pb-4">
           <h2 className="font-serif text-[0.95rem] font-semibold text-fg">
-            {title}.md
+            {heading}
           </h2>
-          {editing ? (
+          {isRedTeam ? (
+            <span className="rounded-pill border border-line px-2.5 py-1 text-xs font-medium text-fg-muted">
+              Read-only · from code
+            </span>
+          ) : editing ? (
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -115,7 +142,9 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
           </p>
         ) : null}
 
-        {editing ? (
+        {isRedTeam ? (
+          <RedTeamRulesView />
+        ) : editing ? (
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -129,7 +158,16 @@ export function StrategyEditor({ docs }: { docs: Doc[] }) {
       </div>
 
       <p className="mt-3 text-xs text-fg-muted">
-        Edits write back to <code>strategy/{active}.md</code> in the repo.
+        {isRedTeam ? (
+          <>
+            Read live from the prosecutor&rsquo;s logic in{" "}
+            <code>src/lib/red-team-rules.ts</code> — edit the code, not this page.
+          </>
+        ) : (
+          <>
+            Edits write back to <code>strategy/{active}.md</code> in the repo.
+          </>
+        )}
       </p>
     </div>
   );

@@ -1,0 +1,122 @@
+/**
+ * Red-team ruleset — the human-readable, code-derived spec of how the hostile
+ * prosecutor (`runRedTeam` / `buildProsecutorPrompt`) judges a proposed trade.
+ * Rendered read-only on the Strategy page so the desk can see the rules without
+ * reading the prompt code.
+ *
+ * Single source of truth for the NUMBERS: every threshold below is re-exported
+ * from the real constants the prosecutor enforces (`MIN_REWARD_RISK`,
+ * `REL_VOLUME_BREAKOUT_MIN`, `CASH_FLOW_THRESHOLDS`), so the figures shown on the
+ * page can never drift from the gate. The rule PROSE mirrors the prompt's
+ * mandate guidance (including red-team-fixes Issue 1 — the financial-sector
+ * leverage caveat — and Issue 2 — the trend volume-confirmed why-now
+ * precedence). Plain module (no `server-only`) so the client view can import it.
+ */
+import { CASH_FLOW_THRESHOLDS } from "@/lib/cash-flow";
+import { formatPercent } from "@/lib/format";
+import { MIN_REWARD_RISK } from "@/lib/risk-reward";
+import { REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
+
+/** The thresholds the prosecutor enforces, re-exported from their source of
+ *  truth so the view (and its drift-guard test) read the real numbers. */
+export const RED_TEAM_RULE_THRESHOLDS = {
+  minRewardRisk: MIN_REWARD_RISK,
+  relVolBreakoutMin: REL_VOLUME_BREAKOUT_MIN,
+  debtToEquityHeavy: CASH_FLOW_THRESHOLDS.debtToEquityHeavy,
+  interestCoverageWeak: CASH_FLOW_THRESHOLDS.interestCoverageWeak,
+  fcfYieldHealthy: CASH_FLOW_THRESHOLDS.fcfYieldHealthy,
+} as const;
+
+export interface RedTeamRuleSection {
+  /** Stable id used for keys + the section ordering contract. */
+  id: "shared" | "trend" | "value";
+  title: string;
+  summary: string;
+  rules: string[];
+}
+
+export interface RedTeamThreshold {
+  label: string;
+  value: string;
+  note: string;
+}
+
+export interface RedTeamRules {
+  intro: string;
+  sections: RedTeamRuleSection[];
+  thresholds: RedTeamThreshold[];
+}
+
+const T = RED_TEAM_RULE_THRESHOLDS;
+
+export const RED_TEAM_RULES: RedTeamRules = {
+  intro:
+    "After the desk's model proposes a trade, a different model family reviews it as a hostile prosecutor told to refute the thesis and default to “no.” A reject blocks the trade, a concern allows it only at reduced size, and an approve lets it through. The verdict is recorded on the proposal. These rules are read live from the prosecutor's logic — changing them means changing the code, not this page.",
+  sections: [
+    {
+      id: "shared",
+      title: "Shared hard rails",
+      summary: "Applied to every trade, both mandates. A miss here is a strike.",
+      rules: [
+        "A protective stop is required — a missing or too-wide stop is a strike.",
+        `Reward-to-risk must be at least ${T.minRewardRisk}:1; a thinner reward/risk is a strike.`,
+        "Risk must be sized within the charter caps.",
+      ],
+    },
+    {
+      id: "trend",
+      title: "Trend lens",
+      summary:
+        "Technical trend-following — structure, momentum, relative strength, volume, price.",
+      rules: [
+        "The thesis must be primarily technical. A fundamental / valuation-primary rationale (“cheap”, “undervalued”, “analyst upgrade”) is out of mandate and is penalized.",
+        `Why-now precedence: a volume-confirmed setup — relative volume ≥ ${T.relVolBreakoutMin}× average on a trend in force — already satisfies the “why now.” A far-dated, weak, or absent named catalyst can lower conviction (toward concern) but is NOT, on its own, grounds to reject a volume-confirmed trend.`,
+        `When volume does not confirm (relative volume below ${T.relVolBreakoutMin}× or unknown), the catalyst must carry the why-now; no catalyst and no volume confirmation is a weak momentum chase.`,
+        "A breakout/momentum entry should come on above-average volume; a pullback/reset on declining / below-average volume.",
+        "A target anchored to a sell-side analyst price — or left unspecified — is weak.",
+      ],
+    },
+    {
+      id: "value",
+      title: "Value lens",
+      summary:
+        "Value / mean-reversion — counter-trend is expected; the job is to hunt the value trap.",
+      rules: [
+        "Counter-trend is expected. Being below the 50-/200-day or in a downtrend is normal here and is not by itself a reason to reject.",
+        "Fundamentals lead: judge quality first — a durable, profitable business trading at a genuine discount.",
+        "Hunt the value trap: deteriorating fundamentals, no real catalyst or floor, a falling knife, or an unrealistic target are rejects.",
+        "Cash flow is the floor-vs-trap tell: positive, stable / growing free cash flow with a healthy yield supports a floor; negative or declining FCF is a strong value-trap flag. Unknown cash flow is unverified — a weakness, not a free pass.",
+        "A durable, well-covered dividend is a real floor and satisfies the why-now — but a safe dividend alone does not force an approve.",
+        "Financial-sector leverage caveat: for Finance-sector names (banks, insurers, capital markets), generic debt-to-equity, net debt, and interest coverage are category errors — high leverage is by design — and are NOT cited as value-trap signals.",
+        "A target anchored to fundamental value is appropriate here (not weak); a sell-side analyst price is still weak.",
+      ],
+    },
+  ],
+  thresholds: [
+    {
+      label: "Reward-to-risk minimum",
+      value: `${T.minRewardRisk}:1`,
+      note: "Shared hard rail — below this is a strike.",
+    },
+    {
+      label: "Volume confirmation (trend)",
+      value: `≥ ${T.relVolBreakoutMin}× avg`,
+      note: "Confirms a trend's why-now; below this, the catalyst must carry it.",
+    },
+    {
+      label: "Heavy leverage (value)",
+      value: `D/E > ${T.debtToEquityHeavy}`,
+      note: "Value-trap weight — suppressed for financial-sector names.",
+    },
+    {
+      label: "Thin interest coverage (value)",
+      value: `< ${T.interestCoverageWeak}×`,
+      note: "Value-trap weight — suppressed for financial-sector names.",
+    },
+    {
+      label: "Healthy FCF yield (value)",
+      value: `≥ ${formatPercent(T.fcfYieldHealthy, { signed: false })}`,
+      note: "The yield a clean value floor clears.",
+    },
+  ],
+};
