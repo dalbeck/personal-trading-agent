@@ -3,6 +3,8 @@ import {
   buildProposalLenses,
   dualVerdictSummary,
   isDualLens,
+  lensSleeveOf,
+  multiVerdictSummary,
   proposalBreakdowns,
   resolveActiveLens,
 } from "./proposal-lens";
@@ -26,6 +28,7 @@ function lens(
 ): ProposalLensBreakdown {
   return {
     strategy,
+    sleeve: null,
     limitPrice: 50,
     stopPrice: 46,
     takeProfit: 60,
@@ -152,5 +155,42 @@ describe("resolveActiveLens", () => {
   it("returns the lone top-level lens for a single-lens proposal", () => {
     const single = makeProposal({ strategy: "trend" });
     expect(resolveActiveLens(single, "value").strategy).toBe("trend");
+  });
+});
+
+describe("multi-sleeve lens resolution (verdict-matrix M7)", () => {
+  const trendLens = (): ProposalLensBreakdown =>
+    lens("trend", { sleeve: null });
+  const coreLens = (): ProposalLensBreakdown =>
+    lens("value", { sleeve: "core-long", targetWeightPct: 0.4, stopPrice: null, takeProfit: null });
+  const midLens = (): ProposalLensBreakdown =>
+    lens("trend", { sleeve: "position-mid" });
+
+  it("lensSleeveOf reads the explicit sleeve, else derives from strategy", () => {
+    expect(lensSleeveOf(trendLens())).toBe("swing-trend");
+    expect(lensSleeveOf(lens("value", { sleeve: null }))).toBe("swing-value");
+    expect(lensSleeveOf(coreLens())).toBe("core-long");
+    expect(lensSleeveOf(midLens())).toBe("position-mid");
+  });
+
+  it("resolveActiveLens picks the lens for a requested sleeve (incl. new sleeves)", () => {
+    const p = makeProposal({
+      lenses: [trendLens(), lens("value", { sleeve: null }), midLens(), coreLens()],
+    });
+    expect(lensSleeveOf(resolveActiveLens(p, "core-long"))).toBe("core-long");
+    expect(lensSleeveOf(resolveActiveLens(p, "position-mid"))).toBe("position-mid");
+    // A legacy trend/value request maps to its swing sleeve.
+    expect(lensSleeveOf(resolveActiveLens(p, "value"))).toBe("swing-value");
+  });
+
+  it("multiVerdictSummary keys on the sleeve, with ✓/✗ marks", () => {
+    const summary = multiVerdictSummary([
+      { sleeve: "core-long", strategy: "value", redTeam: verdict("approve") },
+      { sleeve: "position-mid", strategy: "trend", redTeam: verdict("concern") },
+      { sleeve: null, strategy: "trend", redTeam: verdict("reject") },
+    ]);
+    expect(summary).toContain("Core ✓");
+    expect(summary).toContain("Position concern");
+    expect(summary).toContain("Trend ✗");
   });
 });

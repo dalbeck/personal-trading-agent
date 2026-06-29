@@ -49,6 +49,25 @@ change-log below. Newest first.
 
 ## Change-log (cross-sleeve)
 
+> **2026-06-29 — Multi-sleeve verdict matrix on one proposal (verdict-matrix M7).**
+> Generalized the **dual-lens** evaluation (trend + value) to **N sleeve-lenses**:
+> a manually analyzed symbol can be evaluated under the swing pair **plus** any
+> selected `position-mid` / `core-long`, each running its **own checklist + own
+> red-team** and storing its own per-lens verdict, levels, sizing, and conviction —
+> **research is fetched once** and shared. The proposal detail renders a **sleeve ×
+> verdict matrix** (each evaluated sleeve's red-team pill + levels + conviction);
+> a sleeve the human didn't select reads **"not evaluated," never a fake pass.**
+> Each lens carries an explicit **`sleeve`** (back-compat: derived from `strategy`).
+> **Approval is unchanged in substance:** the human still approves **exactly one
+> sleeve's** version — `resolveActiveLens` drives the order, the gate resolves that
+> sleeve's rails (a `core-long` acting lens gates under its review-trigger rail, not
+> the swing stop rail), and the journal records the acting `sleeve:<id>` tag.
+> Autonomous discovery stays single-sleeve. The matrix is a **review aid**, not a
+> new execution path; no rail, gate, or envelope changed. Rationale: a name can be
+> a strong long-term core hold but a weak swing setup — show all of it on one
+> proposal so the human reviews every aspect at once. See
+> `planning/portfolio-sleeves-and-horizons-spec.md`.
+
 > **2026-06-28 — Tax-lot & holding-period surfacing (tax-awareness M6, advisory).**
 > Surfaced tax context for the longer-horizon book: per-position **holding period**
 > with the **long-term line (365 days)** and a **LT/ST badge** on the Positions

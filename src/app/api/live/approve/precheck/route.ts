@@ -4,7 +4,9 @@ import {
   evaluateApprovalBlocks,
 } from "@/lib/server/live-order";
 import { isAdvisoryProposal } from "@/lib/proposal-advisory";
-import { resolveActiveLens } from "@/lib/proposal-lens";
+import { lensSleeveOf, resolveActiveLens } from "@/lib/proposal-lens";
+import { SLEEVES } from "@/lib/sleeves";
+import type { Sleeve } from "@/lib/sleeves";
 
 /**
  * Read-only precheck for the approve dialog (Phase 3 M7). Evaluates the blocks a
@@ -47,10 +49,12 @@ export async function POST(req: Request): Promise<Response> {
   // Evaluate the blocks for the lens the human is acting under (dual-lens M1):
   // its red-team verdict + levels drive what blocks the order. Single-lens →
   // the lone top-level lens, so the precheck is unchanged.
-  const actingLens =
+  const actingLens: Sleeve | "trend" | "value" | undefined =
     body.actingLens === "trend" || body.actingLens === "value"
       ? body.actingLens
-      : undefined;
+      : (SLEEVES as readonly string[]).includes(body.actingLens ?? "")
+        ? (body.actingLens as Sleeve)
+        : undefined;
   const lens = resolveActiveLens(proposal, actingLens);
   const blocks = await evaluateApprovalBlocks({
     symbol: proposal.symbol,
@@ -67,6 +71,11 @@ export async function POST(req: Request): Promise<Response> {
     redTeam: lens.redTeam,
     account: proposal.account,
     sector: proposal.sector,
+    // The acting sleeve drives the per-sleeve rails in the precheck too
+    // (verdict-matrix M7), so a core-long lens prechecks under its review trigger.
+    sleeve: lensSleeveOf(lens),
+    reviewTriggerPct: lens.reviewTriggerPct,
+    targetWeightPct: lens.targetWeightPct,
     targetType: lens.targetType,
     relativeVolume: lens.relativeVolume,
     catalyst: lens.catalyst,

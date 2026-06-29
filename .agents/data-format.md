@@ -296,6 +296,16 @@ surfacing is gated by **`positionMidSleeveEnabled`** (off by default). The sleev
 not the lens's `strategy` — drives its checklist + red-team lens (`buildProposalLenses`
 passes the proposal's sleeve for the single-lens core/mid proposals).
 
+**Per-lens `sleeve` + verdict matrix (verdict-matrix M7).** Each `ProposalLensSchema`
+breakdown now carries an explicit **`sleeve`** (nullable; a null derives from the
+lens's `strategy` via `lensSleeveOf`). A manual analyze can evaluate a symbol under
+the swing pair **plus** any selected `position-mid` / `core-long` (the analyze route
+takes `extraSleeves`); each appends its own lens (own checklist + red-team), research
+fetched once. The proposal detail renders a **sleeve × verdict matrix**; the human
+approves **one** sleeve (`resolveActiveLens` accepts a sleeve or a legacy
+trend/value; the acting lens drives the order, its sleeve resolves the gate's rails,
+and the journal records `sleeve:<actingSleeve>`). Discovery stays single-sleeve.
+
 **Sleeve attribution + allocation targets (portfolio M5).** A broker `Position`
 carries **no** sleeve, so a holding is attributed to a sleeve from the trade
 journal: the approve route now stamps a **`sleeve:<id>`** tag on every approved

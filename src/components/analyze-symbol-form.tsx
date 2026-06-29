@@ -59,10 +59,14 @@ export function AnalyzeSymbolForm({
     "swing",
   );
   const [targetWeight, setTargetWeight] = useState("10"); // percent
+  // Extra sleeves to ALSO evaluate on a swing analyze (verdict-matrix M7).
+  const [extraMid, setExtraMid] = useState(false);
+  const [extraCore, setExtraCore] = useState(false);
 
   const showPicker = coreLongEnabled || positionMidEnabled;
   const isCore = coreLongEnabled && sleeve === "core-long";
   const isMid = positionMidEnabled && sleeve === "position-mid";
+  const isSwing = sleeve === "swing";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,7 +88,13 @@ export function AnalyzeSymbolForm({
             ? { symbol: ticker, sleeve: "core-long", targetWeightPct: weightPct }
             : isMid
               ? { symbol: ticker, sleeve: "position-mid" }
-              : { symbol: ticker },
+              : {
+                  symbol: ticker,
+                  extraSleeves: [
+                    ...(positionMidEnabled && extraMid ? ["position-mid"] : []),
+                    ...(coreLongEnabled && extraCore ? ["core-long"] : []),
+                  ],
+                },
         ),
       });
       const data = (await res.json()) as Outcome & { error?: string };
@@ -163,6 +173,39 @@ export function AnalyzeSymbolForm({
           {busy ? "Analyzing…" : "Analyze"}
         </Button>
       </form>
+
+      {isSwing && (positionMidEnabled || coreLongEnabled) ? (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted">
+          <span className="font-medium uppercase tracking-wide">
+            Also evaluate
+          </span>
+          {positionMidEnabled ? (
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={extraMid}
+                onChange={(e) => setExtraMid(e.target.checked)}
+                className="accent-accent"
+              />
+              Position (mid)
+            </label>
+          ) : null}
+          {coreLongEnabled ? (
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={extraCore}
+                onChange={(e) => setExtraCore(e.target.checked)}
+                className="accent-accent"
+              />
+              Core (long)
+            </label>
+          ) : null}
+          <span className="text-fg-subtle">
+            — adds a per-sleeve verdict to the matrix on one proposal
+          </span>
+        </div>
+      ) : null}
 
       <p className="mt-2 text-pretty text-xs text-fg-muted">
         Runs the full pipeline (research → proposal → risk rails → red-team)

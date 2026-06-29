@@ -20,6 +20,7 @@ export async function POST(req: Request): Promise<Response> {
     sleeve?: string;
     targetWeightPct?: number;
     reviewTriggerPct?: number;
+    extraSleeves?: string[];
   };
   try {
     body = (await req.json()) as typeof body;
@@ -50,6 +51,13 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
+  // Verdict matrix (verdict-matrix M7): on the default swing analyze, the human
+  // may ALSO evaluate position-mid / core-long — each appends its own lens.
+  const extraSleeves = (body.extraSleeves ?? []).filter(
+    (s): s is "position-mid" | "core-long" =>
+      s === "position-mid" || s === "core-long",
+  );
+
   const account = await getViewMode(); // "paper" | "live"
   const result = await analyzeSymbol(symbol, {
     account,
@@ -61,7 +69,7 @@ export async function POST(req: Request): Promise<Response> {
         }
       : isMid
         ? { sleeve: "position-mid" as const }
-        : {}),
+        : { extraSleeves }),
   });
 
   if (!result.ok) {
