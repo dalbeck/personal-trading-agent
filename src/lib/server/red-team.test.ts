@@ -179,6 +179,25 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).not.toMatch(/HUNT THE VALUE TRAP/);
   });
 
+  it("briefs the POSITION-MID lens: multi-week thesis, earnings-in-window tolerated", () => {
+    const prompt = buildProsecutorPrompt({ ...proposal, sleeve: "position-mid" });
+    expect(prompt).toMatch(/MID-TERM \/ POSITION/);
+    expect(prompt).toMatch(/MULTI-WEEK THESIS IS EXPECTED/);
+    expect(prompt).toMatch(/EARNINGS EVENT INSIDE THE HOLDING WINDOW IS TOLERATED/);
+    expect(prompt).toMatch(/NAMED FUNDAMENTAL THESIS MAY LEAD/);
+    // It still prosecutes a broken trend / deteriorating story / loose target.
+    expect(prompt).toMatch(/BROKEN multi-week trend/);
+    expect(prompt).toMatch(/DETERIORATING fundamental story/);
+    expect(prompt).toMatch(/IMMINENT BINARY/);
+    // Mid still requires a stop (it is a risk-to-stop sleeve).
+    expect(prompt).toMatch(/the entry needs a protective stop/i);
+    // It is not the trend "out of mandate" valuation penalty.
+    expect(prompt).not.toMatch(/out of mandate/i);
+    // Never merged with the other lenses.
+    expect(prompt).not.toMatch(/LONG-TERM \/ CORE MANDATE/);
+    expect(prompt).not.toMatch(/HUNT THE VALUE TRAP/);
+  });
+
   it("briefs the VALUE lens differently: counter-trend expected, hunt the value trap", () => {
     const prompt = buildProsecutorPrompt({ ...proposal, strategy: "value" });
     expect(prompt).toMatch(/VALUE \/ MEAN-REVERSION/);

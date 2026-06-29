@@ -708,6 +708,36 @@ describe("analyzeSymbol", () => {
     expect(res.risk.ok).toBe(true);
   });
 
+  it("analyzes under position-mid: single mid lens, risk-to-stop with a wider stop (position-mid M4)", async () => {
+    const res = await analyzeSymbol("MSFT", {
+      account: "live",
+      dataDir: dir,
+      now: () => new Date("2026-06-26T09:00:00-04:00"),
+      fetchBars: async () => ramp(60, 200, 1),
+      fetchQuote: async () => 259,
+      readSnapshot: snapshotSeam,
+      fetchResearch: researchSeam,
+      redTeamExec: approveExec,
+      sleeve: "position-mid",
+    });
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const p = res.proposal;
+    expect(p.sleeve).toBe("position-mid");
+    // Mid is risk-to-stop: it carries a real protective stop below entry.
+    expect(p.stopPrice).not.toBeNull();
+    expect(p.stopPrice!).toBeLessThan(p.limitPrice);
+    // No target-weight fields (those are core-long only).
+    expect(p.targetWeightPct).toBeNull();
+    expect(p.reviewTriggerPct).toBeNull();
+    // Single mid lens, not the dual trend+value pair.
+    expect(p.lenses).toHaveLength(1);
+    // Sized within the position-mid 25% per-name cap.
+    expect(p.qty * p.limitPrice).toBeLessThanOrEqual(0.25 * 10_000 + 1);
+    expect(res.risk.ok).toBe(true);
+  });
+
   it("a core-long analyze with no target weight falls back to a default weight", async () => {
     const res = await analyzeSymbol("VOO", {
       account: "live",

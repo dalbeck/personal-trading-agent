@@ -31,10 +31,12 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "symbol is required" }, { status: 400 });
   }
 
-  // Sleeve picker (core-long M3): `core-long` analyzes a single target-weight,
-  // no-stop core position; omitted/`swing-*` runs the dual-lens (trend + value)
-  // path, unchanged. A target weight is required for the core path.
+  // Sleeve picker (core-long M3 / position-mid M4): `core-long` analyzes a single
+  // target-weight, no-stop core position (a target weight is required);
+  // `position-mid` a single risk-to-stop mid position; omitted/`swing-*` runs the
+  // dual-lens (trend + value) path, unchanged.
   const isCore = body.sleeve === "core-long";
+  const isMid = body.sleeve === "position-mid";
   if (
     isCore &&
     !(typeof body.targetWeightPct === "number" && body.targetWeightPct > 0)
@@ -57,7 +59,9 @@ export async function POST(req: Request): Promise<Response> {
           targetWeightPct: body.targetWeightPct,
           reviewTriggerPct: body.reviewTriggerPct,
         }
-      : {}),
+      : isMid
+        ? { sleeve: "position-mid" as const }
+        : {}),
   });
 
   if (!result.ok) {

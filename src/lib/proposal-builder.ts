@@ -77,6 +77,10 @@ export interface BuildManualProposalInput {
   /** Fractional shares allowed (charter: yes). Default true. */
   allowFractional?: boolean;
   riskLimits?: { perPositionRiskPct?: number; perPositionSizePct?: number };
+  /** The fixed-percent stop band for the risk-to-stop stop (position-mid M4) — the
+   *  tighter of this and the 2×ATR level wins. Defaults to the swing 8%; the mid
+   *  sleeve passes a wider band (12%) for a longer hold. Swing is unchanged. */
+  stopBandPct?: number;
 }
 
 /** The author-set proposal fields the builder produces (the writer stamps id /
@@ -122,8 +126,14 @@ export function buildManualProposalDraft(
   const sma50 = sma(closes, 50);
   const sma200 = sma(closes, 200);
 
-  // Stop: the charter rule — tighter of a fixed −8% and a 2×ATR level.
-  const stopPrice = resolveStopPrice({ entry, side: "long", atr: atr14 });
+  // Stop: the charter rule — tighter of a fixed band (8% swing / wider for mid)
+  // and a 2×ATR level. `stopBandPct` undefined → resolveStopPrice's 8% default.
+  const stopPrice = resolveStopPrice({
+    entry,
+    side: "long",
+    atr: atr14,
+    fixedPct: input.stopBandPct,
+  });
   const riskPerShare = entry - stopPrice;
   if (!(riskPerShare > 0)) return null;
 

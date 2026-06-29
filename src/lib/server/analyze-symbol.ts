@@ -390,40 +390,34 @@ export async function analyzeSymbol(
   const id = `manual-${symbol}-${createdAt.slice(0, 23).replace(/[-:.T]/g, "")}`;
   const advisory = false; // approvable; the gate (not this) is the money boundary
 
-  // Core-long (core-long M3) → a single target-weight, no-stop proposal under the
-  // core lens. Otherwise the dual-lens (trend + value) derivation, unchanged.
+  // Per-sleeve derivation (core-long M3 / position-mid M4). `core-long` → a single
+  // target-weight, no-stop proposal under the core lens; `position-mid` → a single
+  // risk-to-stop proposal (wider stop band) under the mid lens. Otherwise the
+  // dual-lens (trend + value) derivation, unchanged.
+  const sharedArgs = {
+    symbol,
+    bars,
+    quote,
+    equity: snapshot.equity,
+    research,
+    account,
+    advisory,
+    id,
+    createdAt,
+    pricedAt: createdAt,
+    researchAt: createdAt,
+    redTeamExec: opts.redTeamExec,
+  };
   const derived =
     opts.sleeve === "core-long"
       ? await deriveCoreLongProposal({
-          symbol,
-          bars,
-          quote,
-          equity: snapshot.equity,
-          research,
-          account,
-          advisory,
-          id,
-          createdAt,
-          pricedAt: createdAt,
-          researchAt: createdAt,
+          ...sharedArgs,
           targetWeightPct: opts.targetWeightPct,
           reviewTriggerPct: opts.reviewTriggerPct,
-          redTeamExec: opts.redTeamExec,
         })
-      : await deriveProposalFromResearch({
-          symbol,
-          bars,
-          quote,
-          equity: snapshot.equity,
-          research,
-          account,
-          advisory,
-          id,
-          createdAt,
-          pricedAt: createdAt,
-          researchAt: createdAt,
-          redTeamExec: opts.redTeamExec,
-        });
+      : opts.sleeve === "position-mid"
+        ? await deriveMidProposal(sharedArgs)
+        : await deriveProposalFromResearch(sharedArgs);
   if (!derived.ok) return derived;
   const { proposal, lenses, active, usedPerplexity } = derived;
 
@@ -840,6 +834,106 @@ export async function deriveCoreLongProposal(
     proposal,
     lenses: [lens],
     active: { draft: draft as unknown as ManualProposalDraft, redTeam },
+    usedPerplexity: research.usedPerplexity,
+  };
+}
+
+/** The mid sleeve's wider fixed-stop band (vs the swing 8%) — a longer hold wants
+ *  more room (position-mid M4). The tighter of this and 2×ATR still wins. */
+const MID_STOP_BAND_PCT = 0.12;
+
+/**
+ * Derive a **position-mid** proposal from shared research (position-mid M4) — a
+ * single risk-to-stop position under the mid lens, with a **wider stop band** and
+ * the position-mid size rail. It reuses the swing builder (mid is risk-to-stop,
+ * `requiresStop: true`); the sleeve drives the checklist + red-team lens. Parallel
+ * to {@link deriveProposalFromResearch}; it never touches the dual-lens path.
+ */
+export async function deriveMidProposal(
+  args: DeriveProposalArgs,
+): Promise<DeriveProposalResult> {
+  const { symbol, bars, quote, equity, research, account, advisory } = args;
+  const midLimits = railsForSleeve("position-mid");
+
+  const draft = buildManualProposalDraft({
+    symbol,
+    bars,
+    quote,
+    equity,
+    // The blend leads on trend; the sleeve (not the strategy) drives the mid lens.
+    strategy: "trend",
+    sector: research.sector,
+    catalyst: research.catalyst,
+    catalystType: research.catalystType,
+    catalystState: research.catalystState,
+    stopBandPct: MID_STOP_BAND_PCT,
+    riskLimits: { perPositionSizePct: midLimits.perPositionSizePct },
+  });
+  if (!draft) {
+    return {
+      ok: false,
+      code: "insufficient-data",
+      error: `Not enough Alpaca price history to analyze ${symbol} as a mid-term position (need ~30 daily bars). Prices are Alpaca-only.`,
+    };
+  }
+
+  const cashFlow = research.cashFlow;
+  const researchStatus = cashFlow ? "ok" : research.researchStatus;
+  const catalystSources = research.catalystSources;
+  const catalystState = research.catalystState;
+
+  const redTeam = await runRedTeam(
+    {
+      ...redTeamInput(
+        draft,
+        cashFlow,
+        null,
+        researchStatus,
+        catalystSources,
+        catalystState,
+      ),
+      sleeve: "position-mid",
+      // The mid lens weighs the fundamental story, so brief its cash-flow quality
+      // even though the draft's display strategy is `trend`.
+      cashFlow,
+      researchStatus,
+    },
+    { exec: args.redTeamExec },
+  );
+
+  const lens = draftToLens(
+    draft,
+    redTeam,
+    null,
+    null,
+    null,
+    catalystSources,
+    catalystState,
+    null,
+  );
+
+  const proposal: TradeProposal = TradeProposalSchema.parse({
+    ...draft,
+    sleeve: "position-mid",
+    id: args.id,
+    createdAt: args.createdAt,
+    pricedAt: args.pricedAt,
+    researchAt: args.researchAt,
+    account,
+    advisory,
+    origin: args.origin ?? "manual-request",
+    status: args.status ?? "pending",
+    redTeam,
+    catalystSources,
+    catalystState,
+    lenses: [lens],
+  });
+
+  return {
+    ok: true,
+    proposal,
+    lenses: [lens],
+    active: { draft, redTeam },
     usedPerplexity: research.usedPerplexity,
   };
 }

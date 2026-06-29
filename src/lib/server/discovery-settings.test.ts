@@ -105,6 +105,20 @@ describe("read/write discovery settings", () => {
     expect(effectiveDiscoveryLimits(s).coreLongSleeveEnabled).toBe(true);
   });
 
+  it("opts the position-mid sleeve in, off by default (position-mid M4)", async () => {
+    const def = await readDiscoverySettings({ dataDir: dir });
+    expect(def.positionMidSleeveEnabled).toBe(false); // off by default
+    expect(effectiveDiscoveryLimits(def).positionMidSleeveEnabled).toBe(false);
+
+    await writeDiscoverySettings(
+      { positionMidSleeveEnabled: true },
+      { dataDir: dir },
+    );
+    const s = await readDiscoverySettings({ dataDir: dir });
+    expect(s.positionMidSleeveEnabled).toBe(true);
+    expect(effectiveDiscoveryLimits(s).positionMidSleeveEnabled).toBe(true);
+  });
+
   it("rejects an out-of-shape payload", async () => {
     await expect(
       writeDiscoverySettings({ ideaCap: -5 }, { dataDir: dir }),

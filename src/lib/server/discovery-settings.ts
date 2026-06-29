@@ -30,6 +30,8 @@ export interface EffectiveDiscoveryLimits {
   valueSleeveEnabled: boolean;
   /** Whether the long-term / core sleeve is opted in for discovery (core-long M3). */
   coreLongSleeveEnabled: boolean;
+  /** Whether the mid-term / position sleeve is opted in for discovery (position-mid M4). */
+  positionMidSleeveEnabled: boolean;
 }
 
 function settingsFile(dataDir?: string): string {
@@ -106,6 +108,7 @@ export function effectiveDiscoveryLimits(
     minConvictionTier: settings.minConvictionTier,
     valueSleeveEnabled: settings.valueSleeveEnabled,
     coreLongSleeveEnabled: settings.coreLongSleeveEnabled,
+    positionMidSleeveEnabled: settings.positionMidSleeveEnabled,
   };
 }
 

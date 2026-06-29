@@ -85,6 +85,41 @@ describe("buildChecklist — core-long (buy-and-hold) mandate (core-long M3)", (
   });
 });
 
+describe("buildChecklist — position-mid (weeks–quarters) mandate (position-mid M4)", () => {
+  function mid(overrides: Partial<TradeProposal> = {}) {
+    return buildChecklist(
+      makeProposal({
+        sleeve: "position-mid",
+        targetType: "fundamental",
+        ...overrides,
+      }),
+    );
+  }
+
+  it("requires a (wider-band) stop and a multi-week / fundamental target", () => {
+    const list = mid();
+    expect(item(list, "Protective stop — wider band")?.status).toBe("pass");
+    expect(item(list, "Target — multi-week / fundamental")?.status).toBe("pass");
+    expect(item(list, "Catalyst or thesis — why this quarter")).toBeDefined();
+  });
+
+  it("drops the breakout-volume item (a mid entry isn't a momentum chase)", () => {
+    expect(item(mid(), "Volume confirms")).toBeUndefined();
+  });
+
+  it("accepts a fundamental target as a pass (not weak, unlike a swing analyst target)", () => {
+    expect(item(mid({ targetType: "fundamental" }), "Target — multi-week / fundamental")?.status).toBe(
+      "pass",
+    );
+  });
+
+  it("still flags a missing stop (position-mid requires one)", () => {
+    expect(item(mid({ stopPrice: null }), "Protective stop — wider band")?.status).toBe(
+      "flag",
+    );
+  });
+});
+
 describe("buildChecklist — sleeve threads through identically for swing", () => {
   it("swing-trend yields the byte-identical trend checklist", () => {
     const base = makeProposal({ strategy: "trend" });

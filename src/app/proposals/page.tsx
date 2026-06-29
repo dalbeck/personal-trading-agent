@@ -52,6 +52,7 @@ export default async function ProposalsPage() {
         <AnalyzeSymbolForm
           mode={mode}
           coreLongEnabled={discoverySettings.coreLongSleeveEnabled}
+          positionMidEnabled={discoverySettings.positionMidSleeveEnabled}
         />
       </div>
       <SampleDataBanner show={anySample(proposals)} />

@@ -67,6 +67,7 @@ export function DiscoverySettingsEditor({
           minConvictionTier: settings.minConvictionTier,
           valueSleeveEnabled: settings.valueSleeveEnabled,
           coreLongSleeveEnabled: settings.coreLongSleeveEnabled,
+          positionMidSleeveEnabled: settings.positionMidSleeveEnabled,
         }),
       });
       if (res.ok) {
@@ -88,6 +89,7 @@ export function DiscoverySettingsEditor({
       minConvictionTier: "watch",
       valueSleeveEnabled: false,
       coreLongSleeveEnabled: false,
+      positionMidSleeveEnabled: false,
     });
   }
 
@@ -229,6 +231,40 @@ export function DiscoverySettingsEditor({
               }`}
             />
             {settings.coreLongSleeveEnabled ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium text-fg">Mid-term / position sleeve</p>
+          <p className="mb-2 text-xs text-fg-muted">
+            When on, discovery may also surface{" "}
+            <span className="font-medium text-fg">position-mid</span> candidates —
+            weeks-to-quarters trades that blend trend with a named fundamental
+            thesis (an earnings event inside the window is tolerated) — judged by
+            the position-mid red-team lens, sized risk-to-stop with a wider stop
+            band. Off by default. A discovery preference, not a rail — mid picks
+            still clear the shared envelope and the 6-order/day cap.
+          </p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.positionMidSleeveEnabled}
+            onClick={() =>
+              patch({ positionMidSleeveEnabled: !settings.positionMidSleeveEnabled })
+            }
+            className={`inline-flex items-center gap-2 rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
+              settings.positionMidSleeveEnabled
+                ? "border-accent bg-accent/15 text-fg"
+                : "border-line text-fg-muted hover:bg-surface-overlay hover:text-fg"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`size-2 rounded-pill ${
+                settings.positionMidSleeveEnabled ? "bg-accent" : "bg-fg-muted/50"
+              }`}
+            />
+            {settings.positionMidSleeveEnabled ? "Enabled" : "Disabled"}
           </button>
         </div>
       </div>
