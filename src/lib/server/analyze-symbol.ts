@@ -116,6 +116,11 @@ export interface AnalyzeSymbolOpts {
   /** The wide drawdown/review trigger for a `core-long` analyze, a fraction.
    *  Defaults to −25%. */
   reviewTriggerPct?: number;
+  /** Extra sleeves to ALSO evaluate on the dual-lens (swing) analyze
+   *  (verdict-matrix M7) — a subset of {`position-mid`, `core-long`}. Each appends
+   *  its own lens to the proposal so the human reviews a sleeve × verdict matrix.
+   *  Ignored when `sleeve` selects a dedicated single-sleeve path. */
+  extraSleeves?: Sleeve[];
 }
 
 export type AnalyzeSymbolResult =
@@ -303,9 +308,13 @@ export function draftToLens(
   researchStatusReason: string | null = null,
   cashFlowSource: ResearchSourceTag | null = null,
   dividendSource: ResearchSourceTag | null = null,
+  sleeve: Sleeve | null = null,
 ): ProposalLensBreakdown {
   return {
     strategy: d.strategy,
+    // The lens's sleeve (verdict-matrix M7) — explicit for a multi-sleeve / mid
+    // lens, null for the dual-lens swing path (derived from `strategy`).
+    sleeve,
     limitPrice: d.limitPrice,
     stopPrice: d.stopPrice,
     takeProfit: d.takeProfit,
@@ -407,6 +416,7 @@ export async function analyzeSymbol(
     pricedAt: createdAt,
     researchAt: createdAt,
     redTeamExec: opts.redTeamExec,
+    extraSleeves: opts.extraSleeves,
   };
   const derived =
     opts.sleeve === "core-long"
@@ -507,6 +517,11 @@ export interface DeriveProposalArgs {
   status?: TradeProposal["status"];
   origin?: TradeProposal["origin"];
   redTeamExec?: RedTeamExec;
+  /** Extra sleeves to ALSO evaluate on this proposal (verdict-matrix M7) — a
+   *  subset of {`position-mid`, `core-long`}. The dual swing lenses (trend +
+   *  value) are always evaluated; each extra sleeve appends its own lens (own
+   *  checklist + red-team), sharing the single research fetch. */
+  extraSleeves?: Sleeve[];
 }
 
 export type DeriveProposalResult =
@@ -642,6 +657,106 @@ export async function deriveProposalFromResearch(
     ),
   ];
 
+  // Extra sleeve-lenses (verdict-matrix M7) — evaluate the symbol under each
+  // additionally-selected sleeve, sharing this one research fetch. Each appends a
+  // lens with its OWN checklist + red-team; the matrix shows every evaluated sleeve.
+  const extras = args.extraSleeves ?? [];
+
+  if (extras.includes("position-mid")) {
+    const midDraft = buildManualProposalDraft({
+      symbol,
+      bars,
+      quote,
+      equity,
+      strategy: "trend",
+      sector: research.sector,
+      catalyst: research.catalyst,
+      catalystType: research.catalystType,
+      catalystState: research.catalystState,
+      stopBandPct: MID_STOP_BAND_PCT,
+      riskLimits: { perPositionSizePct: railsForSleeve("position-mid").perPositionSizePct },
+    });
+    if (midDraft) {
+      const midRedTeam = await runRedTeam(
+        {
+          ...redTeamInput(midDraft, cashFlow, null, researchStatus, catalystSources, catalystState),
+          sleeve: "position-mid",
+          cashFlow,
+          researchStatus,
+        },
+        { exec: args.redTeamExec },
+      );
+      lenses.push(
+        draftToLens(midDraft, midRedTeam, null, null, null, catalystSources, catalystState, null, null, null, "position-mid"),
+      );
+    }
+  }
+
+  if (extras.includes("core-long")) {
+    const coreDraft = buildCoreLongProposalDraft({
+      symbol,
+      bars,
+      quote,
+      equity,
+      targetWeightPct: DEFAULT_CORE_TARGET_WEIGHT,
+      perPositionSizePct: railsForSleeve("core-long").perPositionSizePct,
+      sector: research.sector,
+      qualityDataKnown: hasCashFlowData(cashFlow),
+    });
+    if (coreDraft) {
+      const coreRedTeam = await runRedTeam(
+        {
+          symbol: coreDraft.symbol,
+          action: coreDraft.action,
+          side: coreDraft.side,
+          sleeve: "core-long",
+          qty: coreDraft.qty,
+          limitPrice: coreDraft.limitPrice,
+          stopPrice: null,
+          takeProfit: null,
+          targetType: null,
+          targetWeightPct: coreDraft.targetWeightPct,
+          reviewTriggerPct: coreDraft.reviewTriggerPct,
+          sector: coreDraft.sector,
+          cashFlow,
+          researchStatus,
+          thesis: coreDraft.thesis,
+          reasoning: coreDraft.reasoning,
+        },
+        { exec: args.redTeamExec },
+      );
+      lenses.push({
+        strategy: coreDraft.strategy,
+        sleeve: "core-long",
+        limitPrice: coreDraft.limitPrice,
+        stopPrice: null,
+        takeProfit: null,
+        targetType: null,
+        qty: coreDraft.qty,
+        riskPct: coreDraft.riskPct,
+        targetWeightPct: coreDraft.targetWeightPct,
+        reviewTriggerPct: coreDraft.reviewTriggerPct,
+        relativeVolume: null,
+        catalyst: null,
+        catalystType: null,
+        catalystSources: [],
+        catalystState: null,
+        convictionScore: coreDraft.convictionScore,
+        convictionTier: coreDraft.convictionTier,
+        confidence: coreDraft.confidence,
+        thesis: coreDraft.thesis,
+        reasoning: coreDraft.reasoning,
+        redTeam: coreRedTeam,
+        cashFlow,
+        dividend: null,
+        researchStatus,
+        researchStatusReason: null,
+        cashFlowSource: research.cashFlowSource,
+        dividendSource: null,
+      });
+    }
+  }
+
   // The proposal's top-level fields mirror the ACTIVE (default) lens — the
   // higher-conviction one (tie → trend).
   const active =
@@ -763,6 +878,7 @@ export async function deriveCoreLongProposal(
 
   const lens: ProposalLensBreakdown = {
     strategy: draft.strategy,
+    sleeve: "core-long",
     limitPrice: draft.limitPrice,
     stopPrice: null,
     takeProfit: null,
@@ -910,6 +1026,9 @@ export async function deriveMidProposal(
     catalystSources,
     catalystState,
     null,
+    null,
+    null,
+    "position-mid",
   );
 
   const proposal: TradeProposal = TradeProposalSchema.parse({

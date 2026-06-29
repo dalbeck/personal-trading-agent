@@ -15,7 +15,7 @@
  * `server-only`) so the client detail view + the approve routes both import it.
  */
 import { buildChecklist, type CheckItem } from "@/lib/checklist";
-import { sleeveOf } from "@/lib/sleeves";
+import { SLEEVE_LABEL, sleeveOf, strategyToSleeve, type Sleeve } from "@/lib/sleeves";
 import { STRATEGY_LABEL, type Strategy } from "@/lib/strategy";
 import type { ProposalLensBreakdown, RedTeamVerdict, TradeProposal } from "@/lib/types";
 
@@ -24,10 +24,20 @@ export interface ProposalLensView extends ProposalLensBreakdown {
   checklist: CheckItem[];
 }
 
+/** The sleeve a lens evaluates (verdict-matrix M7) — its explicit `sleeve`, or the
+ *  sleeve derived from its `strategy` for older dual-lens records. */
+export function lensSleeveOf(lens: {
+  sleeve?: Sleeve | null;
+  strategy: Strategy;
+}): Sleeve {
+  return lens.sleeve ?? strategyToSleeve(lens.strategy);
+}
+
 /** The lone lens for a single-lens proposal: its top-level fields verbatim. */
 function singleLensFromTopLevel(p: TradeProposal): ProposalLensBreakdown {
   return {
     strategy: p.strategy,
+    sleeve: p.sleeve,
     limitPrice: p.limitPrice,
     stopPrice: p.stopPrice,
     takeProfit: p.takeProfit,
@@ -68,14 +78,10 @@ export function proposalBreakdowns(p: TradeProposal): ProposalLensBreakdown[] {
 /** Derive the lens view(s) for a proposal — each breakdown + its own checklist
  *  (built from that lens's levels/strategy, plus the proposal's action/side). */
 export function buildProposalLenses(p: TradeProposal): ProposalLensView[] {
-  // A `core-long` / `position-mid` proposal is single-lens; its lone lens uses
-  // that sleeve's checklist. Dual-lens swing proposals pass no sleeve so each lens
-  // routes by its own `strategy` (trend/value) — unchanged.
-  const topSleeve = sleeveOf(p);
-  const singleSleeve =
-    topSleeve === "core-long" || topSleeve === "position-mid"
-      ? topSleeve
-      : undefined;
+  // Each lens is scored under its OWN sleeve's checklist (verdict-matrix M7) —
+  // explicit for a multi-sleeve analyze, derived from `strategy` for older
+  // dual-lens (swing) records. Swing routes to the same trend/value checklist as
+  // before, so swing output is unchanged.
   return proposalBreakdowns(p).map((b) => ({
     ...b,
     checklist: buildChecklist({
@@ -84,29 +90,37 @@ export function buildProposalLenses(p: TradeProposal): ProposalLensView[] {
       // Sector drives the financial-sector leverage suppression (red-team-fixes
       // Issue 1) so the value-trap row matches the red team.
       sector: p.sector,
-      sleeve: singleSleeve,
       ...b,
+      // After `...b` so the lens's resolved sleeve (explicit or derived) wins.
+      sleeve: lensSleeveOf(b),
     }),
   }));
 }
 
-/** The active lens breakdown for execution/approval. Picks the lens matching
- *  `strategy` (the human's toggled lens at approval); falls back to the lens
- *  matching the proposal's active `strategy`, then the first. */
+/** The active lens breakdown for execution/approval. Picks the lens matching the
+ *  requested sleeve (the human's toggled lens at approval) — a `trend`/`value`
+ *  request maps to its swing sleeve for back-compat; falls back to the lens
+ *  matching the proposal's own sleeve, then the first. */
 export function resolveActiveLens(
   p: TradeProposal,
-  strategy?: Strategy | null,
+  wanted?: Sleeve | Strategy | null,
 ): ProposalLensBreakdown {
   const breakdowns = proposalBreakdowns(p);
-  if (strategy) {
-    const match = breakdowns.find((b) => b.strategy === strategy);
+  const wantedSleeve: Sleeve | null = wanted
+    ? wanted === "trend" || wanted === "value"
+      ? strategyToSleeve(wanted)
+      : wanted
+    : null;
+  if (wantedSleeve) {
+    const match = breakdowns.find((b) => lensSleeveOf(b) === wantedSleeve);
     if (match) return match;
   }
-  return breakdowns.find((b) => b.strategy === p.strategy) ?? breakdowns[0];
+  const own = sleeveOf(p);
+  return breakdowns.find((b) => lensSleeveOf(b) === own) ?? breakdowns[0];
 }
 
-/** True when a proposal carries more than one lens — drives the dual-verdict
- *  summary + the Trend/Value toggle. */
+/** True when a proposal carries more than one lens — drives the verdict matrix +
+ *  the sleeve toggle. */
 export function isDualLens(lenses: readonly unknown[]): boolean {
   return lenses.length > 1;
 }
@@ -120,5 +134,23 @@ export function dualVerdictSummary(
     .map(
       (l) => `${STRATEGY_LABEL[l.strategy]}: ${l.redTeam?.verdict ?? "not run"}`,
     )
+    .join(" · ");
+}
+
+/** Glanceable multi-sleeve verdict summary (verdict-matrix M7), e.g.
+ *  `Core ✓ · Position concern · Trend ✗`. Keyed on each lens's sleeve. */
+export function multiVerdictSummary(
+  lenses: readonly {
+    sleeve?: Sleeve | null;
+    strategy: Strategy;
+    redTeam: RedTeamVerdict | null;
+  }[],
+): string {
+  return lenses
+    .map((l) => {
+      const v = l.redTeam?.verdict;
+      const mark = v === "approve" ? "✓" : v === "reject" ? "✗" : v ?? "not run";
+      return `${SLEEVE_LABEL[lensSleeveOf(l)]} ${mark}`;
+    })
     .join(" · ");
 }

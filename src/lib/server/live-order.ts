@@ -286,6 +286,11 @@ export interface ApprovalOrder {
   sleeve?: Sleeve | null;
   /** Legacy mandate, used to derive the sleeve when `sleeve` is absent. */
   strategy?: Strategy | null;
+  /** Core-long (target-weight) levels (verdict-matrix M7) — so a core-long acting
+   *  lens gates under its review-trigger rail (no stop) instead of being blocked
+   *  by the swing stop rail. Null for risk-to-stop sleeves. */
+  reviewTriggerPct?: number | null;
+  targetWeightPct?: number | null;
 }
 
 export type ApprovalOutcome =
@@ -420,6 +425,8 @@ function toProposedOrder(o: ApprovalOrder): ProposedOrder {
     // Per-sleeve rails (per-sleeve-rails M2): swing/mid require a stop (unchanged);
     // a no-stop sleeve (core-long) is governed by its review trigger instead.
     requiresStop: sleeveRequiresStop(sleeveOf(o)),
+    reviewTriggerPct: o.reviewTriggerPct ?? null,
+    targetWeightPct: o.targetWeightPct ?? null,
   };
 }
 

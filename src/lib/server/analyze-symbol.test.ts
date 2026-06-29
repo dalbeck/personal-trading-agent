@@ -738,6 +738,40 @@ describe("analyzeSymbol", () => {
     expect(res.risk.ok).toBe(true);
   });
 
+  it("evaluates a symbol under multiple sleeves on one proposal, research fetched once (verdict-matrix M7)", async () => {
+    let researchCalls = 0;
+    const res = await analyzeSymbol("NVDA", {
+      account: "live",
+      dataDir: dir,
+      now: () => new Date("2026-06-26T09:00:00-04:00"),
+      fetchBars: async () => ramp(60, 100, 1),
+      fetchQuote: async () => 159,
+      readSnapshot: snapshotSeam,
+      fetchResearch: async () => {
+        researchCalls += 1;
+        return researchSeam();
+      },
+      redTeamExec: approveExec,
+      extraSleeves: ["position-mid", "core-long"],
+    });
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // Research fetched ONCE and shared across all four sleeve-lenses.
+    expect(researchCalls).toBe(1);
+    const sleeves = res.proposal.lenses.map((l) => l.sleeve ?? null);
+    // Swing trend + value (sleeve null → derived) plus the two selected extras.
+    expect(res.proposal.lenses).toHaveLength(4);
+    expect(sleeves).toContain("position-mid");
+    expect(sleeves).toContain("core-long");
+    // Each lens carries its own red-team verdict.
+    expect(res.proposal.lenses.every((l) => l.redTeam?.verdict)).toBe(true);
+    // The core-long lens is target-weight (no stop).
+    const core = res.proposal.lenses.find((l) => l.sleeve === "core-long")!;
+    expect(core.stopPrice).toBeNull();
+    expect(core.targetWeightPct).toBeGreaterThan(0);
+  });
+
   it("a core-long analyze with no target weight falls back to a default weight", async () => {
     const res = await analyzeSymbol("VOO", {
       account: "live",

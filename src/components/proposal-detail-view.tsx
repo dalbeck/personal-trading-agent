@@ -24,12 +24,14 @@ import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { confidenceBucket } from "@/lib/confidence";
 import { convictionDisplay } from "@/lib/conviction-display";
 import { redTeamVerdictStyle } from "@/lib/red-team-style";
-import { strategyStyle } from "@/lib/strategy-style";
+import { strategyStyle, sleeveStyle } from "@/lib/strategy-style";
 import { STRATEGY_DESCRIPTION, STRATEGY_LABEL } from "@/lib/strategy";
+import { HORIZON_LABEL, SLEEVE_LABEL, SLEEVES, horizonOf } from "@/lib/sleeves";
 import {
   buildProposalLenses,
-  dualVerdictSummary,
   isDualLens,
+  lensSleeveOf,
+  multiVerdictSummary,
 } from "@/lib/proposal-lens";
 import { hasCashFlowData } from "@/lib/cash-flow";
 import { hasDividendData } from "@/lib/dividend";
@@ -168,11 +170,14 @@ export function ProposalDetailView({
               {p.symbol}
             </Link>
           </h1>
-          {lenses.map((l) => (
-            <Badge key={l.strategy} tone={strategyStyle[l.strategy].tone}>
-              {strategyStyle[l.strategy].label}
-            </Badge>
-          ))}
+          {lenses.map((l) => {
+            const s = lensSleeveOf(l);
+            return (
+              <Badge key={s} tone={sleeveStyle[s].tone}>
+                {sleeveStyle[s].label}
+              </Badge>
+            );
+          })}
           {/* Red-team verdict is the HEADLINE (conviction-honesty M1) — a
               semantic pill (reject → danger), so a rejected proposal reads as
               rejected at a glance, not reassuring. */}
@@ -227,35 +232,19 @@ export function ProposalDetailView({
           </span>
         </div>
 
-        {/* Dual-verdict summary + lens toggle — only when a proposal carries
-            more than one lens (dormant until dual-lens analyses exist). */}
+        {/* Multi-sleeve verdict matrix + lens toggle (verdict-matrix M7) — only
+            when a proposal carries more than one lens. The matrix shows every
+            evaluated sleeve's red-team verdict; the toggle picks the ACTING lens. */}
         {dual ? (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col gap-2">
             <span className="text-sm font-medium text-fg">
-              {dualVerdictSummary(lenses)}
+              {multiVerdictSummary(lenses)}
             </span>
-            <div
-              className="inline-flex overflow-hidden rounded-pill border border-line"
-              role="group"
-              aria-label="Strategy lens"
-            >
-              {lenses.map((l, i) => (
-                <button
-                  key={l.strategy}
-                  type="button"
-                  title={STRATEGY_DESCRIPTION[l.strategy]}
-                  aria-pressed={activeIdx === i}
-                  onClick={() => setActiveIdx(i)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
-                    activeIdx === i
-                      ? "bg-accent/15 text-fg"
-                      : "text-fg-muted hover:bg-surface-overlay hover:text-fg"
-                  }`}
-                >
-                  {STRATEGY_LABEL[l.strategy]}
-                </button>
-              ))}
-            </div>
+            <VerdictMatrix
+              lenses={lenses}
+              activeIdx={activeIdx}
+              onPick={setActiveIdx}
+            />
           </div>
         ) : null}
       </header>
@@ -495,7 +484,7 @@ export function ProposalDetailView({
             <ProposalActions
               proposal={p}
               liveEnabled={liveEnabled}
-              activeLens={lens.strategy}
+              activeLens={lensSleeveOf(lens)}
               dual={dual}
             />
           </Section>
@@ -602,5 +591,94 @@ function Dot() {
     <span aria-hidden className="text-fg-muted/40">
       ·
     </span>
+  );
+}
+
+/** The lens's key levels for the verdict matrix — entry + (stop/target) for a
+ *  risk-to-stop lens, or entry + target weight for a core target-weight lens. */
+function lensLevels(
+  lens: ReturnType<typeof buildProposalLenses>[number],
+): string {
+  if (lens.targetWeightPct != null) {
+    return `${formatCurrency(lens.limitPrice)} · ${formatPercent(lens.targetWeightPct, { signed: false })} wt`;
+  }
+  const parts = [formatCurrency(lens.limitPrice)];
+  if (lens.stopPrice != null) parts.push(`stop ${formatCurrency(lens.stopPrice)}`);
+  if (lens.takeProfit != null) parts.push(`tgt ${formatCurrency(lens.takeProfit)}`);
+  return parts.join(" · ");
+}
+
+/**
+ * The sleeve × verdict matrix (verdict-matrix M7). One row per sleeve: an
+ * evaluated sleeve shows its red-team verdict, key levels, and conviction; a
+ * sleeve the human didn't select reads "not evaluated" — never a fake pass.
+ * Clicking an evaluated row picks it as the ACTING lens (what approval uses).
+ */
+function VerdictMatrix({
+  lenses,
+  activeIdx,
+  onPick,
+}: {
+  lenses: ReturnType<typeof buildProposalLenses>;
+  activeIdx: number;
+  onPick: (i: number) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-card border border-line">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-line bg-surface-raised text-left text-fg-muted">
+            <th className="px-3 py-2 font-medium">Sleeve</th>
+            <th className="px-3 py-2 font-medium">Red-team</th>
+            <th className="px-3 py-2 text-right font-medium">Levels</th>
+            <th className="px-3 py-2 text-right font-medium">Conviction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {SLEEVES.map((sleeve) => {
+            const idx = lenses.findIndex((l) => lensSleeveOf(l) === sleeve);
+            const lens = idx >= 0 ? lenses[idx] : null;
+            const isActive = idx === activeIdx;
+            return (
+              <tr
+                key={sleeve}
+                onClick={lens ? () => onPick(idx) : undefined}
+                aria-pressed={isActive}
+                className={`border-b border-line/60 last:border-0 ${
+                  lens ? "cursor-pointer hover:bg-surface-overlay" : "opacity-60"
+                } ${isActive ? "bg-accent/10" : ""}`}
+              >
+                <td className="px-3 py-2">
+                  <span className="font-medium text-fg">{SLEEVE_LABEL[sleeve]}</span>{" "}
+                  <span className="text-fg-muted">{HORIZON_LABEL[horizonOf(sleeve)]}</span>
+                  {isActive ? (
+                    <span className="ml-1 font-medium text-accent">· acting</span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2">
+                  {lens?.redTeam ? (
+                    <span
+                      className={`inline-flex items-center rounded-pill border px-2 py-0.5 font-semibold ${redTeamVerdictStyle[lens.redTeam.verdict].className}`}
+                    >
+                      {redTeamVerdictStyle[lens.redTeam.verdict].label}
+                    </span>
+                  ) : lens ? (
+                    <span className="text-fg-muted">not run</span>
+                  ) : (
+                    <span className="text-fg-subtle">not evaluated</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-fg-muted">
+                  {lens ? lensLevels(lens) : "—"}
+                </td>
+                <td className="px-3 py-2 text-right capitalize text-fg-muted">
+                  {lens?.convictionTier ?? "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

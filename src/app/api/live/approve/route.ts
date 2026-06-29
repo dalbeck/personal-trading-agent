@@ -5,8 +5,9 @@ import {
   setProposalStatus,
 } from "@/lib/server/writers";
 import { isAdvisoryProposal } from "@/lib/proposal-advisory";
-import { resolveActiveLens } from "@/lib/proposal-lens";
-import { sleeveOf } from "@/lib/sleeves";
+import { lensSleeveOf, resolveActiveLens } from "@/lib/proposal-lens";
+import { SLEEVES } from "@/lib/sleeves";
+import type { Sleeve } from "@/lib/sleeves";
 
 /**
  * Per-trade human approval endpoint (Phase 3 M3). The dashboard posts the
@@ -92,22 +93,25 @@ export async function POST(req: Request): Promise<Response> {
   // order, and the order is risk-checked + gated under it — exactly as if it were
   // a single-lens proposal at those levels. For a single-lens proposal this is
   // the lone top-level lens, so behaviour is unchanged.
-  const actingLens =
+  // The acting lens the human picked (verdict-matrix M7) — a sleeve id (or a
+  // legacy `trend`/`value`, which resolveActiveLens maps to its swing sleeve).
+  const actingLens: Sleeve | "trend" | "value" | undefined =
     body.actingLens === "trend" || body.actingLens === "value"
       ? body.actingLens
-      : undefined;
+      : (SLEEVES as readonly string[]).includes(body.actingLens ?? "")
+        ? (body.actingLens as Sleeve)
+        : undefined;
   const lens = resolveActiveLens(proposal, actingLens);
+  const actingSleeve = lensSleeveOf(lens);
   const isDual = (proposal.lenses ?? []).length > 0;
   // Carry the proposal's origin (manual analyze → `manual-request`, M2) and the
-  // acting lens (dual-lens → `lens:<strategy>`) into the journal so the decision
-  // basis is auditable.
+  // acting lens into the journal so the decision basis is auditable.
   const tags: string[] = [];
   if (proposal.origin === "manual-request") tags.push("manual-request");
   if (isDual) tags.push(`lens:${lens.strategy}`);
-  // Tag the trade with its sleeve (portfolio M5) so a holding can be attributed
-  // to a sleeve for allocation/drift. The acting sleeve = the proposal's sleeve
-  // when set (core/mid), else derived from the acting lens (swing trend/value).
-  tags.push(`sleeve:${sleeveOf({ sleeve: proposal.sleeve, strategy: lens.strategy })}`);
+  // Tag the trade with its acting sleeve (portfolio M5 / verdict-matrix M7) so a
+  // holding can be attributed to a sleeve for allocation/drift.
+  tags.push(`sleeve:${actingSleeve}`);
 
   // Staged-entry tranche (staged-entry-plan M2): when the human approves a
   // specific tranche, the order places THAT tranche's qty (a fraction of the full
@@ -164,9 +168,13 @@ export async function POST(req: Request): Promise<Response> {
         redTeam: lens.redTeam,
         account: proposal.account,
         sector: proposal.sector,
-        // The acting lens's mandate drives the per-sleeve rails (per-sleeve-rails
-        // M2); swing resolves to the unchanged RISK_LIMITS.
+        // The acting SLEEVE drives the per-sleeve rails (per-sleeve-rails M2 /
+        // verdict-matrix M7) — a core-long acting lens gates under its
+        // review-trigger rail (no stop), not the swing rails.
+        sleeve: actingSleeve,
         strategy: lens.strategy,
+        reviewTriggerPct: lens.reviewTriggerPct,
+        targetWeightPct: lens.targetWeightPct,
         targetType: lens.targetType,
         relativeVolume: lens.relativeVolume,
         catalyst: lens.catalyst,

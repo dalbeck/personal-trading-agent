@@ -13,7 +13,7 @@ import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { isAdvisoryProposal, type AdvisoryDecision } from "@/lib/proposal-advisory";
 import { resolveActiveLens } from "@/lib/proposal-lens";
 import { nextPendingTranche } from "@/lib/staged-entry";
-import { STRATEGY_LABEL, type Strategy } from "@/lib/strategy";
+import { SLEEVE_LABEL, type Sleeve } from "@/lib/sleeves";
 import type { TradeProposal } from "@/lib/types";
 
 /**
@@ -74,10 +74,10 @@ export function ProposalActions({
 }: {
   proposal: TradeProposal;
   liveEnabled: boolean;
-  /** The lens the human has toggled to (dual-lens M1). Approving acts under it:
-   *  the order uses this lens's levels + red-team verdict, and the journal
-   *  records it. Omitted/undefined for single-lens proposals. */
-  activeLens?: Strategy;
+  /** The sleeve the human has toggled to (verdict-matrix M7). Approving acts
+   *  under it: the order uses this lens's levels + red-team verdict, and the
+   *  journal records it. Omitted/undefined for single-lens proposals. */
+  activeLens?: Sleeve;
   /** Whether the proposal is dual-lens — drives the "acting under X lens" copy. */
   dual?: boolean;
 }) {
@@ -370,10 +370,10 @@ export function ProposalActions({
           {dual && activeLens ? (
             <p className="rounded-card border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg">
               Approving under the{" "}
-              <span className="font-semibold">{STRATEGY_LABEL[activeLens]}</span>{" "}
-              lens — this order uses its levels and verdict, and the journal
-              records it as the rationale. Toggle the lens on the page to act
-              under the other.
+              <span className="font-semibold">{SLEEVE_LABEL[activeLens]}</span>{" "}
+              sleeve — this order uses its levels and verdict, and the journal
+              records it as the rationale. Pick another row in the matrix to act
+              under a different sleeve.
             </p>
           ) : null}
           <div className="rounded-card border border-line bg-surface p-4">

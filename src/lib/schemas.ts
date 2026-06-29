@@ -361,6 +361,12 @@ export const ResearchSourceTag = z.enum(["fmp", "perplexity", "robinhood"]);
 export const ProposalLensSchema = z
   .object({
     strategy: Strategy,
+    // The sleeve this lens evaluates (verdict-matrix M7) — generalizes the
+    // trend/value `strategy` to N sleeve-lenses so a manual analyze can carry a
+    // breakdown per selected sleeve (swing-trend / swing-value / position-mid /
+    // core-long). Nullable + null default so older dual-lens records validate; a
+    // null reads as the sleeve derived from `strategy` (via `lensSleeveOf`).
+    sleeve: Sleeve.nullable().default(null),
     limitPrice: money,
     stopPrice: money.nullable().default(null),
     takeProfit: money.nullable().default(null),
