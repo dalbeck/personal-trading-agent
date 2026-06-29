@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { STRATEGY_LABEL, type Strategy } from "@/lib/strategy";
+import { SLEEVE_LABEL, type Sleeve } from "@/lib/sleeves";
 
 type Verdict = "approve" | "concern" | "reject";
 interface LensOutcome {
-  strategy: Strategy;
+  sleeve: Sleeve;
   verdict: Verdict | null;
 }
 
@@ -185,9 +185,9 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
               <span className="font-semibold">{outcome.symbol}</span> analyzed
               and added below.{" "}
               {outcome.lenses.map((l, i) => (
-                <span key={l.strategy}>
+                <span key={l.sleeve}>
                   {i > 0 ? " · " : ""}
-                  {STRATEGY_LABEL[l.strategy]}:{" "}
+                  {SLEEVE_LABEL[l.sleeve]}:{" "}
                   <span
                     className={l.verdict ? verdictTone[l.verdict] : "text-fg-muted"}
                   >
