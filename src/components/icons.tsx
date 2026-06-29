@@ -23,6 +23,7 @@ import {
   Moon,
   Newspaper,
   NotebookPen,
+  PieChart,
   RefreshCw,
   Scale,
   ScrollText,
@@ -76,6 +77,7 @@ export const RoutinesIcon = lucideIcon(RefreshCw);
 export const LogsIcon = lucideIcon(ScrollText);
 export const ChatIcon = lucideIcon(MessageSquare);
 export const EvaluationIcon = lucideIcon(ClipboardCheck);
+export const PortfolioIcon = lucideIcon(PieChart);
 export const OperationsIcon = lucideIcon(SlidersHorizontal);
 export const GoLiveIcon = lucideIcon(ShieldCheck);
 export const RiskIcon = lucideIcon(ShieldAlert);

@@ -49,6 +49,26 @@ change-log below. Newest first.
 
 ## Change-log (cross-sleeve)
 
+> **2026-06-28 — Portfolio allocation & rebalancing layer (portfolio M5).** Added a
+> portfolio-management layer **above** the sleeves: a human-set **target allocation
+> across sleeves** (`data/control/allocation-targets.json`,
+> `AllocationTargetsSchema`), which the **agent reads and proposes against but never
+> edits** (charter-style discipline, like the rails and the charters). Holdings are
+> attributed to a sleeve from the trade journal — approvals now stamp a
+> `sleeve:<id>` tag — so per-sleeve **drift** vs the targets, per-sleeve + **blended
+> performance** (no cross-sleeve bleed), and **rebalancing suggestions** (trim the
+> overweight, add to the underweight, the add side **scaled in over tranches** with
+> the staged-entry machinery) can be computed. Suggestions are review-only drafts
+> the human queues into the **normal gated, per-trade-approved path**; nothing
+> auto-trades. Added a new **Portfolio** view (target vs current, drift,
+> performance, suggestions, the targets editor) and a **portfolio-rebalance-review**
+> routine on a monthly cadence (core/mid don't want a daily idea hunt; discovery
+> stays sleeve-appropriate via the existing sleeve flags). **No safety guard
+> changed:** the 6-order/day cap, the live exposure envelope, and the two-gate +
+> per-trade-approval model all still bind. Rationale: turn several sleeves into one
+> managed portfolio with explicit, human-owned target weights. See
+> `planning/portfolio-sleeves-and-horizons-spec.md`.
+
 > **2026-06-28 — Rails resolved per sleeve + target-weight sizing (per-sleeve-rails M2).**
 > The risk engine (`src/lib/risk/`) now resolves rails from the proposal's
 > **sleeve** (`railsForSleeve` in `sleeves.config.ts`) rather than one global

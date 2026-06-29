@@ -296,6 +296,20 @@ surfacing is gated by **`positionMidSleeveEnabled`** (off by default). The sleev
 not the lens's `strategy` — drives its checklist + red-team lens (`buildProposalLenses`
 passes the proposal's sleeve for the single-lens core/mid proposals).
 
+**Sleeve attribution + allocation targets (portfolio M5).** A broker `Position`
+carries **no** sleeve, so a holding is attributed to a sleeve from the trade
+journal: the approve route now stamps a **`sleeve:<id>`** tag on every approved
+trade (falling back to the older `lens:<strategy>` tag), and
+`attributeSleeve(symbol, journal)` (`src/lib/portfolio.ts`) reads the most recent
+tagged buy (else "unattributed"). The human's **target allocation across sleeves**
+lives in **`data/control/allocation-targets.json`** (`AllocationTargetsSchema`:
+per-sleeve `targetWeightPct`, a `driftBandPct`, a `blendedBenchmark`; empty by
+default, no duplicate sleeves, sum ≤ 100%) — the **agent reads it, never writes it**
+(`readAllocationTargets` / `writeAllocationTargets`; the human edits it on the
+Portfolio view). Drift, per-sleeve + blended performance, and rebalancing
+suggestions are pure (`src/lib/portfolio.ts`, `src/lib/rebalance.ts`); suggestions
+are review-only and flow the normal gated path.
+
 **Proposal `researchStatus` (research-unavailable-state M3).** The **value lens's**
 research availability for its quality data — a `ResearchStatus`
 (`ok | off | capped | unavailable`, nullable; mirrors `PerplexityStatus`). Set

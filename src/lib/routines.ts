@@ -77,4 +77,11 @@ export const ROUTINE_CATALOG: RoutineInfo[] = [
     description: "Coaching pass; promote durable lessons into the playbook.",
     schedule: "Sun · 7:00 PM ET",
   },
+  {
+    id: "portfolio-rebalance-review",
+    name: "Portfolio rebalance review",
+    description:
+      "Compute per-sleeve drift vs the target allocation → rebalancing suggestions (trim/add, human-approved). A slower cadence than the daily desk — core/mid don't want a daily idea hunt.",
+    schedule: "First Mon of month · 5:00 PM ET",
+  },
 ];

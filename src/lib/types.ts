@@ -6,6 +6,8 @@ import type {
   CatalystSourceSchema,
   CatalystState as CatalystStateSchema,
   CoachingEntrySchema,
+  AllocationTargetSchema,
+  AllocationTargetsSchema,
   DividendSignalsSchema,
   DiscoverySettingsSchema,
   EquityPointSchema,
@@ -75,3 +77,5 @@ export type WatchlistEntry = z.infer<typeof WatchlistEntrySchema>;
 export type RiskRailSetting = z.infer<typeof RiskRailSettingSchema>;
 export type RiskSettings = z.infer<typeof RiskSettingsSchema>;
 export type DiscoverySettings = z.infer<typeof DiscoverySettingsSchema>;
+export type AllocationTarget = z.infer<typeof AllocationTargetSchema>;
+export type AllocationTargets = z.infer<typeof AllocationTargetsSchema>;

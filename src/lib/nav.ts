@@ -9,6 +9,7 @@ import {
   NewsIcon,
   OperationsIcon,
   OverviewIcon,
+  PortfolioIcon,
   PositionsIcon,
   ProposalsIcon,
   RiskIcon,
@@ -29,6 +30,7 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Overview", href: "/", icon: OverviewIcon },
   { label: "Positions", href: "/positions", icon: PositionsIcon },
+  { label: "Portfolio", href: "/portfolio", icon: PortfolioIcon },
   { label: "Decision Journal", href: "/journal", icon: JournalIcon },
   { label: "Coaching", href: "/coaching", icon: CoachingIcon },
   { label: "Proposals", href: "/proposals", icon: ProposalsIcon },
