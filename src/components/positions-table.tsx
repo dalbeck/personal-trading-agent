@@ -8,6 +8,7 @@ import {
   toneForValue,
 } from "@/lib/format";
 import { TickerLink } from "@/components/ticker-link";
+import { daysHeld, isLongTerm } from "@/lib/tax";
 import type { Position } from "@/lib/types";
 
 type SortKey =
@@ -35,7 +36,14 @@ const COLUMNS: Column[] = [
   { key: "unrealizedPlPct", label: "Unreal. %", numeric: true },
 ];
 
-export function PositionsTable({ positions }: { positions: Position[] }) {
+export function PositionsTable({
+  positions,
+  asOf,
+}: {
+  positions: Position[];
+  /** Snapshot timestamp for the holding-period column (tax-awareness M6). */
+  asOf?: string | null;
+}) {
   const [sortKey, setSortKey] = useState<SortKey>("marketValue");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
 
@@ -99,6 +107,12 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
                 </th>
               );
             })}
+            <th
+              scope="col"
+              className="px-4 py-2.5 text-right font-medium text-fg-muted"
+            >
+              Held
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -135,6 +149,29 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
                 </td>
                 <td className={`px-4 py-4 text-right tabular-nums ${toneClass}`}>
                   {formatPercent(p.unrealizedPlPct)}
+                </td>
+                <td className="px-4 py-4 text-right tabular-nums text-fg-muted">
+                  {asOf ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      {daysHeld(p.openedAt, asOf)}d
+                      <span
+                        className={`rounded-pill px-1.5 py-0.5 text-[0.65rem] font-medium ${
+                          isLongTerm(p.openedAt, asOf)
+                            ? "bg-gain/10 text-gain"
+                            : "bg-fg-muted/10 text-fg-muted"
+                        }`}
+                        title={
+                          isLongTerm(p.openedAt, asOf)
+                            ? "Long-term (held > 365 days)"
+                            : "Short-term (held ≤ 365 days)"
+                        }
+                      >
+                        {isLongTerm(p.openedAt, asOf) ? "LT" : "ST"}
+                      </span>
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
             );

@@ -15,6 +15,7 @@ import {
   type SleeveWeight,
 } from "@/lib/portfolio";
 import { buildRebalanceTrades, type RebalanceResult, type RebalanceHolding } from "@/lib/rebalance";
+import { splitUnrealizedByTerm, type TermSplit } from "@/lib/tax";
 import type { Sleeve } from "@/lib/sleeves";
 import type { AllocationTargets } from "@/lib/types";
 
@@ -36,6 +37,8 @@ export interface PortfolioOverview {
   perf: SleevePerformance[];
   rebalance: RebalanceResult;
   targets: AllocationTargets;
+  /** Unrealized long-term vs short-term gain split (tax-awareness M6). */
+  taxSplit: TermSplit;
   blended: {
     benchmark: string;
     marketValueUsd: number;
@@ -108,8 +111,14 @@ export async function getPortfolioOverview(opts?: {
   const costBasisUsd = positions.reduce((s, p) => s + p.costBasis, 0);
   const unrealizedPlUsd = positions.reduce((s, p) => s + p.unrealizedPl, 0);
 
+  const taxSplit = splitUnrealizedByTerm(
+    positions.map((p) => ({ openedAt: p.openedAt, unrealizedPl: p.unrealizedPl })),
+    snapshot?.asOf ?? new Date(0).toISOString(),
+  );
+
   return {
     mode,
+    taxSplit,
     asOf: snapshot?.asOf ?? null,
     equityUsd,
     cashUsd,

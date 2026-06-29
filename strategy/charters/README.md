@@ -49,6 +49,21 @@ change-log below. Newest first.
 
 ## Change-log (cross-sleeve)
 
+> **2026-06-28 — Tax-lot & holding-period surfacing (tax-awareness M6, advisory).**
+> Surfaced tax context for the longer-horizon book: per-position **holding period**
+> with the **long-term line (365 days)** and a **LT/ST badge** on the Positions
+> table, an **unrealized long-term vs short-term split** on the Portfolio view, a
+> **wash-sale warning** on a loss-realizing sell with a same-symbol buy inside 30
+> days (and the reverse — a buy after a recent sale, treated as a *possible* loss
+> advisory), and a **"nearly long-term" sell note** when a gain lot is within ~a
+> month of the 365-day line. **All of this is surfaced caution, never a hard
+> block** — consistent with how weak catalysts/targets are flagged, not gated — and
+> there is **no automated lot selection** (deferred). No rail, gate, sizing, or
+> red-team change; advisory only (`src/lib/tax.ts`, `src/lib/server/tax-advisory.ts`).
+> Rationale: once "long-term" is a goal, the human needs holding-period and
+> wash-sale visibility to decide well — without the desk optimizing taxes on their
+> behalf. See `planning/portfolio-sleeves-and-horizons-spec.md`.
+
 > **2026-06-28 — Portfolio allocation & rebalancing layer (portfolio M5).** Added a
 > portfolio-management layer **above** the sleeves: a human-set **target allocation
 > across sleeves** (`data/control/allocation-targets.json`,
