@@ -66,11 +66,17 @@ export async function writeRiskSettings(
  * enabled rail with a `value` overrides that number; a disabled rail is skipped.
  * `value` is ignored for the on/off rails (stopRequired, universe).
  */
-export function effectiveRiskConfig(settings: RiskSettings): {
+export function effectiveRiskConfig(
+  settings: RiskSettings,
+  base: RiskLimits = RISK_LIMITS,
+): {
   limits: RiskLimits;
   skipRules: string[];
 } {
-  const limits: RiskLimits = { ...RISK_LIMITS };
+  // `base` is the sleeve's rail block (per-sleeve-rails M2). Defaults to the swing
+  // RISK_LIMITS so an un-sleeved caller is unchanged; the human's overlay layers
+  // on top of whichever sleeve's rails apply.
+  const limits: RiskLimits = { ...base };
   const skipRules: string[] = [];
 
   if (!settings.positionSize.enabled) skipRules.push("position-size");
@@ -91,9 +97,12 @@ export function effectiveRiskConfig(settings: RiskSettings): {
   return { limits, skipRules };
 }
 
-/** Read the settings and produce the effective risk config (limits + skipRules). */
+/** Read the settings and produce the effective risk config (limits + skipRules).
+ *  `base` is the sleeve's rail block (per-sleeve-rails M2); defaults to the swing
+ *  RISK_LIMITS so existing callers are unchanged. */
 export async function getEffectiveRiskConfig(opts?: {
   dataDir?: string;
+  base?: RiskLimits;
 }): Promise<{ limits: RiskLimits; skipRules: string[] }> {
-  return effectiveRiskConfig(await readRiskSettings(opts));
+  return effectiveRiskConfig(await readRiskSettings(opts), opts?.base);
 }

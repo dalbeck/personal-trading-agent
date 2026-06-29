@@ -33,6 +33,65 @@ export const RISK_LIMITS: RiskLimits = {
 };
 
 /**
+ * Per-sleeve rail blocks (per-sleeve-rails M2). The risk engine resolves a
+ * proposal's rails from its **sleeve** (`railsForSleeve` in
+ * `strategy/sleeves.config.ts`) rather than one global block. `RISK_LIMITS` above
+ * stays the **swing** block, byte-unchanged and tripwire-tested; the two blocks
+ * below are the new horizons' rail numbers. The **safety envelope is still
+ * shared and unchanged**: every block keeps `maxOrdersPerDay: 6` (the single
+ * cross-sleeve daily order counter — more sleeves never means more orders), the
+ * marketable-limit-only order type, and the same drawdown/emergency halts; and
+ * the live envelope (`LIVE_LIMITS`) binds every sleeve regardless. The agent can
+ * never raise any of these.
+ */
+
+/**
+ * **Mid-term / position** rails (`position-mid`). A weeks–quarters book: the same
+ * ≤2% risk-to-stop cap and a **stop still required**, but a **slightly larger
+ * per-name size** (25% vs the swing 20%) for a higher-conviction, longer hold.
+ * Sector, count, drawdown, emergency, order-type, universe, and the daily cap are
+ * the swing values. (Declared in M2; the sleeve is enabled in M4.)
+ */
+export const POSITION_MID_LIMITS: RiskLimits = {
+  perPositionRiskPct: 0.02,
+  perPositionSizePct: 0.25,
+  maxSectorWeightPct: 0.4,
+  maxConcurrentPositions: 5,
+  maxOrdersPerDay: 6,
+  drawdownHaltPct: 0.1,
+  emergencySpyDropPct: 0.02,
+  emergencyVixLevel: 30,
+  allowedOrderTypes: ["marketable_limit"],
+  allowedAssetClasses: ["equity"],
+  excludedSymbols: ["SPY"],
+};
+
+/**
+ * **Long-term / core** rails (`core-long`). A quarters–years book sized by
+ * **target allocation weight** (sizing model `target-weight`), with **no
+ * protective stop** — a wide drawdown/review trigger stands in (`requiresStop:
+ * false` on the sleeve; the `review-trigger` rail enforces it). A core holding is
+ * deliberately a **larger slice** (up to 60% per name) and the **sector cap is
+ * looser** (60%) because a broad core position is meant to be concentrated; the
+ * account-level drawdown halt and the live exposure ceiling still bind. The
+ * universe stays equity-only here in M2; the ETF/index permission is added when
+ * the sleeve ships (M3). (Declared in M2; enabled in M3.)
+ */
+export const CORE_LONG_LIMITS: RiskLimits = {
+  perPositionRiskPct: 0.02,
+  perPositionSizePct: 0.6,
+  maxSectorWeightPct: 0.6,
+  maxConcurrentPositions: 5,
+  maxOrdersPerDay: 6,
+  drawdownHaltPct: 0.1,
+  emergencySpyDropPct: 0.02,
+  emergencyVixLevel: 30,
+  allowedOrderTypes: ["marketable_limit"],
+  allowedAssetClasses: ["equity"],
+  excludedSymbols: ["SPY"],
+};
+
+/**
  * Phase 3 **live-pilot** caps — additional, live-only guardrails layered on top
  * of RISK_LIMITS for the funded Robinhood account. Mirror of the "Live pilot
  * caps" section in `strategy/charter.md`; keep in lockstep (the tripwire test

@@ -1,3 +1,9 @@
+import {
+  CORE_LONG_LIMITS,
+  POSITION_MID_LIMITS,
+  RISK_LIMITS,
+} from "./charter.config";
+import type { RiskLimits } from "@/lib/risk/types";
 import type { Horizon, Sleeve } from "@/lib/types";
 
 /**
@@ -58,6 +64,11 @@ export interface SleeveConfig {
   universeId: UniverseId;
   /** Sizing model. */
   sizingModel: SizingModel;
+  /** Whether an entry in this sleeve **requires a protective stop** (per-sleeve-
+   *  rails M2). `true` for `swing-*` and `position-mid` (a stopless entry is
+   *  rejected and journaled); `false` for `core-long`, which is sized by target
+   *  weight and validated by a wide drawdown/**review trigger** instead of a stop. */
+  requiresStop: boolean;
   /** Rail block in `charter.config.ts`. */
   railsId: RailsId;
   /** Red-team lens this sleeve is prosecuted under (never merged with another). */
@@ -80,6 +91,7 @@ export const SLEEVE_CONFIGS: Record<Sleeve, SleeveConfig> = {
     charterPath: "charter.md",
     universeId: "us-equities",
     sizingModel: "risk-to-stop",
+    requiresStop: true,
     railsId: "swing",
     redTeamLensId: "trend",
     checklistId: "trend",
@@ -95,6 +107,7 @@ export const SLEEVE_CONFIGS: Record<Sleeve, SleeveConfig> = {
     charterPath: "charter.md",
     universeId: "us-equities",
     sizingModel: "risk-to-stop",
+    requiresStop: true,
     railsId: "swing",
     redTeamLensId: "value",
     checklistId: "value",
@@ -110,6 +123,7 @@ export const SLEEVE_CONFIGS: Record<Sleeve, SleeveConfig> = {
     charterPath: "charters/position-mid.md",
     universeId: "us-equities",
     sizingModel: "risk-to-stop",
+    requiresStop: true,
     railsId: "position-mid",
     redTeamLensId: "position-mid",
     checklistId: "position-mid",
@@ -125,6 +139,7 @@ export const SLEEVE_CONFIGS: Record<Sleeve, SleeveConfig> = {
     charterPath: "charters/core-long.md",
     universeId: "us-equities-plus-funds",
     sizingModel: "target-weight",
+    requiresStop: false,
     railsId: "core-long",
     redTeamLensId: "core-long",
     checklistId: "core-long",
@@ -149,4 +164,25 @@ export function sleeveConfig(id: Sleeve): SleeveConfig {
 /** The enabled sleeves only — the live mandates. M1: the two swing sleeves. */
 export function enabledSleeves(): readonly SleeveConfig[] {
   return SLEEVE_CONFIG_LIST.filter((s) => s.enabled);
+}
+
+/** The rail block a `railsId` resolves to (per-sleeve-rails M2). The enforced
+ *  numbers live in `charter.config.ts`; this only routes. */
+const RAILS_BY_ID: Record<RailsId, RiskLimits> = {
+  swing: RISK_LIMITS,
+  "position-mid": POSITION_MID_LIMITS,
+  "core-long": CORE_LONG_LIMITS,
+};
+
+/** Resolve a sleeve's rail block (per-sleeve-rails M2). The two swing sleeves
+ *  resolve to the **unchanged** `RISK_LIMITS`; the new sleeves to their own
+ *  blocks. This is the base the human's risk-settings overlay layers on top of. */
+export function railsForSleeve(sleeve: Sleeve): RiskLimits {
+  return RAILS_BY_ID[SLEEVE_CONFIGS[sleeve].railsId];
+}
+
+/** Whether a sleeve requires a protective stop on every entry (per-sleeve-rails
+ *  M2). `core-long` is the one `false` — it uses a drawdown/review trigger. */
+export function sleeveRequiresStop(sleeve: Sleeve): boolean {
+  return SLEEVE_CONFIGS[sleeve].requiresStop;
 }

@@ -39,6 +39,10 @@ import {
   runSingleFlight,
 } from "./order-idempotency";
 import { getEffectiveRiskConfig } from "./risk-settings";
+import { railsForSleeve, sleeveRequiresStop } from "@strategy/sleeves.config";
+import { sleeveOf } from "@/lib/sleeves";
+import type { Sleeve } from "@/lib/sleeves";
+import type { Strategy } from "@/lib/strategy";
 import { getCachedSector } from "./symbol-research";
 import {
   runRedTeam,
@@ -276,6 +280,12 @@ export interface ApprovalOrder {
   /** The named catalyst — why *now* (M3); a `none`/missing one is flagged weak. */
   catalyst?: string | null;
   catalystType?: string | null;
+  /** The sleeve the order belongs to (per-sleeve-rails M2) — drives which rail
+   *  block + stop requirement apply. Absent → derived from `strategy` (swing), so
+   *  an un-sleeved order resolves to the unchanged swing rails. */
+  sleeve?: Sleeve | null;
+  /** Legacy mandate, used to derive the sleeve when `sleeve` is absent. */
+  strategy?: Strategy | null;
 }
 
 export type ApprovalOutcome =
@@ -407,6 +417,9 @@ function toProposedOrder(o: ApprovalOrder): ProposedOrder {
     // Winner-exit + concentration rails (M3).
     takeProfit: o.takeProfit,
     sector: o.sector ?? null,
+    // Per-sleeve rails (per-sleeve-rails M2): swing/mid require a stop (unchanged);
+    // a no-stop sleeve (core-long) is governed by its review trigger instead.
+    requiresStop: sleeveRequiresStop(sleeveOf(o)),
   };
 }
 
@@ -462,9 +475,14 @@ export async function evaluateApprovalBlocks(
       : await readLatestSnapshot(order.account ?? "paper");
   let railViolations: Violation[] = [];
   if (snapshot) {
+    // Resolve the rail block from the order's sleeve (per-sleeve-rails M2), then
+    // layer the human's overlay on top. Swing → the unchanged RISK_LIMITS.
     const { limits, skipRules } =
       opts.riskConfig ??
-      (await getEffectiveRiskConfig({ dataDir: opts.dataDir }));
+      (await getEffectiveRiskConfig({
+        dataDir: opts.dataDir,
+        base: railsForSleeve(sleeveOf(order)),
+      }));
     // Real risk-context inputs so the daily-order-cap and emergency-stop rails
     // actually fire at approval: the persisted per-ET-day order counter and a
     // live SPY/VIX read (both injectable for tests; both fail-soft).

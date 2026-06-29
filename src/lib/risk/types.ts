@@ -32,6 +32,20 @@ export interface ProposedOrder {
   /** GICS-style sector for the concentration rail (e.g. "Technology"). Null/
    *  absent when unknown — the sector rail then cannot fire (fails open). */
   sector?: string | null;
+  /** Whether this order's sleeve requires a protective stop (per-sleeve-rails
+   *  M2). Defaults to **required** (`true`/absent) so a swing/mid order behaves
+   *  exactly as before — `stopAttached` + `winnerExit` fire. `false` (core-long,
+   *  target-weight) drops those two rails and instead requires a `reviewTriggerPct`
+   *  via the `review-trigger` rail. */
+  requiresStop?: boolean;
+  /** The wide drawdown that flags a human **review** for a no-stop (core-long)
+   *  position, a fraction (0.25 === −25%). Required when `requiresStop === false`;
+   *  ignored otherwise. Not an auto-exit — it flags review, not a market order. */
+  reviewTriggerPct?: number | null;
+  /** The target portfolio weight a `target-weight` order was sized to, a fraction
+   *  (0.4 === 40% of equity). Carried for journaling/context; the size cap itself
+   *  is still enforced by `perPositionSize`. Null for risk-to-stop orders. */
+  targetWeightPct?: number | null;
 }
 
 /** A currently-open holding (only the fields the rails need). */
