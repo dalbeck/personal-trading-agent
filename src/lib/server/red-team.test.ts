@@ -131,6 +131,20 @@ describe("buildProsecutorPrompt", () => {
     expect(prompt).not.toMatch(/COUNTER-TREND IS EXPECTED/);
   });
 
+  it("threads the sleeve identically to strategy for swing (do no harm)", () => {
+    // swing-trend == bare trend; swing-value == strategy:value, byte-for-byte.
+    expect(buildProsecutorPrompt({ ...proposal, sleeve: "swing-trend" })).toBe(
+      buildProsecutorPrompt(proposal),
+    );
+    expect(buildProsecutorPrompt({ ...proposal, sleeve: "swing-value" })).toBe(
+      buildProsecutorPrompt({ ...proposal, strategy: "value" }),
+    );
+    // The sleeve wins over a mismatched/stale top-level strategy.
+    expect(
+      buildProsecutorPrompt({ ...proposal, strategy: "trend", sleeve: "swing-value" }),
+    ).toBe(buildProsecutorPrompt({ ...proposal, strategy: "value" }));
+  });
+
   it("briefs the VALUE lens differently: counter-trend expected, hunt the value trap", () => {
     const prompt = buildProsecutorPrompt({ ...proposal, strategy: "value" });
     expect(prompt).toMatch(/VALUE \/ MEAN-REVERSION/);

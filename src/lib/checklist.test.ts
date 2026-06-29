@@ -28,6 +28,31 @@ function item(list: ReturnType<typeof buildChecklist>, fragment: string) {
   return list.find((c) => c.label.includes(fragment));
 }
 
+describe("buildChecklist — sleeve threads through identically for swing", () => {
+  it("swing-trend yields the byte-identical trend checklist", () => {
+    const base = makeProposal({ strategy: "trend" });
+    expect(buildChecklist({ ...base, sleeve: "swing-trend" })).toEqual(
+      buildChecklist(base),
+    );
+  });
+
+  it("swing-value yields the byte-identical value checklist", () => {
+    const base = makeProposal({ strategy: "value" });
+    expect(buildChecklist({ ...base, sleeve: "swing-value" })).toEqual(
+      buildChecklist(base),
+    );
+  });
+
+  it("the sleeve takes precedence over a mismatched strategy", () => {
+    // A value-sleeve proposal whose stale top-level strategy still says trend is
+    // judged under value (the sleeve wins).
+    const p = makeProposal({ strategy: "trend", sleeve: "swing-value" });
+    expect(buildChecklist(p)).toEqual(
+      buildChecklist(makeProposal({ strategy: "value" })),
+    );
+  });
+});
+
 describe("buildChecklist — trend mandate", () => {
   it("includes the breakout-volume item and trend-framed labels", () => {
     const list = buildChecklist(makeProposal({ strategy: "trend" }));

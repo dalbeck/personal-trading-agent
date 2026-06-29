@@ -9,6 +9,7 @@ import type {
   DividendSignalsSchema,
   DiscoverySettingsSchema,
   EquityPointSchema,
+  Horizon as HorizonSchema,
   JournalEntrySchema,
   MaterialNewsItemSchema,
   PortfolioSnapshotSchema,
@@ -55,6 +56,12 @@ export type ProposalLensBreakdown = z.infer<typeof ProposalLensSchema>;
 export type StagedTranche = z.infer<typeof StagedTrancheSchema>;
 export type StagedEntryPlan = z.infer<typeof StagedEntryPlanSchema>;
 export type TradeProposal = z.infer<typeof TradeProposalSchema>;
+/** The sleeve a proposal belongs to (sleeve-framework M1). Read it through
+ *  `sleeveOf(proposal)` in `src/lib/sleeves.ts`, which derives from `strategy`
+ *  when the field is null (older records). */
+export type Sleeve = NonNullable<TradeProposal["sleeve"]>;
+/** The derived investment horizon of a sleeve (sleeve-framework M1). */
+export type Horizon = z.infer<typeof HorizonSchema>;
 
 export type CoachingEntry = z.infer<typeof CoachingEntrySchema>;
 

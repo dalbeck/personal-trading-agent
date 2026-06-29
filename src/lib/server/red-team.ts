@@ -16,6 +16,7 @@ import {
 } from "@/lib/dividend";
 import { formatCompactCurrency, formatPercent } from "@/lib/format";
 import { researchUnavailableLabel } from "@/lib/research-availability";
+import { sleeveToStrategy, type Sleeve } from "@/lib/sleeves";
 import type {
   CashFlowQuality,
   CatalystSource,
@@ -46,6 +47,11 @@ export interface RedTeamProposal {
    *  prosecutor hunts value-trap signals instead). The two lenses are never
    *  merged — each proposal is judged under the one it carries. */
   strategy?: "trend" | "value";
+  /** The sleeve to brief the prosecutor under (sleeve-framework M1). When set it
+   *  takes precedence over `strategy` to pick the lens; the two swing sleeves
+   *  resolve to the same trend/value lens as `strategy`, so the swing prosecutor
+   *  briefing is byte-identical. Optional so existing callers are untouched. */
+  sleeve?: Sleeve | null;
   qty: number;
   limitPrice: number;
   stopPrice: number | null;
@@ -198,7 +204,7 @@ export type RedTeamExec = (prompt: string) => Promise<string>;
 export type RedTeamOutcome = "allow" | "downsize" | "block";
 
 export function buildProsecutorPrompt(p: RedTeamProposal): string {
-  const isValue = p.strategy === "value";
+  const isValue = (p.sleeve ? sleeveToStrategy(p.sleeve) : p.strategy) === "value";
   // catalyst-state-honesty M2: a FAILED fetch is "unavailable", NOT a real
   // "no catalyst" — the prosecutor must not reject on that basis.
   const catalystUnavailable = p.catalystState === "unavailable";

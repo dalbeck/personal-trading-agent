@@ -8,7 +8,8 @@ import { ChevronRightIcon } from "@/components/icons";
 import { confidenceBucket } from "@/lib/confidence";
 import { CONVICTION_TIERS } from "@/lib/conviction";
 import { convictionDisplay } from "@/lib/conviction-display";
-import { strategyStyle } from "@/lib/strategy-style";
+import { horizonChip, sleeveStyle } from "@/lib/strategy-style";
+import { sleeveOf } from "@/lib/sleeves";
 import { computeRiskReward, formatRatio } from "@/lib/risk-reward";
 import { redTeamVerdictStyle } from "@/lib/red-team-style";
 import { groupProposalsByDay } from "@/lib/proposal-grouping";
@@ -181,9 +182,18 @@ function ProposalRow({ proposal: p }: { proposal: TradeProposal }) {
         <span className="font-serif text-base font-semibold text-fg">
           {p.symbol}
         </span>
-        <Badge tone={strategyStyle[p.strategy].tone}>
-          {strategyStyle[p.strategy].label}
-        </Badge>
+        {(() => {
+          const sleeve = sleeveOf(p);
+          const chip = horizonChip(sleeve);
+          return (
+            <>
+              <Badge tone={sleeveStyle[sleeve].tone}>
+                {sleeveStyle[sleeve].label}
+              </Badge>
+              <Badge tone={chip.tone}>{chip.label}</Badge>
+            </>
+          );
+        })()}
         {conviction ? (
           <span title={conviction.note ?? "conviction ranking signal"}>
             <Badge tone={conviction.tone}>{conviction.label}</Badge>
