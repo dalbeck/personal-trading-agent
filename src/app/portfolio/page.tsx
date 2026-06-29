@@ -234,6 +234,49 @@ export default async function PortfolioPage() {
         ) : null}
       </Card>
 
+      {/* Unrealized tax split (advisory) */}
+      <Card className="mb-6">
+        <SectionTitle title="Unrealized gains — long vs short term" />
+        <div className="mt-3 flex flex-wrap gap-x-10 gap-y-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-fg-muted">
+              Long-term ({o.taxSplit.longTermPositions} pos · &gt; 365 days)
+            </p>
+            <p
+              className={`font-serif text-xl font-semibold tabular-nums ${
+                o.taxSplit.longTermUnrealizedUsd > 0
+                  ? "text-gain"
+                  : o.taxSplit.longTermUnrealizedUsd < 0
+                    ? "text-loss"
+                    : "text-fg"
+              }`}
+            >
+              {formatCurrency(o.taxSplit.longTermUnrealizedUsd)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-fg-muted">
+              Short-term ({o.taxSplit.shortTermPositions} pos · ≤ 365 days)
+            </p>
+            <p
+              className={`font-serif text-xl font-semibold tabular-nums ${
+                o.taxSplit.shortTermUnrealizedUsd > 0
+                  ? "text-gain"
+                  : o.taxSplit.shortTermUnrealizedUsd < 0
+                    ? "text-loss"
+                    : "text-fg"
+              }`}
+            >
+              {formatCurrency(o.taxSplit.shortTermUnrealizedUsd)}
+            </p>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-fg-muted">
+          Advisory only — holding-period context for your own tax decisions. The desk
+          never selects lots or optimizes taxes for you.
+        </p>
+      </Card>
+
       {/* Human-set targets editor */}
       <AllocationTargetsEditor targets={o.targets} />
     </div>

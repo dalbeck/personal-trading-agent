@@ -4,6 +4,7 @@ import { ProposalDetailView } from "@/components/proposal-detail-view";
 import { SampleDataBanner } from "@/components/sample-data-badge";
 import { readProposals } from "@/lib/server/data";
 import { getLiveTradingStatus } from "@/lib/server/gate";
+import { getTaxAdvisory } from "@/lib/server/tax-advisory";
 
 export const dynamic = "force-dynamic";
 
@@ -46,10 +47,17 @@ export default async function ProposalDetailPage({
   ]);
   if (!proposal) notFound();
 
+  // Tax advisory (tax-awareness M6) — wash-sale + nearly-long-term sell notes.
+  const taxAdvisory = await getTaxAdvisory(proposal);
+
   return (
     <div>
       <SampleDataBanner show={proposal.sample} />
-      <ProposalDetailView proposal={proposal} liveEnabled={liveEnabled} />
+      <ProposalDetailView
+        proposal={proposal}
+        liveEnabled={liveEnabled}
+        taxAdvisory={taxAdvisory}
+      />
     </div>
   );
 }

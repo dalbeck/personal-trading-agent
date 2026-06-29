@@ -74,9 +74,15 @@ const statusTone: Record<TradeProposal["status"], BadgeTone> = {
 export function ProposalDetailView({
   proposal: p,
   liveEnabled,
+  taxAdvisory,
 }: {
   proposal: TradeProposal;
   liveEnabled: boolean;
+  /** Wash-sale + nearly-long-term sell notes (tax-awareness M6). Advisory only. */
+  taxAdvisory?: {
+    washSale: { reason: string } | null;
+    nearLongTerm: string | null;
+  };
 }) {
   const lenses = buildProposalLenses(p);
   const dual = isDualLens(lenses);
@@ -127,6 +133,25 @@ export function ProposalDetailView({
           proposals
         </Link>
       </div>
+
+      {/* Tax advisory (tax-awareness M6) — surfaced cautions, never a block. */}
+      {taxAdvisory?.washSale || taxAdvisory?.nearLongTerm ? (
+        <div className="rounded-card border border-warning/40 bg-warning/5 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-warning">
+            Tax caution · advisory
+          </p>
+          {taxAdvisory.washSale ? (
+            <p className="mt-1 text-sm text-fg">{taxAdvisory.washSale.reason}</p>
+          ) : null}
+          {taxAdvisory.nearLongTerm ? (
+            <p className="mt-1 text-sm text-fg">{taxAdvisory.nearLongTerm}</p>
+          ) : null}
+          <p className="mt-1.5 text-xs text-fg-muted">
+            Informational only — it does not block the trade, and the desk never
+            selects lots or optimizes taxes for you.
+          </p>
+        </div>
+      ) : null}
 
       {/* Header */}
       <header className="flex flex-col gap-3 border-b border-line pb-5">

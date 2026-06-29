@@ -116,6 +116,7 @@ export default async function PositionsPage() {
         <DataSourceNotice notice={isLive ? live.notice : paper.notice} />
         <PositionsSection
           positions={activePositions}
+          asOf={activeSnap?.asOf ?? null}
           emptyLabel={
             isLive ? "No open live positions." : "No open paper positions."
           }
@@ -247,9 +248,11 @@ export default async function PositionsPage() {
 /** Positions table + unrealized-P&L total, or a dashed empty card. */
 function PositionsSection({
   positions,
+  asOf,
   emptyLabel,
 }: {
   positions: Position[];
+  asOf?: string | null;
   emptyLabel: string;
 }) {
   if (positions.length === 0) {
@@ -262,7 +265,7 @@ function PositionsSection({
   const totalUnrealized = positions.reduce((s, p) => s + p.unrealizedPl, 0);
   return (
     <>
-      <PositionsTable positions={positions} />
+      <PositionsTable positions={positions} asOf={asOf} />
       <p className="mt-3 text-right text-sm tabular-nums text-fg-muted">
         Total unrealized{" "}
         <span className={totalUnrealized >= 0 ? "text-gain" : "text-loss"}>
