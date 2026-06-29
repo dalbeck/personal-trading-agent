@@ -18,6 +18,7 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
     action: "buy",
     side: "long",
     strategy: "trend",
+    sleeve: null,
     qty: 0.05,
     limitPrice: 374.5,
     stopPrice: 355,

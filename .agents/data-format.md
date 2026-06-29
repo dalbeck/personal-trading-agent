@@ -243,6 +243,38 @@ proposals come from the manual analyze-a-symbol **lens** picker (`strategy` in
 the `POST /api/proposals/analyze` body) and, when enabled, the discovery run (see
 `valueSleeveEnabled` below). Defaults to `trend` so older records still validate.
 
+**Proposal `sleeve` / `horizon` (sleeve-framework M1).** A `TradeProposal` also
+carries a **`sleeve`** — the promotion of `strategy` into a first-class
+`style × horizon` axis. A sleeve bundles everything horizon-specific (mandate,
+universe, rails, sizing model, red-team lens, checklist, benchmark, cadence); the
+routing source of truth is `strategy/sleeves.config.ts` (a sibling of
+`charter.config.ts`). The four sleeves:
+
+| `sleeve` | `horizon` | mandate | universe | sizing | stop | status |
+|---|---|---|---|---|---|---|
+| `swing-trend` | `swing` | technical trend/momentum (today's `trend`) | US equities, no funds | risk-to-stop | required | **enabled** (default) |
+| `swing-value` | `swing` | value / mean-reversion (today's `value`) | US equities, no funds | risk-to-stop | required | **enabled** |
+| `position-mid` | `mid` | trend + fundamental blend (M4) | US equities | risk-to-stop, wider | required | declared, **disabled** |
+| `core-long` | `long` | allocation / quality (M3) | US equities **+ ETFs/indexes** | target-weight | **none** (drawdown/review) | declared, **disabled** |
+
+The two `swing-*` sleeves map **1:1** to the existing `strategy` values and behave
+**byte-identically** — the `charter.config.ts` swing rail numbers, universe, and
+red-team lenses are unchanged and stay tripwire-tested (`sleeves-config.test.ts`).
+`position-mid` / `core-long` are **declared but disabled** in M1 (lit up in M4 /
+M3), opt-in like the value sleeve.
+
+The field is `Sleeve.nullable().default(null)`: a record written before the field
+existed has `sleeve: null` and **derives** its sleeve from `strategy`
+(`value → swing-value`, else `swing-trend`). **Always read a proposal's sleeve
+through `sleeveOf(proposal)`** (`src/lib/sleeves.ts`) and its horizon through
+`horizonOf(sleeve)` — never the raw field. The proposal row shows the **sleeve
+badge** + a **horizon chip** (`src/lib/strategy-style.ts`); `buildChecklist` and
+`buildProsecutorPrompt` accept an optional `sleeve` that takes precedence over
+`strategy` (swing resolves to the same trend/value branch, so swing output is
+unchanged). The **hard risk rails and the live envelope are shared across every
+sleeve and unchanged** (see `strategy/charters/README.md` — the inherited safety
+envelope); the 6-order/day cap stays one counter across all sleeves.
+
 **Proposal `researchStatus` (research-unavailable-state M3).** The **value lens's**
 research availability for its quality data — a `ResearchStatus`
 (`ok | off | capped | unavailable`, nullable; mirrors `PerplexityStatus`). Set

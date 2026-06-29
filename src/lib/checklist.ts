@@ -40,6 +40,7 @@ import { formatRelativeVolume, REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { RISK_LIMITS } from "@strategy/charter.config";
 import type { Strategy } from "@/lib/strategy";
+import { sleeveToStrategy, type Sleeve } from "@/lib/sleeves";
 import type { CatalystType } from "@/lib/catalyst";
 import type { TargetType } from "@/lib/target-type";
 import type {
@@ -66,6 +67,12 @@ export interface ChecklistInput {
   action: "buy" | "sell";
   side?: "long" | "short";
   strategy: Strategy;
+  /** The sleeve this checklist is built for (sleeve-framework M1). When set it
+   *  takes precedence over `strategy` to pick the checklist; the two swing
+   *  sleeves resolve to the same trend/value branch as `strategy`, so swing
+   *  output is unchanged. Optional so existing callers (which pass `strategy`)
+   *  are untouched. */
+  sleeve?: Sleeve | null;
   limitPrice: number;
   stopPrice: number | null;
   takeProfit: number | null;
@@ -235,7 +242,10 @@ function valueChecklist(p: ChecklistInput): CheckItem[] {
   ];
 }
 
-/** Build the derived pre-trade checklist for a proposal, by its strategy. */
+/** Build the derived pre-trade checklist for a proposal, by its sleeve (falling
+ *  back to `strategy`). The two swing sleeves resolve to the same trend/value
+ *  branch the bare `strategy` would, so swing checklists are byte-identical. */
 export function buildChecklist(p: ChecklistInput): CheckItem[] {
-  return p.strategy === "value" ? valueChecklist(p) : trendChecklist(p);
+  const strategy = p.sleeve ? sleeveToStrategy(p.sleeve) : p.strategy;
+  return strategy === "value" ? valueChecklist(p) : trendChecklist(p);
 }

@@ -241,6 +241,40 @@ export const ConvictionTier = z.enum(["high", "moderate", "watch"]);
 export const Strategy = z.enum(["trend", "value"]);
 
 /**
+ * The **sleeve** a proposal belongs to (sleeve-framework M1) — the first-class
+ * promotion of `strategy` into a `style × horizon` axis. A sleeve bundles
+ * everything horizon-specific (mandate, universe, rails, sizing model, red-team
+ * lens, checklist, benchmark, cadence); see `strategy/sleeves.config.ts`.
+ *
+ * - `swing-trend`  — days–weeks technical trend/momentum (today's `trend`, the default).
+ * - `swing-value`  — days–weeks value / mean-reversion (today's `value`).
+ * - `position-mid` — weeks–quarters trend + fundamental blend (declared, disabled until M4).
+ * - `core-long`    — quarters–years allocation / quality, **ETF/index-allowing**,
+ *                    **target-weight sizing, no protective stop** (declared, disabled until M3).
+ *
+ * The two `swing-*` sleeves map 1:1 to the existing `strategy` values and behave
+ * **byte-identically** — only the funnel of which sleeves exist widens. The hard
+ * risk rails and the live envelope are shared across every sleeve and unchanged.
+ * Nullable on the proposal: a record without an explicit sleeve **derives** one
+ * from `strategy` (`value → swing-value`, else `swing-trend`) via `sleeveOf` in
+ * `src/lib/sleeves.ts`, so older records still validate.
+ */
+export const Sleeve = z.enum([
+  "swing-trend",
+  "swing-value",
+  "position-mid",
+  "core-long",
+]);
+
+/**
+ * The investment **horizon** of a sleeve (sleeve-framework M1) — the derived
+ * `style × horizon` axis. `swing` = days–weeks, `mid` = weeks–quarters,
+ * `long` = quarters–years. Derived from the sleeve (never stored independently);
+ * see `horizonOf` in `src/lib/sleeves.ts`.
+ */
+export const Horizon = z.enum(["swing", "mid", "long"]);
+
+/**
  * Cash-flow quality — the value-lens floor-vs-trap discriminator
  * (value-cashflow M1). For a value / mean-reversion call, cash flow is the key
  * tell between "hitting a floor with upside" and a value trap: durable, positive
@@ -426,6 +460,15 @@ export const TradeProposalSchema = z
     // the strategy-aware checklist + red-team lens; the hard risk rails are
     // shared and unchanged. Defaults to `trend` so older records still validate.
     strategy: Strategy.default("trend"),
+    // The **sleeve** this proposal belongs to (sleeve-framework M1) — `strategy`
+    // promoted into a first-class `style × horizon` axis. `swing-trend` /
+    // `swing-value` are today's mandates unchanged; `position-mid` / `core-long`
+    // are declared but disabled until M4 / M3. Nullable + null default so older
+    // records validate; a null reads as the sleeve **derived from `strategy`**
+    // (`value → swing-value`, else `swing-trend`) via `sleeveOf`. Always read the
+    // sleeve through `sleeveOf(proposal)`, never the raw field. The hard rails
+    // and the live envelope are shared across sleeves and unchanged.
+    sleeve: Sleeve.nullable().default(null),
     qty: z.number().positive(),
     limitPrice: money, // marketable-limit only (charter)
     stopPrice: money.nullable().default(null),
