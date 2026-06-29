@@ -56,6 +56,11 @@ export interface RedTeamProposal {
   limitPrice: number;
   stopPrice: number | null;
   takeProfit: number | null;
+  /** Core-long (target-weight) sizing (core-long M3) — the prosecutor sees the
+   *  target weight + review trigger in place of a stop, and is told the missing
+   *  stop is by design. Null/absent for swing/mid. */
+  targetWeightPct?: number | null;
+  reviewTriggerPct?: number | null;
   /** How the target is anchored (M3). An `analyst_price` or unspecified target is
    *  weak — the prosecutor is told to flag it. */
   targetType?: string | null;
@@ -204,27 +209,47 @@ export type RedTeamExec = (prompt: string) => Promise<string>;
 export type RedTeamOutcome = "allow" | "downsize" | "block";
 
 export function buildProsecutorPrompt(p: RedTeamProposal): string {
-  const isValue = (p.sleeve ? sleeveToStrategy(p.sleeve) : p.strategy) === "value";
+  // Core-long is its own lens — never merged with trend/value/mid (core-long M3).
+  const isCore = p.sleeve === "core-long";
+  const isValue =
+    !isCore &&
+    (p.sleeve ? sleeveToStrategy(p.sleeve) : p.strategy) === "value";
+  const mandateLabel = isCore
+    ? "LONG-TERM / CORE"
+    : isValue
+      ? "VALUE / MEAN-REVERSION"
+      : "TREND";
   // catalyst-state-honesty M2: a FAILED fetch is "unavailable", NOT a real
   // "no catalyst" — the prosecutor must not reject on that basis.
   const catalystUnavailable = p.catalystState === "unavailable";
   const catalystLine = catalystUnavailable
     ? "- Catalyst: DATA UNAVAILABLE — the catalyst/news fetch FAILED (UNVERIFIED, NOT absent)"
     : `- Catalyst: ${p.catalyst ? p.catalyst : "none stated"} (${p.catalystType ?? "unspecified"})`;
+  const attackLine = isCore
+    ? "Attack the weakest link: OVERPAYING vs long-term value, thesis drift / a speculative 'story' stock dressed up as core, OVER-CONCENTRATION vs the target allocation, weak FUND QUALITY (expense ratio / tracking error / structure) for an ETF, or an unrealistic long-term return assumption."
+    : isValue
+      ? "Attack the weakest link: a deteriorating / broken business under a bid, the absence of a real catalyst or floor, a falling-knife with no support, an unrealistic target, or a thin reward/risk."
+      : "Attack the weakest link: crowded positioning, valuation, event/earnings risk, a stop that is too wide for the catalyst, weak relative strength, or a thin reward/risk.";
+  const mandateNoun = isCore
+    ? "long-term / core"
+    : isValue
+      ? "value / mean-reversion"
+      : "trend";
+  const levelsLine = isCore
+    ? `- Sizing: target weight ${p.targetWeightPct != null ? `${(p.targetWeightPct * 100).toFixed(0)}%` : "unspecified"} · review trigger ${p.reviewTriggerPct != null ? `−${(p.reviewTriggerPct * 100).toFixed(0)}%` : "none"} · no protective stop (by design)`
+    : `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"} (${p.targetType ?? "unspecified"})`;
   const lines = [
-    `You are a HOSTILE RED-TEAM PROSECUTOR reviewing a proposed PAPER swing trade, judged under the desk's ${isValue ? "VALUE / MEAN-REVERSION" : "TREND"} mandate.`,
+    `You are a HOSTILE RED-TEAM PROSECUTOR reviewing a proposed PAPER ${isCore ? "long-term / core position" : "swing trade"}, judged under the desk's ${mandateLabel} mandate.`,
     "You are a different model family from the one that proposed it. Your job is to REFUTE the thesis, not to agree.",
     "DEFAULT TO NO. Only return approve if the thesis is genuinely robust against your strongest objections.",
-    isValue
-      ? "Attack the weakest link: a deteriorating / broken business under a bid, the absence of a real catalyst or floor, a falling-knife with no support, an unrealistic target, or a thin reward/risk."
-      : "Attack the weakest link: crowded positioning, valuation, event/earnings risk, a stop that is too wide for the catalyst, weak relative strength, or a thin reward/risk.",
+    attackLine,
     "",
     "Proposed order:",
     `- Ticker: ${p.symbol}`,
-    `- Mandate: ${isValue ? "value / mean-reversion" : "trend"}`,
+    `- Mandate: ${mandateNoun}`,
     `- Side/Action: ${p.action} ${p.side}`,
     `- Qty: ${p.qty} @ limit ${p.limitPrice}`,
-    `- Stop: ${p.stopPrice ?? "none"} · Target: ${p.takeProfit ?? "none"} (${p.targetType ?? "unspecified"})`,
+    levelsLine,
     `- Relative volume: ${p.relativeVolume != null ? `${p.relativeVolume.toFixed(2)}x avg` : "unknown"}`,
     catalystLine,
   ];
@@ -240,12 +265,29 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
   // Cash-flow quality + dividend sustainability are VALUE-lens signals only —
   // surface the figures in the order block so the prosecutor weighs the
   // floor-vs-trap tell and recognizes a real dividend floor.
-  if (isValue) {
+  if (isValue || isCore) {
+    // Cash-flow quality is the business-quality tell for both value and core (a
+    // core single name must be a durable, self-funding business); a core ETF/index
+    // simply has no cash-flow data and is judged on fund quality instead.
     lines.push(`- ${cashFlowBriefing(p.cashFlow, p.researchStatus, p.sector)}`);
+  }
+  if (isValue) {
     lines.push(`- ${dividendBriefing(p.dividend)}`);
   }
   lines.push(`- Thesis: ${p.thesis}`);
-  if (isValue) {
+  if (isCore) {
+    lines.push(
+      "LONG-TERM / CORE MANDATE — judge this as a multi-year buy-and-hold ALLOCATION, not a swing trade. Apply the RIGHT criteria:",
+      "COUNTER-TREND & NO NEAR-TERM CATALYST ARE NORMAL. This is a quarters-to-years core holding. Being below the moving averages, in a drawdown, or having NO near-term catalyst is EXPECTED and is NOT by itself a reason to reject. Do NOT apply trend/swing timing or momentum rules, and do NOT flag 'no catalyst' / 'counter-trend' here.",
+      "NO PROTECTIVE STOP IS BY DESIGN. A core position is sized to a TARGET WEIGHT and governed by a wide DRAWDOWN/REVIEW TRIGGER, not a stop. Do NOT cite 'no stop' or 'no profit target' as a flaw.",
+      "PROSECUTE OVERPAYING vs LONG-TERM VALUE — this is your real job. Is the entry expensive vs its own long-term history / a reasonable long-term valuation (for a single name) or vs sensible long-horizon expectations (for a fund)? Buying a good asset at a rich price is a real objection — flag it in the Edge factor.",
+      "PROSECUTE THESIS DRIFT / STORY STOCK. Is this a durable, high-quality business or a low-cost diversified fund — or a speculative narrative dressed up as 'core'? A non-durable, story-driven pick does NOT belong in a core book; flag it.",
+      "PROSECUTE OVER-CONCENTRATION vs the TARGET ALLOCATION. Weigh the target weight above: an oversized single position relative to the intended allocation is a concentration risk — flag it.",
+      "FOR AN ETF / INDEX FUND, judge FUND QUALITY: is the expense ratio LOW (a high fee compounds against the holder for years), is tracking error tight, and is the structure / liquidity sound? A high-expense, poorly-tracking, or thin/exotic fund is a real objection — say so in the Edge factor.",
+      "PROSECUTE AN UNREALISTIC LONG-TERM RETURN ASSUMPTION. A thesis premised on an implausible compounding / growth rate over the holding horizon is weak.",
+      "A target anchored to long-term fundamental value (or, for a fund, a sensible long-horizon expectation) is APPROPRIATE for this sleeve. A core ETF/index may legitimately have NO price target — do NOT call that weak. A sell-side analyst_price target is still borrowed conviction.",
+    );
+  } else if (isValue) {
     lines.push(
       "VALUE / MEAN-REVERSION MANDATE — judge under the RIGHT criteria, not the trend rules:",
       "COUNTER-TREND IS EXPECTED. This is a value / mean-reversion entry, NOT a trend trade. Being BELOW the 50-/200-day moving averages, in a downtrend, or making lower lows is NORMAL here and is NOT by itself a reason to reject. Do NOT penalize the thesis merely for being below its moving averages, 'fighting the trend', or lacking upside momentum — that would be applying the wrong mandate.",
@@ -286,7 +328,9 @@ export function buildProsecutorPrompt(p: RedTeamProposal): string {
     );
   }
   lines.push(
-    `SHARED HARD RAILS (both mandates, unchanged): the entry needs a protective stop, reward/risk ≥ ${MIN_REWARD_RISK}:1, and risk sized within the charter caps. A missing/too-wide stop or a thin reward/risk is a strike regardless of mandate.`,
+    isCore
+      ? "SLEEVE RAILS (core-long): this position carries NO protective stop and NO fixed profit target BY DESIGN — it is sized to a target weight (within the sleeve size cap) and reviewed on a wide drawdown trigger. Reward/risk-to-stop does NOT apply. Do NOT cite a missing stop, missing target, or thin reward/risk as a strike here; judge value, quality, concentration, and (for a fund) cost instead."
+      : `SHARED HARD RAILS (both mandates, unchanged): the entry needs a protective stop, reward/risk ≥ ${MIN_REWARD_RISK}:1, and risk sized within the charter caps. A missing/too-wide stop or a thin reward/risk is a strike regardless of mandate.`,
   );
   if (p.reasoning) lines.push(`- Reasoning: ${p.reasoning}`);
   if (p.research) lines.push(`- Research: ${p.research}`);

@@ -145,6 +145,40 @@ describe("buildProsecutorPrompt", () => {
     ).toBe(buildProsecutorPrompt({ ...proposal, strategy: "value" }));
   });
 
+  it("briefs the CORE-LONG lens: buy-and-hold, no stop, prosecute overpaying/fees", () => {
+    const prompt = buildProsecutorPrompt({
+      ...proposal,
+      sleeve: "core-long",
+      symbol: "VOO",
+      stopPrice: null,
+      takeProfit: null,
+      targetWeightPct: 0.4,
+      reviewTriggerPct: 0.25,
+    });
+    expect(prompt).toMatch(/LONG-TERM \/ CORE/);
+    // Counter-trend & no near-term catalyst must NOT be reject reasons.
+    expect(prompt).toMatch(/COUNTER-TREND & NO NEAR-TERM CATALYST ARE NORMAL/);
+    expect(prompt).toMatch(/NO PROTECTIVE STOP IS BY DESIGN/i);
+    // It prosecutes the core-specific failure modes.
+    expect(prompt).toMatch(/OVERPAYING/);
+    expect(prompt).toMatch(/OVER-CONCENTRATION/);
+    expect(prompt).toMatch(/FUND QUALITY|expense ratio/i);
+    expect(prompt).toMatch(/unrealistic long-term return/i);
+    // The target weight + review trigger are surfaced; no stop framing.
+    expect(prompt).toMatch(/target weight 40%/i);
+    expect(prompt).toMatch(/review trigger −25%/i);
+    // It must NOT carry the trend "out of mandate" penalty or the shared-stop rail.
+    expect(prompt).not.toMatch(/out of mandate/i);
+    expect(prompt).not.toMatch(/the entry needs a protective stop/i);
+  });
+
+  it("never merges the core lens with trend or value", () => {
+    const prompt = buildProsecutorPrompt({ ...proposal, sleeve: "core-long" });
+    expect(prompt).not.toMatch(/VALUE \/ MEAN-REVERSION MANDATE/);
+    expect(prompt).not.toMatch(/TREND PRECEDENCE RULE/);
+    expect(prompt).not.toMatch(/HUNT THE VALUE TRAP/);
+  });
+
   it("briefs the VALUE lens differently: counter-trend expected, hunt the value trap", () => {
     const prompt = buildProsecutorPrompt({ ...proposal, strategy: "value" });
     expect(prompt).toMatch(/VALUE \/ MEAN-REVERSION/);

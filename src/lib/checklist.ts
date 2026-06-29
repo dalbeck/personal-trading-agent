@@ -39,6 +39,7 @@ import {
 import { formatRelativeVolume, REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { RISK_LIMITS } from "@strategy/charter.config";
+import { MAX_REVIEW_TRIGGER_PCT } from "@/lib/risk/validators";
 import type { Strategy } from "@/lib/strategy";
 import { sleeveToStrategy, type Sleeve } from "@/lib/sleeves";
 import type { CatalystType } from "@/lib/catalyst";
@@ -67,6 +68,10 @@ export interface ChecklistInput {
   action: "buy" | "sell";
   side?: "long" | "short";
   strategy: Strategy;
+  /** Core-long (target-weight) sizing context (core-long M3) — drives the
+   *  allocation-fit + review-trigger checklist items. Null/absent for swing/mid. */
+  targetWeightPct?: number | null;
+  reviewTriggerPct?: number | null;
   /** The sleeve this checklist is built for (sleeve-framework M1). When set it
    *  takes precedence over `strategy` to pick the checklist; the two swing
    *  sleeves resolve to the same trend/value branch as `strategy`, so swing
@@ -242,10 +247,93 @@ function valueChecklist(p: ChecklistInput): CheckItem[] {
   ];
 }
 
+/** Core-long allocation-fit item — the position is sized to a **target portfolio
+ *  weight**, so the check is "is a sane target weight set?" rather than a stop. */
+function allocationFitItem(p: ChecklistInput): CheckItem {
+  const w = p.targetWeightPct;
+  return {
+    label: "Target weight & allocation fit",
+    status: w != null && w > 0 ? "pass" : "flag",
+    detail: w != null ? formatPercent(w, { signed: false }) : "no target weight",
+  };
+}
+
+/** Core-long valuation item — judged on whether the entry is anchored to
+ *  long-term **value** (a fundamental/valuation anchor passes). A core ETF/index
+ *  with no price target reads **na** ("judged by red-team"), never a flag — a
+ *  buy-and-hold index legitimately has no near-term price target. */
+function coreValuationItem(p: ChecklistInput): CheckItem {
+  if (p.targetType == null) {
+    return {
+      label: "Valuation vs long-term value",
+      status: "na",
+      detail: "judged by red-team",
+    };
+  }
+  return {
+    label: "Valuation vs long-term value",
+    status: isWeakTarget(p.targetType) ? "flag" : "pass",
+    detail: targetTypeLabel(p.targetType),
+  };
+}
+
+/** Core-long quality item — a durable business (positive, well-covered FCF) or a
+ *  low-cost diversified fund. Reuses the cash-flow assessment; a fund with no
+ *  cash-flow data reads **na** (its expense ratio / structure is prosecuted by the
+ *  core-long red-team, not a structured green-check). */
+function coreQualityItem(p: ChecklistInput): CheckItem {
+  const { status, detail } = assessCashFlowQuality(p.cashFlow ?? null, {
+    sector: p.sector,
+  });
+  if (status === "na" && isResearchUnavailable(p.researchStatus)) {
+    const reason = researchUnavailableLabel(p.researchStatus);
+    return {
+      label: "Quality — business or fund",
+      status: "na",
+      detail: reason ? `Data unavailable · ${reason}` : "Data unavailable",
+    };
+  }
+  return { label: "Quality — business or fund", status, detail };
+}
+
+/** Core-long review-trigger item — the wide drawdown/**review trigger** that
+ *  stands in for a protective stop. Pass when a sane trigger is set
+ *  (`0 < pct ≤ MAX_REVIEW_TRIGGER_PCT`). */
+function reviewTriggerItem(p: ChecklistInput): CheckItem {
+  const t = p.reviewTriggerPct;
+  const ok = t != null && t > 0 && t <= MAX_REVIEW_TRIGGER_PCT;
+  return {
+    label: "Drawdown / review trigger",
+    status: ok ? "pass" : "flag",
+    detail: t != null ? formatPercent(t, { signed: false }) : "none",
+  };
+}
+
+/**
+ * The long-term / core mandate's checklist (core-long M3). A buy-and-hold book:
+ * it leads on **allocation fit, valuation vs long-term value, and quality**, with
+ * a **drawdown/review trigger** in place of a stop. It deliberately **drops** the
+ * breakout-volume and catalyst-timing items (counter-trend and "no near-term
+ * catalyst" are normal here, not strikes — the value-sleeve precedent), and has
+ * no risk-to-stop reward:risk item (there is no stop). Overpaying, thesis drift,
+ * over-concentration, and fund quality are prosecuted by the core-long red-team.
+ */
+function coreLongChecklist(p: ChecklistInput): CheckItem[] {
+  return [
+    allocationFitItem(p),
+    coreValuationItem(p),
+    coreQualityItem(p),
+    reviewTriggerItem(p),
+    redTeamItem(p),
+  ];
+}
+
 /** Build the derived pre-trade checklist for a proposal, by its sleeve (falling
  *  back to `strategy`). The two swing sleeves resolve to the same trend/value
- *  branch the bare `strategy` would, so swing checklists are byte-identical. */
+ *  branch the bare `strategy` would, so swing checklists are byte-identical;
+ *  `core-long` gets its own buy-and-hold checklist. */
 export function buildChecklist(p: ChecklistInput): CheckItem[] {
+  if (p.sleeve === "core-long") return coreLongChecklist(p);
   const strategy = p.sleeve ? sleeveToStrategy(p.sleeve) : p.strategy;
   return strategy === "value" ? valueChecklist(p) : trendChecklist(p);
 }

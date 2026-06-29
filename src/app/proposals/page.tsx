@@ -49,7 +49,10 @@ export default async function ProposalsPage() {
         </span>
       </div>
       <div className="mb-4">
-        <AnalyzeSymbolForm mode={mode} />
+        <AnalyzeSymbolForm
+          mode={mode}
+          coreLongEnabled={discoverySettings.coreLongSleeveEnabled}
+        />
       </div>
       <SampleDataBanner show={anySample(proposals)} />
       {proposals.length === 0 ? (

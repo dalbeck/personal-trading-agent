@@ -66,6 +66,7 @@ export function DiscoverySettingsEditor({
           minSectorsTarget: settings.minSectorsTarget,
           minConvictionTier: settings.minConvictionTier,
           valueSleeveEnabled: settings.valueSleeveEnabled,
+          coreLongSleeveEnabled: settings.coreLongSleeveEnabled,
         }),
       });
       if (res.ok) {
@@ -86,6 +87,7 @@ export function DiscoverySettingsEditor({
       minSectorsTarget: null,
       minConvictionTier: "watch",
       valueSleeveEnabled: false,
+      coreLongSleeveEnabled: false,
     });
   }
 
@@ -192,6 +194,41 @@ export function DiscoverySettingsEditor({
               }`}
             />
             {settings.valueSleeveEnabled ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium text-fg">Long-term / core sleeve</p>
+          <p className="mb-2 text-xs text-fg-muted">
+            When on, discovery may also surface{" "}
+            <span className="font-medium text-fg">core-long</span> candidates —
+            allocation-gap and quality driven (durable businesses and low-cost
+            diversified ETFs/index funds), not momentum setups — judged by the
+            core-long red-team lens, sized by target weight with a drawdown/review
+            trigger instead of a stop. Off by default. A discovery preference, not
+            a rail — core picks still clear the shared envelope and the 6-order/day
+            cap.
+          </p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.coreLongSleeveEnabled}
+            onClick={() =>
+              patch({ coreLongSleeveEnabled: !settings.coreLongSleeveEnabled })
+            }
+            className={`inline-flex items-center gap-2 rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
+              settings.coreLongSleeveEnabled
+                ? "border-accent bg-accent/15 text-fg"
+                : "border-line text-fg-muted hover:bg-surface-overlay hover:text-fg"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`size-2 rounded-pill ${
+                settings.coreLongSleeveEnabled ? "bg-accent" : "bg-fg-muted/50"
+              }`}
+            />
+            {settings.coreLongSleeveEnabled ? "Enabled" : "Disabled"}
           </button>
         </div>
       </div>

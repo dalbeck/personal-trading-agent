@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildManualProposalDraft } from "./proposal-builder";
+import {
+  buildCoreLongProposalDraft,
+  buildManualProposalDraft,
+} from "./proposal-builder";
 import type { Ohlc } from "./indicators";
 
 /** A daily series that ramps from `start` by `step`/day over `n` days. Each bar
@@ -227,5 +230,76 @@ describe("buildManualProposalDraft", () => {
       // the discount — so value's conviction is strictly higher here.
       expect(value!.convictionScore).toBeGreaterThan(trend!.convictionScore);
     });
+  });
+});
+
+describe("buildCoreLongProposalDraft (core-long M3)", () => {
+  it("sizes by target weight, carries no stop, and sets a review trigger", () => {
+    const d = buildCoreLongProposalDraft({
+      symbol: "VOO",
+      bars: ramp(60, 400, 1),
+      quote: 459,
+      equity: 10_000,
+      targetWeightPct: 0.4,
+      reviewTriggerPct: 0.25,
+      perPositionSizePct: 0.6,
+      allowFractional: false,
+    });
+    expect(d).not.toBeNull();
+    expect(d!.sleeve).toBe("core-long");
+    expect(d!.stopPrice).toBeNull();
+    expect(d!.takeProfit).toBeNull();
+    expect(d!.targetWeightPct).toBe(0.4);
+    expect(d!.reviewTriggerPct).toBe(0.25);
+    expect(d!.riskPct).toBe(0);
+    // 40% of 10k = 4000 / 459 = 8.71 → floored to 8 whole shares.
+    expect(d!.qty).toBe(8);
+  });
+
+  it("clamps the target weight to the sleeve size cap", () => {
+    const d = buildCoreLongProposalDraft({
+      symbol: "VTI",
+      bars: ramp(60, 200, 0.5),
+      quote: 230,
+      equity: 10_000,
+      targetWeightPct: 0.9, // over the 60% cap
+      perPositionSizePct: 0.6,
+      allowFractional: false,
+    });
+    expect(d!.targetWeightPct).toBe(0.6);
+    expect(d!.qty * d!.limitPrice).toBeLessThanOrEqual(0.6 * 10_000);
+  });
+
+  it("defaults the review trigger to −25% when omitted", () => {
+    const d = buildCoreLongProposalDraft({
+      symbol: "VOO",
+      bars: ramp(60, 400, 1),
+      quote: 459,
+      equity: 10_000,
+      targetWeightPct: 0.3,
+      perPositionSizePct: 0.6,
+    });
+    expect(d!.reviewTriggerPct).toBe(0.25);
+  });
+
+  it("returns null without enough history or a target weight", () => {
+    expect(
+      buildCoreLongProposalDraft({
+        symbol: "VOO",
+        bars: ramp(10, 400, 1),
+        equity: 10_000,
+        targetWeightPct: 0.4,
+        perPositionSizePct: 0.6,
+      }),
+    ).toBeNull();
+    expect(
+      buildCoreLongProposalDraft({
+        symbol: "VOO",
+        bars: ramp(60, 400, 1),
+        equity: 10_000,
+        targetWeightPct: 0,
+        perPositionSizePct: 0.6,
+      }),
+    ).toBeNull();
   });
 });

@@ -79,9 +79,9 @@ describe("registered-but-missing charter reads empty (back-compat)", () => {
     expect(txt.length).toBeGreaterThan(0);
   });
 
-  it("returns '' for a declared sleeve charter that doesn't exist yet", async () => {
-    // core-long.md / position-mid.md land in M3 / M4; until then they read empty.
-    expect(await readStrategyDoc("charters/core-long", opts)).toBe("");
+  it("reads the core-long charter (shipped in M3) and '' for the not-yet-written one", async () => {
+    // core-long.md landed in M3; position-mid.md lands in M4 → still empty.
+    expect((await readStrategyDoc("charters/core-long", opts)).length).toBeGreaterThan(0);
     expect(await readStrategyDoc("charters/position-mid", opts)).toBe("");
   });
 });

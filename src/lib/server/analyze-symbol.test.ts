@@ -675,4 +675,51 @@ describe("analyzeSymbol", () => {
     if (res.ok) return;
     expect(res.code).toBe("insufficient-data");
   });
+
+  it("analyzes a core ETF under core-long: target weight, no stop, review trigger (core-long M3)", async () => {
+    const res = await analyzeSymbol("VOO", {
+      account: "live",
+      dataDir: dir,
+      now: () => new Date("2026-06-26T09:00:00-04:00"),
+      fetchBars: async () => ramp(60, 400, 1),
+      fetchQuote: async () => 459,
+      readSnapshot: snapshotSeam,
+      fetchResearch: researchSeam,
+      redTeamExec: approveExec,
+      sleeve: "core-long",
+      targetWeightPct: 0.4,
+      reviewTriggerPct: 0.25,
+    });
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const p = res.proposal;
+    expect(p.sleeve).toBe("core-long");
+    expect(p.stopPrice).toBeNull(); // no protective stop
+    expect(p.takeProfit).toBeNull();
+    expect(p.targetWeightPct).toBe(0.4);
+    expect(p.reviewTriggerPct).toBe(0.25);
+    expect(p.qty).toBeGreaterThan(0);
+    // Sized by target weight, within the sleeve's 60% size cap.
+    expect(p.qty * p.limitPrice).toBeLessThanOrEqual(0.6 * 10_000 + 1);
+    // A single core lens, not the dual trend+value pair.
+    expect(p.lenses).toHaveLength(1);
+    // The risk gate passes (no stop, but a valid review trigger).
+    expect(res.risk.ok).toBe(true);
+  });
+
+  it("a core-long analyze with no target weight falls back to a default weight", async () => {
+    const res = await analyzeSymbol("VOO", {
+      account: "live",
+      dataDir: dir,
+      fetchBars: async () => ramp(60, 400, 1),
+      readSnapshot: snapshotSeam,
+      fetchResearch: researchSeam,
+      redTeamExec: approveExec,
+      sleeve: "core-long",
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.proposal.targetWeightPct).toBeGreaterThan(0);
+  });
 });

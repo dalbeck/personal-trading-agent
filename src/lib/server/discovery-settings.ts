@@ -28,6 +28,8 @@ export interface EffectiveDiscoveryLimits {
   minConvictionTier: ConvictionTier;
   /** Whether the value / mean-reversion sleeve is opted in for discovery (M1). */
   valueSleeveEnabled: boolean;
+  /** Whether the long-term / core sleeve is opted in for discovery (core-long M3). */
+  coreLongSleeveEnabled: boolean;
 }
 
 function settingsFile(dataDir?: string): string {
@@ -103,6 +105,7 @@ export function effectiveDiscoveryLimits(
     minSectorsTarget,
     minConvictionTier: settings.minConvictionTier,
     valueSleeveEnabled: settings.valueSleeveEnabled,
+    coreLongSleeveEnabled: settings.coreLongSleeveEnabled,
   };
 }
 

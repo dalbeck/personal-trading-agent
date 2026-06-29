@@ -58,9 +58,14 @@ describe("Per-sleeve rail blocks (per-sleeve-rails M2)", () => {
       emergencySpyDropPct: 0.02,
       emergencyVixLevel: 30,
       allowedOrderTypes: ["marketable_limit"],
-      allowedAssetClasses: ["equity"], // M3 adds etf/fund
-      excludedSymbols: ["SPY"], // M3 clears this for core-long
+      allowedAssetClasses: ["equity"], // ETFs trade as equity-class
+      excludedSymbols: [], // core-long permits SPY/VOO/QQQ (core-long M3)
     });
+  });
+
+  it("core-long permits the benchmark ETFs the swing sleeve excludes (core-long M3)", () => {
+    expect(CORE_LONG_LIMITS.excludedSymbols).toEqual([]);
+    expect(RISK_LIMITS.excludedSymbols).toContain("SPY"); // swing still excludes SPY
   });
 
   it("keeps the daily order cap a single shared number across every sleeve", () => {

@@ -105,6 +105,29 @@ describe("per-sleeve rails — no-stop core-long order (per-sleeve-rails M2)", (
   });
 });
 
+describe("per-sleeve universe — SPY is benchmark-only for swing, a holding for core (core-long M3)", () => {
+  it("rejects a SPY buy under the swing rails (benchmark, not a holding)", () => {
+    expect(rules(baseOrder({ symbol: "SPY" }), baseCtx())).toContain("universe");
+  });
+
+  it("admits a SPY/VOO core buy under the core-long rails", () => {
+    const coreLimits = railsForSleeve("core-long");
+    expect(
+      evaluateOrder(
+        baseOrder({
+          symbol: "VOO",
+          stopPrice: null,
+          takeProfit: null,
+          requiresStop: false,
+          reviewTriggerPct: 0.25,
+        }),
+        baseCtx(),
+        coreLimits,
+      ).violations.map((v) => v.rule),
+    ).not.toContain("universe");
+  });
+});
+
 describe("per-sleeve rails — a stopless entry is still rejected for stop sleeves", () => {
   it("swing entry without a stop is rejected (stop required)", () => {
     expect(

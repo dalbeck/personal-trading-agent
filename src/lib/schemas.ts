@@ -367,6 +367,15 @@ export const ProposalLensSchema = z
     targetType: TargetType.nullable().default(null),
     qty: z.number().positive(),
     riskPct: ratio,
+    // Target portfolio weight for a **core-long** (target-weight) position
+    // (core-long M3), a fraction (0.4 === 40% of equity). Null for risk-to-stop
+    // lenses (swing/mid). The sizing model is the sleeve's; this records the
+    // weight the qty was sized to.
+    targetWeightPct: ratio.nullable().default(null),
+    // The wide drawdown that flags a human **review** for a no-stop core-long
+    // position (core-long M3), a fraction (0.25 === −25%). Stands in for the
+    // protective stop a swing/mid entry carries. Null for stop-required lenses.
+    reviewTriggerPct: ratio.nullable().default(null),
     relativeVolume: z.number().nonnegative().nullable().default(null),
     catalyst: z.string().nullable().default(null),
     catalystType: CatalystType.nullable().default(null),
@@ -476,6 +485,12 @@ export const TradeProposalSchema = z
     // How the profit target is anchored. A well-formed proposal sets this; older
     // records (and a missing/analyst_price target) are flagged weak, not blocked.
     targetType: TargetType.nullable().default(null),
+    // Core-long (target-weight) sizing fields (core-long M3) — mirror the active
+    // lens. `targetWeightPct` is the target portfolio weight the position was
+    // sized to; `reviewTriggerPct` is the wide drawdown/review trigger that stands
+    // in for a protective stop. Both null for swing/mid (risk-to-stop) proposals.
+    targetWeightPct: ratio.nullable().default(null),
+    reviewTriggerPct: ratio.nullable().default(null),
     // GICS sector for the concentration rail; null when unknown. Resolved from
     // research at proposal time so the rail can see correlated names.
     sector: z.string().nullable().default(null),
@@ -767,6 +782,13 @@ export const DiscoverySettingsSchema = z
      *  `strategy: "value"`, is judged by the value red-team lens, and clears the
      *  same shared hard rails + 6-order/day cap. */
     valueSleeveEnabled: z.boolean().default(false),
+    /** Whether discovery may ALSO surface **core-long** (long-term / core)
+     *  candidates (core-long M3) — allocation-gap and quality driven, not setup
+     *  driven. Off by default; the human opts the core sleeve in here, mirroring
+     *  `valueSleeveEnabled`. A discovery preference, NOT a safety rail: every core
+     *  candidate carries `sleeve: "core-long"`, is judged by the core-long red-team
+     *  lens, sized by target weight, and bound by the shared envelope + 6/day cap. */
+    coreLongSleeveEnabled: z.boolean().default(false),
     updatedAt: isoDateTime.nullable().default(null),
   })
   .strict();
