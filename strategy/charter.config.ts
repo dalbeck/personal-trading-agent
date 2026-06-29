@@ -73,9 +73,15 @@ export const POSITION_MID_LIMITS: RiskLimits = {
  * false` on the sleeve; the `review-trigger` rail enforces it). A core holding is
  * deliberately a **larger slice** (up to 60% per name) and the **sector cap is
  * looser** (60%) because a broad core position is meant to be concentrated; the
- * account-level drawdown halt and the live exposure ceiling still bind. The
- * universe stays equity-only here in M2; the ETF/index permission is added when
- * the sleeve ships (M3). (Declared in M2; enabled in M3.)
+ * account-level drawdown halt and the live exposure ceiling still bind.
+ *
+ * **Universe (core-long M3): ETFs and index funds are permitted, and SPY/VOO/QQQ
+ * are NOT excluded** — they are valid core holdings here (they stay benchmark-only
+ * and SPY-excluded in the swing sleeves). ETFs/index funds trade as **equity-class**
+ * instruments, so the asset-class rail already admits them; the only per-sleeve
+ * universe change is clearing the benchmark exclusion (`excludedSymbols: []`). A
+ * liquidity floor still applies upstream; the ATR volatility cap does not gate
+ * broad ETFs. (Declared in M2; enabled — universe + lens — in M3.)
  */
 export const CORE_LONG_LIMITS: RiskLimits = {
   perPositionRiskPct: 0.02,
@@ -87,8 +93,10 @@ export const CORE_LONG_LIMITS: RiskLimits = {
   emergencySpyDropPct: 0.02,
   emergencyVixLevel: 30,
   allowedOrderTypes: ["marketable_limit"],
+  // ETFs/index funds are equity-class instruments — no new asset class needed.
   allowedAssetClasses: ["equity"],
-  excludedSymbols: ["SPY"],
+  // SPY/VOO/QQQ are permitted core holdings (unlike the swing sleeves).
+  excludedSymbols: [],
 };
 
 /**

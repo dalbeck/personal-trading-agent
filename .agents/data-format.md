@@ -275,6 +275,17 @@ unchanged). The **hard risk rails and the live envelope are shared across every
 sleeve and unchanged** (see `strategy/charters/README.md` — the inherited safety
 envelope); the 6-order/day cap stays one counter across all sleeves.
 
+A **`core-long`** proposal (core-long M3) is single-lens and target-weight: it
+carries **`targetWeightPct`** (the target portfolio weight it was sized to) and
+**`reviewTriggerPct`** (the wide drawdown/review trigger that stands in for a
+stop) — both `ratio`, nullable, null for swing/mid; `stopPrice` / `takeProfit` /
+`targetType` are null. It is produced by the manual analyze sleeve picker
+(`sleeve: "core-long"` + `targetWeightPct` on `POST /api/proposals/analyze`); its
+universe permits ETFs/index funds and does not exclude SPY (`CORE_LONG_LIMITS`,
+`excludedSymbols: []`). Discovery surfacing is gated by **`coreLongSleeveEnabled`**
+in `data/control/discovery-settings.json` (off by default, mirroring
+`valueSleeveEnabled`).
+
 **Proposal `researchStatus` (research-unavailable-state M3).** The **value lens's**
 research availability for its quality data — a `ResearchStatus`
 (`ok | off | capped | unavailable`, nullable; mirrors `PerplexityStatus`). Set

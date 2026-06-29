@@ -94,6 +94,17 @@ describe("read/write discovery settings", () => {
     expect(effectiveDiscoveryLimits(s).valueSleeveEnabled).toBe(true);
   });
 
+  it("opts the core-long sleeve in, off by default (core-long M3)", async () => {
+    const def = await readDiscoverySettings({ dataDir: dir });
+    expect(def.coreLongSleeveEnabled).toBe(false); // off by default
+    expect(effectiveDiscoveryLimits(def).coreLongSleeveEnabled).toBe(false);
+
+    await writeDiscoverySettings({ coreLongSleeveEnabled: true }, { dataDir: dir });
+    const s = await readDiscoverySettings({ dataDir: dir });
+    expect(s.coreLongSleeveEnabled).toBe(true);
+    expect(effectiveDiscoveryLimits(s).coreLongSleeveEnabled).toBe(true);
+  });
+
   it("rejects an out-of-shape payload", async () => {
     await expect(
       writeDiscoverySettings({ ideaCap: -5 }, { dataDir: dir }),

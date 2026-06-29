@@ -15,7 +15,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
-  let body: { symbol?: string };
+  let body: {
+    symbol?: string;
+    sleeve?: string;
+    targetWeightPct?: number;
+    reviewTriggerPct?: number;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -26,10 +31,34 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "symbol is required" }, { status: 400 });
   }
 
-  // Dual-lens (M1): analyze runs BOTH the trend and value mandates and produces
-  // one proposal holding both breakdowns — no lens to pick.
+  // Sleeve picker (core-long M3): `core-long` analyzes a single target-weight,
+  // no-stop core position; omitted/`swing-*` runs the dual-lens (trend + value)
+  // path, unchanged. A target weight is required for the core path.
+  const isCore = body.sleeve === "core-long";
+  if (
+    isCore &&
+    !(typeof body.targetWeightPct === "number" && body.targetWeightPct > 0)
+  ) {
+    return Response.json(
+      {
+        error:
+          "targetWeightPct (a positive fraction) is required for a core-long analyze",
+      },
+      { status: 400 },
+    );
+  }
+
   const account = await getViewMode(); // "paper" | "live"
-  const result = await analyzeSymbol(symbol, { account });
+  const result = await analyzeSymbol(symbol, {
+    account,
+    ...(isCore
+      ? {
+          sleeve: "core-long" as const,
+          targetWeightPct: body.targetWeightPct,
+          reviewTriggerPct: body.reviewTriggerPct,
+        }
+      : {}),
+  });
 
   if (!result.ok) {
     const status =

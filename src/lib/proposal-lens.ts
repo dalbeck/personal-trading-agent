@@ -15,6 +15,7 @@
  * `server-only`) so the client detail view + the approve routes both import it.
  */
 import { buildChecklist, type CheckItem } from "@/lib/checklist";
+import { sleeveOf } from "@/lib/sleeves";
 import { STRATEGY_LABEL, type Strategy } from "@/lib/strategy";
 import type { ProposalLensBreakdown, RedTeamVerdict, TradeProposal } from "@/lib/types";
 
@@ -33,6 +34,8 @@ function singleLensFromTopLevel(p: TradeProposal): ProposalLensBreakdown {
     targetType: p.targetType,
     qty: p.qty,
     riskPct: p.riskPct,
+    targetWeightPct: p.targetWeightPct,
+    reviewTriggerPct: p.reviewTriggerPct,
     relativeVolume: p.relativeVolume,
     catalyst: p.catalyst,
     catalystType: p.catalystType,
@@ -65,6 +68,10 @@ export function proposalBreakdowns(p: TradeProposal): ProposalLensBreakdown[] {
 /** Derive the lens view(s) for a proposal — each breakdown + its own checklist
  *  (built from that lens's levels/strategy, plus the proposal's action/side). */
 export function buildProposalLenses(p: TradeProposal): ProposalLensView[] {
+  // A `core-long` proposal is single-lens; its lone lens uses the buy-and-hold
+  // checklist. Dual-lens swing proposals pass no sleeve so each lens routes by its
+  // own `strategy` (trend/value) — unchanged.
+  const coreSleeve = sleeveOf(p) === "core-long" ? ("core-long" as const) : undefined;
   return proposalBreakdowns(p).map((b) => ({
     ...b,
     checklist: buildChecklist({
@@ -73,6 +80,7 @@ export function buildProposalLenses(p: TradeProposal): ProposalLensView[] {
       // Sector drives the financial-sector leverage suppression (red-team-fixes
       // Issue 1) so the value-trap row matches the red team.
       sector: p.sector,
+      sleeve: coreSleeve,
       ...b,
     }),
   }));

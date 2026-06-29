@@ -19,9 +19,10 @@ import {
   type Violation,
 } from "@/lib/risk";
 import { railsForSleeve, sleeveRequiresStop } from "@strategy/sleeves.config";
-import { sleeveOf } from "@/lib/sleeves";
+import { sleeveOf, type Sleeve } from "@/lib/sleeves";
 import {
   buildManualProposalDraft,
+  buildCoreLongProposalDraft,
   type BuilderCatalystType,
   type ManualProposalDraft,
 } from "@/lib/proposal-builder";
@@ -105,6 +106,16 @@ export interface AnalyzeSymbolOpts {
     account: "paper" | "live",
   ) => Promise<{ equity: number; highWaterEquity: number; openPositions: RiskContext["openPositions"] } | null>;
   redTeamExec?: RedTeamExec;
+  /** Analyze under a specific sleeve (core-long M3). Omitted/`swing-*` → the
+   *  dual-lens (trend + value) path, unchanged. `core-long` → a single core-long
+   *  proposal sized by target weight with no stop. */
+  sleeve?: Sleeve;
+  /** Target portfolio weight for a `core-long` analyze, a fraction (0.4 === 40%).
+   *  Required for the core path; ignored for swing. */
+  targetWeightPct?: number;
+  /** The wide drawdown/review trigger for a `core-long` analyze, a fraction.
+   *  Defaults to −25%. */
+  reviewTriggerPct?: number;
 }
 
 export type AnalyzeSymbolResult =
@@ -229,6 +240,8 @@ function toOrder(p: TradeProposal): ProposedOrder {
     // Per-sleeve rails (per-sleeve-rails M2): swing/mid require a stop (unchanged);
     // a no-stop sleeve (core-long) is governed by its review trigger instead.
     requiresStop: sleeveRequiresStop(sleeveOf(p)),
+    reviewTriggerPct: p.reviewTriggerPct,
+    targetWeightPct: p.targetWeightPct,
   };
 }
 
@@ -299,6 +312,9 @@ export function draftToLens(
     targetType: d.targetType,
     qty: d.qty,
     riskPct: d.riskPct,
+    // Risk-to-stop lenses (trend/value) carry no target weight / review trigger.
+    targetWeightPct: null,
+    reviewTriggerPct: null,
     relativeVolume: d.relativeVolume,
     catalyst: d.catalyst,
     catalystType: d.catalystType,
@@ -374,23 +390,40 @@ export async function analyzeSymbol(
   const id = `manual-${symbol}-${createdAt.slice(0, 23).replace(/[-:.T]/g, "")}`;
   const advisory = false; // approvable; the gate (not this) is the money boundary
 
-  // The dual-lens derivation (shared with the "Refresh research" rebuild,
-  // proposal-refresh-rebuilds M3). Levels + research are both fresh at analysis,
-  // so pricedAt and researchAt both stamp now.
-  const derived = await deriveProposalFromResearch({
-    symbol,
-    bars,
-    quote,
-    equity: snapshot.equity,
-    research,
-    account,
-    advisory,
-    id,
-    createdAt,
-    pricedAt: createdAt,
-    researchAt: createdAt,
-    redTeamExec: opts.redTeamExec,
-  });
+  // Core-long (core-long M3) → a single target-weight, no-stop proposal under the
+  // core lens. Otherwise the dual-lens (trend + value) derivation, unchanged.
+  const derived =
+    opts.sleeve === "core-long"
+      ? await deriveCoreLongProposal({
+          symbol,
+          bars,
+          quote,
+          equity: snapshot.equity,
+          research,
+          account,
+          advisory,
+          id,
+          createdAt,
+          pricedAt: createdAt,
+          researchAt: createdAt,
+          targetWeightPct: opts.targetWeightPct,
+          reviewTriggerPct: opts.reviewTriggerPct,
+          redTeamExec: opts.redTeamExec,
+        })
+      : await deriveProposalFromResearch({
+          symbol,
+          bars,
+          quote,
+          equity: snapshot.equity,
+          research,
+          account,
+          advisory,
+          id,
+          createdAt,
+          pricedAt: createdAt,
+          researchAt: createdAt,
+          redTeamExec: opts.redTeamExec,
+        });
   if (!derived.ok) return derived;
   const { proposal, lenses, active, usedPerplexity } = derived;
 
@@ -661,6 +694,152 @@ export async function deriveProposalFromResearch(
     proposal,
     lenses,
     active,
+    usedPerplexity: research.usedPerplexity,
+  };
+}
+
+/** Default target weight when a core-long analyze omits one — a conservative
+ *  single-position starter weight, well inside the sleeve size cap. */
+const DEFAULT_CORE_TARGET_WEIGHT = 0.1;
+
+/**
+ * Derive a **core-long** proposal from shared research (core-long M3) — a single
+ * target-weight, no-stop position judged by the core-long red-team lens. Parallel
+ * to {@link deriveProposalFromResearch}; it never touches the dual-lens path. The
+ * proposal carries `sleeve: "core-long"`, a single lens, the target weight + a
+ * drawdown/review trigger in place of a stop, and (for a single name) the quality
+ * data so the core checklist's quality item is honest.
+ */
+export async function deriveCoreLongProposal(
+  args: DeriveProposalArgs & {
+    targetWeightPct?: number;
+    reviewTriggerPct?: number;
+  },
+): Promise<DeriveProposalResult> {
+  const { symbol, bars, quote, equity, research, account, advisory } = args;
+  const coreLimits = railsForSleeve("core-long");
+  const cashFlow = research.cashFlow;
+  const qualityDataKnown = hasCashFlowData(cashFlow);
+
+  const draft = buildCoreLongProposalDraft({
+    symbol,
+    bars,
+    quote,
+    equity,
+    targetWeightPct: args.targetWeightPct ?? DEFAULT_CORE_TARGET_WEIGHT,
+    reviewTriggerPct: args.reviewTriggerPct,
+    perPositionSizePct: coreLimits.perPositionSizePct,
+    sector: research.sector,
+    qualityDataKnown,
+  });
+  if (!draft) {
+    return {
+      ok: false,
+      code: "insufficient-data",
+      error: `Not enough Alpaca price history to analyze ${symbol} as a core holding (need ~30 daily bars). Prices are Alpaca-only.`,
+    };
+  }
+
+  // Quality data is verified-available when present from any provider.
+  const researchStatus = cashFlow ? "ok" : research.researchStatus;
+  const researchStatusReason = cashFlow ? null : research.researchStatusReason;
+
+  const redTeam = await runRedTeam(
+    {
+      symbol: draft.symbol,
+      action: draft.action,
+      side: draft.side,
+      sleeve: "core-long",
+      qty: draft.qty,
+      limitPrice: draft.limitPrice,
+      stopPrice: null,
+      takeProfit: null,
+      targetType: null,
+      targetWeightPct: draft.targetWeightPct,
+      reviewTriggerPct: draft.reviewTriggerPct,
+      sector: draft.sector,
+      // Cash-flow is the single-name quality tell; a fund simply has none.
+      cashFlow,
+      researchStatus,
+      thesis: draft.thesis,
+      reasoning: draft.reasoning,
+    },
+    { exec: args.redTeamExec },
+  );
+
+  const lens: ProposalLensBreakdown = {
+    strategy: draft.strategy,
+    limitPrice: draft.limitPrice,
+    stopPrice: null,
+    takeProfit: null,
+    targetType: null,
+    qty: draft.qty,
+    riskPct: draft.riskPct,
+    targetWeightPct: draft.targetWeightPct,
+    reviewTriggerPct: draft.reviewTriggerPct,
+    relativeVolume: null,
+    catalyst: null,
+    catalystType: null,
+    catalystSources: [],
+    catalystState: null,
+    convictionScore: draft.convictionScore,
+    convictionTier: draft.convictionTier,
+    confidence: draft.confidence,
+    thesis: draft.thesis,
+    reasoning: draft.reasoning,
+    redTeam,
+    cashFlow,
+    dividend: null,
+    researchStatus,
+    researchStatusReason,
+    cashFlowSource: research.cashFlowSource,
+    dividendSource: null,
+  };
+
+  const proposal: TradeProposal = TradeProposalSchema.parse({
+    symbol: draft.symbol,
+    action: draft.action,
+    side: draft.side,
+    sleeve: "core-long",
+    strategy: draft.strategy,
+    qty: draft.qty,
+    limitPrice: draft.limitPrice,
+    stopPrice: null,
+    takeProfit: null,
+    targetType: null,
+    targetWeightPct: draft.targetWeightPct,
+    reviewTriggerPct: draft.reviewTriggerPct,
+    sector: draft.sector,
+    relativeVolume: null,
+    catalyst: null,
+    catalystType: null,
+    convictionScore: draft.convictionScore,
+    convictionTier: draft.convictionTier,
+    riskPct: draft.riskPct,
+    confidence: draft.confidence,
+    thesis: draft.thesis,
+    reasoning: draft.reasoning,
+    id: args.id,
+    createdAt: args.createdAt,
+    pricedAt: args.pricedAt,
+    researchAt: args.researchAt,
+    account,
+    advisory,
+    origin: args.origin ?? "manual-request",
+    status: args.status ?? "pending",
+    redTeam,
+    cashFlow,
+    researchStatus,
+    researchStatusReason,
+    cashFlowSource: research.cashFlowSource,
+    lenses: [lens],
+  });
+
+  return {
+    ok: true,
+    proposal,
+    lenses: [lens],
+    active: { draft: draft as unknown as ManualProposalDraft, redTeam },
     usedPerplexity: research.usedPerplexity,
   };
 }

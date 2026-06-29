@@ -28,6 +28,63 @@ function item(list: ReturnType<typeof buildChecklist>, fragment: string) {
   return list.find((c) => c.label.includes(fragment));
 }
 
+describe("buildChecklist — core-long (buy-and-hold) mandate (core-long M3)", () => {
+  function core(overrides: Partial<TradeProposal> = {}) {
+    return buildChecklist({
+      ...makeProposal({
+        sleeve: "core-long",
+        stopPrice: null,
+        takeProfit: null,
+        targetType: null,
+        catalyst: null,
+        catalystType: null,
+        ...overrides,
+      }),
+      // target-weight + review trigger context (not stored on the base fixture)
+      targetWeightPct: 0.4,
+      reviewTriggerPct: 0.25,
+    });
+  }
+
+  it("leads on allocation fit, valuation, quality, and a review trigger", () => {
+    const list = core();
+    expect(item(list, "Target weight & allocation fit")?.status).toBe("pass");
+    expect(item(list, "Drawdown / review trigger")?.status).toBe("pass");
+    expect(item(list, "Quality — business or fund")).toBeDefined();
+    expect(item(list, "Valuation vs long-term value")).toBeDefined();
+  });
+
+  it("drops the breakout-volume, catalyst-timing, and stop items", () => {
+    const list = core();
+    expect(item(list, "Volume confirms")).toBeUndefined();
+    expect(item(list, "Catalyst")).toBeUndefined();
+    expect(item(list, "Protective stop")).toBeUndefined();
+    expect(item(list, "Mean-reversion stop")).toBeUndefined();
+  });
+
+  it("flags a missing target weight or review trigger", () => {
+    const list = buildChecklist({
+      ...makeProposal({ sleeve: "core-long", stopPrice: null, takeProfit: null }),
+      targetWeightPct: null,
+      reviewTriggerPct: null,
+    });
+    expect(item(list, "Target weight & allocation fit")?.status).toBe("flag");
+    expect(item(list, "Drawdown / review trigger")?.status).toBe("flag");
+  });
+
+  it("does NOT flag a core ETF for having no near-term price target", () => {
+    // A buy-and-hold index legitimately has no price target → na, never a flag.
+    expect(core({ targetType: null })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Valuation vs long-term value",
+          status: "na",
+        }),
+      ]),
+    );
+  });
+});
+
 describe("buildChecklist — sleeve threads through identically for swing", () => {
   it("swing-trend yields the byte-identical trend checklist", () => {
     const base = makeProposal({ strategy: "trend" });

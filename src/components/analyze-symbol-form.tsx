@@ -35,23 +35,46 @@ const verdictTone: Record<Verdict, string> = {
  * holding both breakdowns. It **places nothing**; a weak pick under both lenses
  * is flagged by the gates, never rubber-stamped. The book follows the view mode.
  */
-export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
+export function AnalyzeSymbolForm({
+  mode,
+  coreLongEnabled = false,
+}: {
+  mode: "paper" | "live";
+  /** Whether the core-long sleeve is opted in (core-long M3) — gates the Core
+   *  picker. Off by default; the human enables it in the discovery settings. */
+  coreLongEnabled?: boolean;
+}) {
   const router = useRouter();
   const [symbol, setSymbol] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  // "swing" = the dual-lens (trend + value) path; "core-long" = a single
+  // target-weight core position (core-long M3).
+  const [sleeve, setSleeve] = useState<"swing" | "core-long">("swing");
+  const [targetWeight, setTargetWeight] = useState("10"); // percent
+
+  const isCore = coreLongEnabled && sleeve === "core-long";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const ticker = symbol.trim().toUpperCase();
     if (!ticker || busy) return;
+    const weightPct = Number(targetWeight) / 100;
+    if (isCore && !(weightPct > 0)) {
+      setOutcome({ ok: false, error: "Enter a target weight % for a core position." });
+      return;
+    }
     setBusy(true);
     setOutcome(null);
     try {
       const res = await fetch("/api/proposals/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol: ticker }),
+        body: JSON.stringify(
+          isCore
+            ? { symbol: ticker, sleeve: "core-long", targetWeightPct: weightPct }
+            : { symbol: ticker },
+        ),
       });
       const data = (await res.json()) as Outcome & { error?: string };
       if (res.ok && data.ok) {
@@ -85,17 +108,63 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
             className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm uppercase tracking-wide text-fg placeholder:normal-case placeholder:tracking-normal placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
+        {coreLongEnabled ? (
+          <label className="min-w-[9rem]">
+            <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+              Sleeve
+            </span>
+            <select
+              value={sleeve}
+              onChange={(e) =>
+                setSleeve(e.target.value as "swing" | "core-long")
+              }
+              aria-label="Analyze under sleeve"
+              className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="swing">Swing (trend + value)</option>
+              <option value="core-long">Core (long)</option>
+            </select>
+          </label>
+        ) : null}
+        {isCore ? (
+          <label className="min-w-[8rem]">
+            <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+              Target weight %
+            </span>
+            <input
+              value={targetWeight}
+              onChange={(e) => setTargetWeight(e.target.value)}
+              inputMode="decimal"
+              aria-label="Target portfolio weight percent"
+              placeholder="10"
+              className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm tabular-nums text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </label>
+        ) : null}
         <Button type="submit" variant="primary" disabled={busy || !symbol.trim()}>
           {busy ? "Analyzing…" : "Analyze"}
         </Button>
       </form>
 
       <p className="mt-2 text-pretty text-xs text-fg-muted">
-        Runs the full pipeline (research → proposal → risk rails → red-team) under
-        <span className="font-medium text-fg"> both the trend and value lenses</span>{" "}
-        for the {mode} book and queues one candidate below — open it to toggle
-        between the breakdowns. It places nothing; a weak pick is flagged, not
-        rubber-stamped.
+        Runs the full pipeline (research → proposal → risk rails → red-team)
+        {isCore ? (
+          <>
+            {" "}under the{" "}
+            <span className="font-medium text-fg">core-long lens</span> — a
+            buy-and-hold position sized to your target weight, no stop (a
+            drawdown/review trigger instead)
+          </>
+        ) : (
+          <>
+            {" "}under{" "}
+            <span className="font-medium text-fg">
+              both the trend and value lenses
+            </span>
+          </>
+        )}{" "}
+        for the {mode} book and queues one candidate below. It places nothing; a
+        weak pick is flagged, not rubber-stamped.
       </p>
 
       {outcome ? (
@@ -103,7 +172,7 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
           <div className="mt-3 rounded-card border border-line bg-surface-overlay p-3 text-sm">
             <p className="text-fg">
               <span className="font-semibold">{outcome.symbol}</span> analyzed
-              under both lenses and added below.{" "}
+              and added below.{" "}
               {outcome.lenses.map((l, i) => (
                 <span key={l.strategy}>
                   {i > 0 ? " · " : ""}

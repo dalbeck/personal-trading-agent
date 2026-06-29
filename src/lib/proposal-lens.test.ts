@@ -32,6 +32,8 @@ function lens(
     targetType: strategy === "value" ? "fundamental" : "prior_high",
     qty: 10,
     riskPct: 0.015,
+    targetWeightPct: null,
+    reviewTriggerPct: null,
     relativeVolume: 0.9,
     catalyst: "Dividend hike",
     catalystType: "guidance",

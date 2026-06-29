@@ -6,7 +6,7 @@ import {
 } from "./conviction";
 import { atr, sma, type Ohlc } from "./indicators";
 import { resolveStopPrice } from "./risk/validators";
-import { sizeRiskToStop } from "./risk/sizing";
+import { sizeRiskToStop, sizeByTargetWeight } from "./risk/sizing";
 import { resolveCatalystState } from "./catalyst-state";
 import { MIN_REWARD_RISK } from "./risk-reward";
 import type { Strategy } from "./strategy";
@@ -354,6 +354,153 @@ function scoreValueConviction(s: {
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.min(1, Math.max(0, n));
+}
+
+const DEFAULT_CORE_REVIEW_TRIGGER = 0.25; // −25% drawdown flags a human review
+
+export interface BuildCoreLongProposalInput {
+  symbol: string;
+  /** Daily OHLCV bars, oldest → newest. */
+  bars: Ohlc[];
+  /** Current quote — the entry anchor. Falls back to the last bar close. */
+  quote?: number | null;
+  /** Active book equity the position is sized against. */
+  equity: number;
+  /** Target portfolio weight for this core position, a fraction (0.4 === 40%).
+   *  Human-specified; clamped to the sleeve's size cap. */
+  targetWeightPct: number;
+  /** The wide drawdown/review trigger that stands in for a stop, a fraction.
+   *  Defaults to −25%. */
+  reviewTriggerPct?: number;
+  /** The sleeve's per-position size cap (core-long `perPositionSizePct`). */
+  perPositionSizePct: number;
+  sector?: string | null;
+  /** Whether the business's quality (cash-flow) data is known — drags conviction
+   *  when unknown. ETFs/funds pass `false` honestly (no single-name cash flow). */
+  qualityDataKnown?: boolean;
+  allowFractional?: boolean;
+}
+
+export interface CoreLongProposalDraft {
+  symbol: string;
+  action: "buy";
+  side: "long";
+  sleeve: "core-long";
+  /** Back-compat display strategy; the sleeve drives the lens. */
+  strategy: Strategy;
+  qty: number;
+  limitPrice: number;
+  stopPrice: null;
+  takeProfit: null;
+  targetType: null;
+  targetWeightPct: number;
+  reviewTriggerPct: number;
+  sector: string | null;
+  relativeVolume: null;
+  catalyst: null;
+  catalystType: null;
+  convictionScore: number;
+  convictionTier: ConvictionTier;
+  riskPct: number;
+  confidence: number;
+  thesis: string;
+  reasoning: string;
+}
+
+/**
+ * Build a **core-long** (long-term / core) proposal draft (core-long M3). Unlike
+ * the swing builder, a core position is **sized to a target portfolio weight**
+ * (`sizeByTargetWeight`), carries **no protective stop** and **no profit target**,
+ * and is governed by a wide **drawdown/review trigger** instead. Conviction is a
+ * modest, deterministic read: a core hold doesn't want a momentum setup, so the
+ * score leans on quality being known and the entry not being wildly extended above
+ * its long-term trend (a rough "not overpaying" proxy — the real valuation /
+ * quality / cost prosecution is the core-long red-team's job).
+ */
+export function buildCoreLongProposalDraft(
+  input: BuildCoreLongProposalInput,
+): CoreLongProposalDraft | null {
+  const { bars, equity } = input;
+  if (bars.length < MIN_BARS || !(equity > 0)) return null;
+  if (!(input.targetWeightPct > 0)) return null;
+
+  const lastClose = bars[bars.length - 1].c;
+  const entry = input.quote && input.quote > 0 ? input.quote : lastClose;
+  if (!(entry > 0)) return null;
+
+  const allowFractional = input.allowFractional ?? true;
+  const qty = sizeByTargetWeight({
+    equity,
+    entry,
+    targetWeightPct: input.targetWeightPct,
+    perPositionSizePct: input.perPositionSizePct,
+    allowFractional,
+  });
+  if (!(qty > 0)) return null;
+
+  const sma200 = sma(
+    bars.map((b) => b.c),
+    200,
+  );
+  const qualityKnown = input.qualityDataKnown ?? false;
+  // Modest deterministic conviction: base 0.5; +0.12 when quality is verified;
+  // +0.12 when the entry isn't stretched far above its 200-day (a rough "not
+  // overpaying" proxy). Never high on a stretched, quality-unknown name.
+  let score = 0.5;
+  if (qualityKnown) score += 0.12;
+  const stretched = sma200 != null && entry > sma200 * 1.15;
+  if (!stretched) score += 0.12;
+  score = clamp01(score);
+  const tier = convictionTierFromScore(score);
+
+  const reviewTriggerPct = input.reviewTriggerPct ?? DEFAULT_CORE_REVIEW_TRIGGER;
+  const weightPct = Math.min(input.targetWeightPct, input.perPositionSizePct);
+  const sector = input.sector ?? null;
+  const weightLabel = `${(weightPct * 100).toFixed(0)}%`;
+  const trendNote =
+    sma200 == null
+      ? "long-term trend read unavailable"
+      : entry > sma200
+        ? stretched
+          ? "trading well above its 200-day — confirm you are not overpaying"
+          : "modestly above its 200-day"
+        : "below its 200-day — a long-term value entry, counter-trend is normal here";
+
+  const thesis = `Long-term core allocation in ${input.symbol} at a ${weightLabel} target weight${
+    sector ? ` (${sector})` : ""
+  } — ${trendNote}. Held to the allocation, reviewed on a −${(reviewTriggerPct * 100).toFixed(
+    0,
+  )}% drawdown rather than a stop.`;
+  const reasoning = `Sized to a ${weightLabel} portfolio weight (no protective stop — a core buy-and-hold). Quality ${
+    qualityKnown ? "verified" : "unverified (judged by the core-long red-team)"
+  }. The core-long lens prosecutes overpaying vs long-term value, thesis drift, over-concentration, and (for a fund) cost.`;
+
+  return {
+    symbol: input.symbol,
+    action: "buy",
+    side: "long",
+    sleeve: "core-long",
+    // Back-compat display strategy; the sleeve is the real driver.
+    strategy: "value",
+    qty,
+    limitPrice: round2(entry),
+    stopPrice: null,
+    takeProfit: null,
+    targetType: null,
+    targetWeightPct: weightPct,
+    reviewTriggerPct,
+    sector,
+    relativeVolume: null,
+    catalyst: null,
+    catalystType: null,
+    convictionScore: round2(score),
+    convictionTier: tier,
+    // No risk-to-stop on a core hold.
+    riskPct: 0,
+    confidence: round2(score),
+    thesis,
+    reasoning,
+  };
 }
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
