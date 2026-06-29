@@ -81,6 +81,28 @@ describe("live order caps", () => {
     expect(d.violations.map((v) => v.rule)).toContain("live-max-exposure");
   });
 
+  it("binds a no-stop, target-weight core order the same (cross-sleeve envelope, M2)", () => {
+    // The live envelope is USD-based and sleeve-agnostic: a core-long order with
+    // no stop and a target weight is still bound by the $500 account ceiling.
+    const coreBuy: ProposedOrder = {
+      ...BUY,
+      symbol: "VOO",
+      qty: 2,
+      limitPrice: 60, // $120 order, exposure already $480 → over the $500 ceiling
+      stopPrice: null,
+      requiresStop: false,
+      reviewTriggerPct: 0.25,
+      targetWeightPct: 0.4,
+    };
+    const d = evaluateLiveCaps(
+      coreBuy,
+      { currentExposureUsd: 480, fundedCapitalUsd: 1000 },
+      limits,
+    );
+    expect(d.ok).toBe(false);
+    expect(d.violations.map((v) => v.rule)).toContain("live-max-exposure");
+  });
+
   it("blocks a buy that costs more than the funded capital", () => {
     const d = evaluateLiveCaps(
       { ...BUY, qty: 10, limitPrice: 50 },

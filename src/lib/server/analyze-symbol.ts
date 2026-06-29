@@ -18,6 +18,8 @@ import {
   type RiskContext,
   type Violation,
 } from "@/lib/risk";
+import { railsForSleeve, sleeveRequiresStop } from "@strategy/sleeves.config";
+import { sleeveOf } from "@/lib/sleeves";
 import {
   buildManualProposalDraft,
   type BuilderCatalystType,
@@ -224,6 +226,9 @@ function toOrder(p: TradeProposal): ProposedOrder {
     assetClass: "equity",
     takeProfit: p.takeProfit,
     sector: p.sector ?? null,
+    // Per-sleeve rails (per-sleeve-rails M2): swing/mid require a stop (unchanged);
+    // a no-stop sleeve (core-long) is governed by its review trigger instead.
+    requiresStop: sleeveRequiresStop(sleeveOf(p)),
   };
 }
 
@@ -400,7 +405,11 @@ export async function analyzeSymbol(
     spyIntradayChangePct: 0,
     vix: 15,
   };
-  const risk = evaluateOrder(toOrder(proposal), ctx);
+  const risk = evaluateOrder(
+    toOrder(proposal),
+    ctx,
+    railsForSleeve(sleeveOf(proposal)),
+  );
 
   await recordManualProposal(
     {

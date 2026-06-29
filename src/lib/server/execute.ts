@@ -1,6 +1,8 @@
 import "server-only";
 
 import { evaluateOrder, type ProposedOrder, type RiskContext } from "@/lib/risk";
+import { railsForSleeve, sleeveRequiresStop } from "@strategy/sleeves.config";
+import { sleeveOf } from "@/lib/sleeves";
 import type {
   PortfolioSnapshot,
   RedTeamVerdict,
@@ -98,8 +100,15 @@ function toOrder(p: ExecutableProposal, qty: number): ProposedOrder {
     // target now fails the winner-exit rail in code.
     takeProfit: p.takeProfit,
     sector: p.sector ?? null,
+    // Per-sleeve rails (per-sleeve-rails M2). The paper batch is swing today, so
+    // this is `true` (unchanged); a no-stop sleeve would use its review trigger.
+    requiresStop: sleeveRequiresStop(sleeveOf(p)),
   };
 }
+
+/** The rail block for a proposal's sleeve (per-sleeve-rails M2). Swing → the
+ *  unchanged RISK_LIMITS. */
+const limitsFor = (p: ExecutableProposal) => railsForSleeve(sleeveOf(p));
 
 /** Run one proposal through both hard gates and journal the outcome. */
 export async function executeProposal(
@@ -117,7 +126,11 @@ export async function executeProposal(
   };
 
   // 1. Risk gate — in code, before anything else.
-  const risk = evaluateOrder(toOrder(proposal, proposal.qty), context);
+  const risk = evaluateOrder(
+    toOrder(proposal, proposal.qty),
+    context,
+    limitsFor(proposal),
+  );
   if (!risk.ok) {
     const { id } = await recordRiskRejection(
       { ...journalMeta, proposedAction: proposal.action },
@@ -175,7 +188,11 @@ export async function executeProposal(
   let downsized = false;
   if (gate === "downsize") {
     qty = Math.floor(proposal.qty / 2);
-    const recheck = evaluateOrder(toOrder(proposal, qty), context);
+    const recheck = evaluateOrder(
+      toOrder(proposal, qty),
+      context,
+      limitsFor(proposal),
+    );
     if (qty < 1 || !recheck.ok) {
       const { id } = await recordRiskRejection(
         { ...journalMeta, proposedAction: proposal.action },

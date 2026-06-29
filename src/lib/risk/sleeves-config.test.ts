@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { RISK_LIMITS } from "@strategy/charter.config";
+import {
+  CORE_LONG_LIMITS,
+  POSITION_MID_LIMITS,
+  RISK_LIMITS,
+} from "@strategy/charter.config";
 import {
   SLEEVE_CONFIGS,
   SLEEVE_CONFIG_LIST,
   enabledSleeves,
+  railsForSleeve,
   sleeveConfig,
+  sleeveRequiresStop,
 } from "@strategy/sleeves.config";
 
 /**
@@ -79,6 +85,32 @@ describe("sleeve registry — new sleeves are declared but disabled", () => {
     expect(c.universeId).toBe("us-equities-plus-funds");
     expect(c.sizingModel).toBe("target-weight");
     expect(c.redTeamLensId).toBe("core-long");
+  });
+});
+
+describe("per-sleeve rails resolution (per-sleeve-rails M2)", () => {
+  it("resolves both swing sleeves to the unchanged RISK_LIMITS block", () => {
+    expect(railsForSleeve("swing-trend")).toBe(RISK_LIMITS);
+    expect(railsForSleeve("swing-value")).toBe(RISK_LIMITS);
+  });
+
+  it("resolves the new sleeves to their own rail blocks", () => {
+    expect(railsForSleeve("position-mid")).toBe(POSITION_MID_LIMITS);
+    expect(railsForSleeve("core-long")).toBe(CORE_LONG_LIMITS);
+  });
+
+  it("requires a stop everywhere except core-long", () => {
+    expect(sleeveRequiresStop("swing-trend")).toBe(true);
+    expect(sleeveRequiresStop("swing-value")).toBe(true);
+    expect(sleeveRequiresStop("position-mid")).toBe(true);
+    expect(sleeveRequiresStop("core-long")).toBe(false);
+  });
+
+  it("pairs target-weight sizing with no-stop, risk-to-stop with stop-required", () => {
+    for (const c of SLEEVE_CONFIG_LIST) {
+      if (c.sizingModel === "target-weight") expect(c.requiresStop).toBe(false);
+      if (c.requiresStop) expect(c.sizingModel).toBe("risk-to-stop");
+    }
   });
 });
 

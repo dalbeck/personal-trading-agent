@@ -23,6 +23,14 @@ export type Rule = (
 
 const isEntry = (o: ProposedOrder): boolean => o.action === "buy";
 
+/** A sleeve requires a stop unless it explicitly opts out (`requiresStop: false`).
+ *  Absent/`true` ⇒ stop required, so swing/mid orders are unchanged. */
+const requiresStop = (o: ProposedOrder): boolean => o.requiresStop !== false;
+
+/** The widest a no-stop sleeve's drawdown/review trigger may be set — a sanity
+ *  band so a "review trigger" can't be a token 99% that never fires. */
+export const MAX_REVIEW_TRIGGER_PCT = 0.5;
+
 const heldValue = (ctx: RiskContext, symbol: string): number =>
   ctx.openPositions
     .filter((p) => p.symbol === symbol)
@@ -58,6 +66,9 @@ export const universe: Rule = (o, _ctx, limits) => {
 
 export const stopAttached: Rule = (o) => {
   if (!isEntry(o)) return null;
+  // A no-stop sleeve (core-long, target-weight) is governed by the review-trigger
+  // rail instead; the stop rail does not apply.
+  if (!requiresStop(o)) return null;
   if (o.stopPrice === null) {
     return { rule: "stop-attached", message: "entry has no protective stop" };
   }
@@ -145,6 +156,9 @@ export const sectorConcentration: Rule = (o, ctx, limits) => {
  */
 export const winnerExit: Rule = (o) => {
   if (!isEntry(o)) return null;
+  // A buy-and-hold core entry (no-stop sleeve) defines no profit target — it is
+  // held to a target weight and reviewed on drawdown, not exited on a winner.
+  if (!requiresStop(o)) return null;
   const hasTarget = o.takeProfit != null && o.takeProfit > 0;
   const hasTrailing = o.trailingStopPct != null && o.trailingStopPct > 0;
   if (hasTarget || hasTrailing) return null;
@@ -152,6 +166,35 @@ export const winnerExit: Rule = (o) => {
     rule: "winner-exit",
     message: "entry has no profit target or trailing-stop rule",
   };
+};
+
+/**
+ * Drawdown/**review trigger** — the no-stop counterpart to `stopAttached`
+ * (per-sleeve-rails M2). A `requiresStop: false` entry (core-long, target-weight)
+ * has no protective stop, so it must instead define a **wide drawdown that flags
+ * a human review** (not an auto-exit). The trigger must be present and within a
+ * sane band (`0 < pct ≤ MAX_REVIEW_TRIGGER_PCT`). Does not apply to stop-required
+ * sleeves — there the stop rail governs the downside.
+ */
+export const reviewTriggerAttached: Rule = (o) => {
+  if (!isEntry(o)) return null;
+  if (requiresStop(o)) return null; // stop-required sleeves use stopAttached
+  const t = o.reviewTriggerPct;
+  if (t == null || t <= 0) {
+    return {
+      rule: "review-trigger",
+      message: "no-stop entry has no drawdown/review trigger",
+    };
+  }
+  if (t > MAX_REVIEW_TRIGGER_PCT) {
+    return {
+      rule: "review-trigger",
+      message: `review trigger ${pct(t)} is wider than the ${pct(
+        MAX_REVIEW_TRIGGER_PCT,
+      )} max`,
+    };
+  }
+  return null;
 };
 
 export const positionCount: Rule = (o, ctx, limits) => {
@@ -212,6 +255,7 @@ export const RULES: Rule[] = [
   allowedOrderType,
   stopAttached,
   winnerExit,
+  reviewTriggerAttached,
   perPositionRisk,
   perPositionSize,
   sectorConcentration,

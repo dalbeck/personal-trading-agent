@@ -159,6 +159,9 @@ export async function POST(req: Request): Promise<Response> {
         redTeam: lens.redTeam,
         account: proposal.account,
         sector: proposal.sector,
+        // The acting lens's mandate drives the per-sleeve rails (per-sleeve-rails
+        // M2); swing resolves to the unchanged RISK_LIMITS.
+        strategy: lens.strategy,
         targetType: lens.targetType,
         relativeVolume: lens.relativeVolume,
         catalyst: lens.catalyst,

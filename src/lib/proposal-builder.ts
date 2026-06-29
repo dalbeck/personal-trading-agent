@@ -6,6 +6,7 @@ import {
 } from "./conviction";
 import { atr, sma, type Ohlc } from "./indicators";
 import { resolveStopPrice } from "./risk/validators";
+import { sizeRiskToStop } from "./risk/sizing";
 import { resolveCatalystState } from "./catalyst-state";
 import { MIN_REWARD_RISK } from "./risk-reward";
 import type { Strategy } from "./strategy";
@@ -138,18 +139,20 @@ export function buildManualProposalDraft(
     : "measured_move";
   const rewardRisk = (takeProfit - entry) / riskPerShare;
 
-  // Stop-first sizing, clamped by the per-position risk and size caps.
+  // Stop-first sizing, clamped by the per-position risk and size caps. Shared
+  // with any sleeve on the risk-to-stop model via `sizeRiskToStop` (the math is
+  // identical to the original inline formula).
   const riskPct = input.riskLimits?.perPositionRiskPct ?? DEFAULT_RISK_PCT;
   const sizePct = input.riskLimits?.perPositionSizePct ?? DEFAULT_SIZE_PCT;
-  const qtyByRisk = (equity * riskPct) / riskPerShare;
-  const qtyBySize = (equity * sizePct) / entry;
-  const rawQty = Math.min(qtyByRisk, qtyBySize);
   const allowFractional = input.allowFractional ?? true;
-  // Floor (not round) so a rounding artefact can never push the order back over
-  // a cap; 4dp for fractional shares.
-  const qty = allowFractional
-    ? Math.floor(rawQty * 1e4) / 1e4
-    : Math.floor(rawQty);
+  const qty = sizeRiskToStop({
+    equity,
+    entry,
+    riskPerShare,
+    perPositionRiskPct: riskPct,
+    perPositionSizePct: sizePct,
+    allowFractional,
+  });
   if (!(qty > 0)) return null;
 
   const relVol = computeRelativeVolume(bars.map((b) => b.v))?.ratio ?? null;

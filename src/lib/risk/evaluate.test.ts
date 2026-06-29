@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
+import {
+  railsForSleeve,
+  sleeveRequiresStop,
+} from "@strategy/sleeves.config";
 import { evaluateOrder, resolveStopPrice } from "./index";
+import { sizeByTargetWeight } from "./sizing";
 import type { ProposedOrder, RiskContext } from "./types";
 
 /**
@@ -46,6 +51,82 @@ describe("evaluateOrder — a compliant order", () => {
   it("passes every rail", () => {
     const decision = evaluateOrder(baseOrder(), baseCtx());
     expect(decision).toEqual({ ok: true, violations: [] });
+  });
+});
+
+describe("per-sleeve rails — no-stop core-long order (per-sleeve-rails M2)", () => {
+  const coreLimits = railsForSleeve("core-long");
+
+  // A target-weight core buy: no stop, no profit target, carries a review trigger.
+  function coreOrder(over: Partial<ProposedOrder> = {}): ProposedOrder {
+    const qty = sizeByTargetWeight({
+      equity: 100_000,
+      entry: 400,
+      targetWeightPct: 0.4,
+      perPositionSizePct: coreLimits.perPositionSizePct,
+    });
+    return baseOrder({
+      symbol: "BRK.B",
+      qty,
+      limitPrice: 400,
+      stopPrice: null,
+      takeProfit: null,
+      requiresStop: sleeveRequiresStop("core-long"), // false
+      reviewTriggerPct: 0.25,
+      targetWeightPct: 0.4,
+      ...over,
+    });
+  }
+
+  it("sizes correctly and passes every rail with no stop and no target", () => {
+    const decision = evaluateOrder(coreOrder(), baseCtx(), coreLimits);
+    expect(decision).toEqual({ ok: true, violations: [] });
+  });
+
+  it("requires a drawdown/review trigger when there is no stop", () => {
+    expect(
+      evaluateOrder(coreOrder({ reviewTriggerPct: null }), baseCtx(), coreLimits)
+        .violations.map((v) => v.rule),
+    ).toContain("review-trigger");
+  });
+
+  it("rejects a review trigger wider than the sane band", () => {
+    expect(
+      evaluateOrder(coreOrder({ reviewTriggerPct: 0.9 }), baseCtx(), coreLimits)
+        .violations.map((v) => v.rule),
+    ).toContain("review-trigger");
+  });
+
+  it("the target weight stays within the sleeve size cap", () => {
+    const o = coreOrder();
+    expect(o.qty * o.limitPrice).toBeLessThanOrEqual(
+      coreLimits.perPositionSizePct * 100_000 + 1e-6,
+    );
+  });
+});
+
+describe("per-sleeve rails — a stopless entry is still rejected for stop sleeves", () => {
+  it("swing entry without a stop is rejected (stop required)", () => {
+    expect(
+      rules(baseOrder({ stopPrice: null, requiresStop: true }), baseCtx()),
+    ).toContain("stop-attached");
+  });
+
+  it("mid entry without a stop is rejected (position-mid requires a stop)", () => {
+    // position-mid carries requiresStop: true → the stop rail still fires.
+    expect(sleeveRequiresStop("position-mid")).toBe(true);
+    expect(
+      evaluateOrder(
+        baseOrder({ stopPrice: null, requiresStop: true }),
+        baseCtx(),
+        railsForSleeve("position-mid"),
+      ).violations.map((v) => v.rule),
+    ).toContain("stop-attached");
+  });
+
+  it("a no-stop sleeve does NOT get the review-trigger rail on stop sleeves", () => {
+    // Sanity: a normal swing order (requiresStop default) never trips review-trigger.
+    expect(rules(baseOrder(), baseCtx())).not.toContain("review-trigger");
   });
 });
 
