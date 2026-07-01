@@ -95,10 +95,15 @@ export interface DrawdownStatus {
 export function liveDrawdown(
   snapshot: PortfolioSnapshot,
   limits: LiveLimits = LIVE_LIMITS,
+  /** Persisted live high-water floor (USD). A live snapshot carries no equity
+   *  curve, so without this the peak would be the current equity and drawdown
+   *  would always read 0. Omitted → today's snapshot-only behaviour. */
+  highWaterFloor?: number,
 ): DrawdownStatus {
   const highWaterUsd = Math.max(
     snapshot.equity,
     ...snapshot.equityCurve.map((p) => p.equity),
+    highWaterFloor ?? 0,
     0,
   );
   const drawdownPct =
@@ -120,6 +125,9 @@ export interface KillOpts {
   cwd?: string;
   dataDir?: string;
   settingsPaths?: string[];
+  /** Persisted live high-water floor (USD) — a live snapshot has no equity
+   *  curve, so the caller supplies the peak the drawdown is measured against. */
+  highWaterUsd?: number;
   /** Test seams. */
   halt?: (reason: string) => Promise<void>;
   alert?: (title: string, message: string) => Promise<void>;
@@ -135,7 +143,7 @@ export async function enforceLiveDrawdownKill(
   snapshot: PortfolioSnapshot,
   opts: KillOpts = {},
 ): Promise<KillResult> {
-  const dd = liveDrawdown(snapshot, opts.limits);
+  const dd = liveDrawdown(snapshot, opts.limits, opts.highWaterUsd);
   if (!dd.breached) return { ...dd, halted: false };
 
   const already = await isDisconnected({

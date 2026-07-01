@@ -12,6 +12,7 @@ import {
 } from "@/lib/server/robinhood";
 import { enrichLivePositions, type MarkGetter } from "@/lib/server/live-price";
 import { enforceLiveDrawdownKill } from "@/lib/server/live-guards";
+import { updateLiveHighWater } from "@/lib/server/live-high-water";
 import { recordSnapshot } from "@/lib/server/writers";
 import type { PortfolioSnapshot } from "@/lib/types";
 
@@ -159,9 +160,15 @@ export async function refreshLiveAccount(opts?: {
       /* persistence is best-effort; never sink the live read on a write error */
     });
     // Live drawdown kill switch (M4): a fresh live read past the threshold
-    // latches live OFF and alerts. Fail-soft — never sink the read.
+    // latches live OFF and alerts. Fail-soft — never sink the read. The live
+    // snapshot has no equity curve, so raise + read the persisted high-water
+    // mark (H1) and measure the drawdown against it.
+    const highWaterUsd = await updateLiveHighWater(snapshot.equity, {
+      dataDir: opts?.dataDir,
+    }).catch(() => 0);
     const kill = await enforceLiveDrawdownKill(snapshot, {
       dataDir: opts?.dataDir,
+      highWaterUsd,
     }).catch(() => null);
     const notice = kill?.halted
       ? `Live drawdown −${(kill.drawdownPct * 100).toFixed(1)}% tripped the kill switch — live trading halted.`

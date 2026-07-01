@@ -494,6 +494,60 @@ describe("stale-levels guard at approval (fresh-entry-levels M1)", () => {
   });
 });
 
+describe("live drawdown-halt rail at approval (H1 — persisted high-water)", () => {
+  const CALM = { spyIntradayChangePct: 0, vix: 15 };
+  // A real live snapshot shape: equity present, but NO equity curve — so the
+  // peak can only come from the persisted high-water mark.
+  const LIVE_SNAP = {
+    account: "live",
+    asOf: "2026-06-24T10:00:00-04:00",
+    currency: "USD",
+    equity: 80_000,
+    cash: 80_000,
+    buyingPower: 80_000,
+    totalPl: 0,
+    totalPlPct: 0,
+    dayPl: 0,
+    dayPlPct: 0,
+    positions: [],
+    equityCurve: [],
+  } as PortfolioSnapshot;
+
+  it("surfaces an overridable drawdown-halt when live equity is below the persisted high-water", async () => {
+    const gate = await closedGate();
+    const blocks = await evaluateApprovalBlocks(
+      { ...ORDER, account: "live" },
+      {
+        ...gate,
+        snapshot: LIVE_SNAP,
+        market: CALM,
+        liveHighWater: 100_000, // −20% from peak, past the −10% halt
+        quoteOf: async () => 100, // not stale
+      },
+    );
+    const dd = blocks.railViolations.find((v) => v.rule === "drawdown-halt");
+    expect(dd).toBeDefined();
+    expect(approvalIsBlocked(blocks)).toBe(true);
+  });
+
+  it("does not fire drawdown-halt without a persisted high-water (empty curve alone)", async () => {
+    const gate = await closedGate();
+    const blocks = await evaluateApprovalBlocks(
+      { ...ORDER, account: "live" },
+      {
+        ...gate,
+        snapshot: LIVE_SNAP,
+        market: CALM,
+        liveHighWater: 0, // no peak recorded → peak == equity → no drawdown
+        quoteOf: async () => 100,
+      },
+    );
+    expect(
+      blocks.railViolations.find((v) => v.rule === "drawdown-halt"),
+    ).toBeUndefined();
+  });
+});
+
 describe("M1 — real risk context at approval (daily cap + emergency stop)", () => {
   // Roomy account so the order itself (1 share @ $100, stop $95) clears the
   // size/risk rails — isolating the daily-cap and emergency-stop rails.

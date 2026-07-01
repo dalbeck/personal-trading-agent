@@ -9,6 +9,7 @@ import {
   summarizeLiveRefresh,
   type LiveAccount,
 } from "./account";
+import { updateLiveHighWater } from "./live-high-water";
 import type { PortfolioSnapshot } from "@/lib/types";
 
 // No ALPACA_* keys are set in the test environment, so the resolver must fall
@@ -79,6 +80,27 @@ describe("refreshLiveAccount", () => {
     expect(pos?.lastPrice).toBe(150);
     expect(pos?.marketValue).toBeCloseTo(0.1523 * 150, 4);
     expect(pos?.unrealizedPl).toBeCloseTo(0.1523 * 150 - 30, 4);
+  });
+
+  it("trips the drawdown kill when live equity sits below the persisted high-water", async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), "pta-live-hw-"));
+    // Seed a $10,000 high-water from a prior (higher-equity) refresh.
+    await updateLiveHighWater(10_000, { dataDir });
+    // Now the live account reads $8,000 — a −20% drawdown. The live snapshot has
+    // no equity curve, so only the persisted high-water can surface this.
+    const res = await refreshLiveAccount({
+      dataDir,
+      fetcher: async () => ({
+        currency: "USD",
+        equity: 8_000,
+        cash: 8_000,
+        buying_power: 8_000,
+        last_equity: 8_000,
+        positions: [],
+      }),
+      getMark: async () => 150,
+    });
+    expect(res.notice).toMatch(/kill switch/i);
   });
 });
 
