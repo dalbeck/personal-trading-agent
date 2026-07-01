@@ -1,4 +1,5 @@
 import { readProposals } from "@/lib/server/data";
+import { requireAuthorized } from "@/lib/server/authorize";
 import {
   approvalIsBlocked,
   evaluateApprovalBlocks,
@@ -22,6 +23,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: { proposalId?: string; actingLens?: string };
   try {
     body = (await req.json()) as typeof body;

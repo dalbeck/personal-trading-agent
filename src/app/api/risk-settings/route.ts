@@ -1,4 +1,5 @@
 import { readRiskSettings, writeRiskSettings } from "@/lib/server/risk-settings";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * Risk-settings read/write (Phase 3 M7). The human configures or disables each
@@ -18,6 +19,8 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: unknown;
   try {
     body = await req.json();

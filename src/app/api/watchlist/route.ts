@@ -1,4 +1,5 @@
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { readWatchlistEntries } from "@/lib/server/data";
 import { addToWatchlist, removeFromWatchlist } from "@/lib/server/writers";
 
@@ -18,6 +19,8 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: { action?: string; symbol?: string };
   try {
     body = (await req.json()) as typeof body;

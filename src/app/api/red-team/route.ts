@@ -1,4 +1,5 @@
 import { runRedTeam, type RedTeamProposal } from "@/lib/server/red-team";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * Run the cross-model **red-team** (codex prosecutor) on a candidate and return
@@ -12,10 +13,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
-  const token = process.env.ROUTINE_TRIGGER_TOKEN;
-  if (token && req.headers.get("authorization") !== `Bearer ${token}`) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
 
   let body: Partial<RedTeamProposal>;
   try {

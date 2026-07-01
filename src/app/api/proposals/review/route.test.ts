@@ -35,10 +35,16 @@ function proposal(over: Record<string, unknown> = {}) {
   };
 }
 
+const TOKEN = "test-trigger-token";
+
 function post(body: unknown): Request {
   return new Request("http://127.0.0.1:3000/api/proposals/review", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      host: "127.0.0.1:3000",
+      authorization: `Bearer ${TOKEN}`,
+    },
     body: JSON.stringify(body),
   });
 }
@@ -48,9 +54,13 @@ beforeEach(() => {
   setProposalStatus.mockReset();
   submitTradeApproval.mockReset();
   setProposalStatus.mockResolvedValue({ id: "p-1", file: "x" });
+  process.env.ROUTINE_TRIGGER_TOKEN = TOKEN;
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete process.env.ROUTINE_TRIGGER_TOKEN;
+});
 
 describe("POST /api/proposals/review", () => {
   it.each(["reviewed", "dismissed"] as const)(

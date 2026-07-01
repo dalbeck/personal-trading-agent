@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { buildOpsSteps, resolveOpsAction } from "@/lib/server/ops";
+import { authorize } from "@/lib/server/authorize";
 
 /**
  * Operations control-panel runner. Runs a FIXED, allowlisted action ID's
@@ -22,75 +23,6 @@ import { buildOpsSteps, resolveOpsAction } from "@/lib/server/ops";
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type AuthResult = { ok: true } | { ok: false; status: number; error: string };
-
-/**
- * Authorize a request to run an operation. **Fail closed**: with no
- * `ROUTINE_TRIGGER_TOKEN` configured the endpoint refuses everything (503).
- *
- * When a token is set, a request is authorized if it is either:
- *  - a **CLI caller** presenting `Authorization: Bearer <token>`, or
- *  - a **same-origin browser** request — proven by `Sec-Fetch-Site:
- *    same-origin` (a browser-set, forbidden-to-JS header a cross-origin page
- *    cannot forge) or a same-host `Origin`. The dashboard never embeds the
- *    secret token in the page; the same-origin signal is the browser's
- *    credential.
- *
- * A non-localhost Host is rejected outright (defense in depth atop binding to
- * 127.0.0.1). A cross-site request is rejected even though it lacks the token.
- */
-function authorize(req: Request): AuthResult {
-  const host = req.headers.get("host") ?? "";
-  const hostname = host.replace(/:\d+$/, "").toLowerCase();
-  const isLocalHost =
-    hostname === "127.0.0.1" ||
-    hostname === "localhost" ||
-    hostname === "::1" ||
-    hostname === "[::1]";
-  if (!isLocalHost) {
-    return { ok: false, status: 403, error: "forbidden: localhost only" };
-  }
-
-  const token = process.env.ROUTINE_TRIGGER_TOKEN;
-  if (!token) {
-    return {
-      ok: false,
-      status: 503,
-      error:
-        "Operations disabled: set ROUTINE_TRIGGER_TOKEN in .env and restart the server to enable.",
-    };
-  }
-
-  // CLI path: explicit bearer token.
-  const auth = req.headers.get("authorization");
-  if (auth) {
-    return auth === `Bearer ${token}`
-      ? { ok: true }
-      : { ok: false, status: 401, error: "unauthorized" };
-  }
-
-  // Browser path: same-origin only.
-  const site = req.headers.get("sec-fetch-site");
-  if (site) {
-    return site === "same-origin"
-      ? { ok: true }
-      : { ok: false, status: 403, error: "forbidden: cross-origin request" };
-  }
-  const origin = req.headers.get("origin");
-  if (origin) {
-    try {
-      if (new URL(origin).host === host) return { ok: true };
-    } catch {
-      /* malformed Origin → fall through to refusal */
-    }
-    return { ok: false, status: 403, error: "forbidden: cross-origin request" };
-  }
-
-  // No bearer and no same-origin signal → a non-browser caller without the
-  // token. Refuse.
-  return { ok: false, status: 401, error: "unauthorized" };
-}
 
 function sse(obj: unknown): string {
   return `data: ${JSON.stringify(obj)}\n\n`;

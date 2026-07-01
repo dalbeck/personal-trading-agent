@@ -3,6 +3,7 @@ import {
   disconnectLive,
   getLiveTradingStatus,
 } from "@/lib/server/gate";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * One-click **disconnect** (halt) for live trading, plus an explicit clear.
@@ -30,10 +31,8 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   if (action === "reconnect") {
-    const token = process.env.ROUTINE_TRIGGER_TOKEN;
-    if (token && req.headers.get("authorization") !== `Bearer ${token}`) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
+    const denied = requireAuthorized(req);
+    if (denied) return denied;
     await clearDisconnect();
   } else {
     await disconnectLive({ reason: "dashboard disconnect" });

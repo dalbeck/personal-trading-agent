@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The re-run endpoint always re-judges (even a proposal that already has a
@@ -43,12 +43,21 @@ function proposal() {
   };
 }
 
+const TOKEN = "test-trigger-token";
+const AUTH = { host: "localhost", authorization: `Bearer ${TOKEN}` };
+
 const call = (id: string) =>
-  POST(new Request("http://localhost/x", { method: "POST" }), {
+  POST(new Request("http://localhost/x", { method: "POST", headers: AUTH }), {
     params: Promise.resolve({ id }),
   });
 
-afterEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  process.env.ROUTINE_TRIGGER_TOKEN = TOKEN;
+});
+afterEach(() => {
+  vi.clearAllMocks();
+  delete process.env.ROUTINE_TRIGGER_TOKEN;
+});
 
 describe("POST /api/proposals/[id]/red-team", () => {
   it("re-runs the prosecutor and overwrites the stored verdict", async () => {
@@ -73,7 +82,7 @@ describe("POST /api/proposals/[id]/red-team", () => {
     const res = await POST(
       new Request("http://localhost/x", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...AUTH },
         body: JSON.stringify({ model: "claude" }),
       }),
       { params: Promise.resolve({ id: "p-1" }) },

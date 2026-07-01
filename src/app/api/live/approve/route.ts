@@ -8,6 +8,7 @@ import { isAdvisoryProposal } from "@/lib/proposal-advisory";
 import { lensSleeveOf, resolveActiveLens } from "@/lib/proposal-lens";
 import { SLEEVES } from "@/lib/sleeves";
 import type { Sleeve } from "@/lib/sleeves";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * Per-trade human approval endpoint (Phase 3 M3). The dashboard posts the
@@ -29,6 +30,9 @@ function nowET(): string {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
+
   let body: {
     proposalId?: string;
     decision?: string;

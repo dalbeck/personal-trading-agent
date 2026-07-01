@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { getResearchProvider } from "@/lib/server/research";
 
 /**
@@ -22,10 +23,8 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: Request): Promise<Response> {
-  const token = process.env.ROUTINE_TRIGGER_TOKEN;
-  if (token && req.headers.get("authorization") !== `Bearer ${token}`) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
 
   let body: unknown;
   try {

@@ -1,4 +1,5 @@
 import { readProposals } from "@/lib/server/data";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { setProposalStatus } from "@/lib/server/writers";
 import {
   ADVISORY_DECISIONS,
@@ -27,6 +28,8 @@ function isDecision(v: unknown): v is AdvisoryDecision {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: { proposalId?: string; decision?: string };
   try {
     body = (await req.json()) as typeof body;
