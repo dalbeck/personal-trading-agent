@@ -482,6 +482,7 @@ export async function evaluateApprovalBlocks(
   const redTeamRejects = redTeam.verdict === "reject";
 
   // Risk rails — sized against the relevant book, with the human's overlay.
+  const isLive = (order.account ?? "paper") === "live";
   const snapshot =
     opts.snapshot !== undefined
       ? opts.snapshot
@@ -520,10 +521,9 @@ export async function evaluateApprovalBlocks(
     // Live snapshots carry no equity curve (H1), so for a live order floor the
     // peak with the persisted high-water mark — otherwise the drawdown-halt rail
     // measures against the current equity and can never fire.
-    const liveHighWater =
-      (order.account ?? "paper") === "live"
-        ? opts.liveHighWater ?? (await readLiveHighWater({ dataDir: opts.dataDir }))
-        : 0;
+    const liveHighWater = isLive
+      ? opts.liveHighWater ?? (await readLiveHighWater({ dataDir: opts.dataDir }))
+      : 0;
     const context: RiskContext = {
       equity: snapshot.equity,
       highWaterEquity: Math.max(highWater(snapshot), liveHighWater),
@@ -538,6 +538,33 @@ export async function evaluateApprovalBlocks(
       limits,
       { skipRules },
     ).violations;
+
+    // Emergency-stop fail-closed (live path): a real SPY-data outage (not a flat
+    // tape) means the SPY −2% arm could not be evaluated. Surface an overridable
+    // block rather than silently approving with the emergency stop disabled. VIX
+    // is neutral-by-design (no free feed), so only SPY unavailability blocks.
+    if (isLive && market.spyAvailable === false) {
+      railViolations = [
+        ...railViolations,
+        {
+          rule: "market-data-unavailable",
+          message:
+            "SPY intraday data unavailable — the emergency stop could not be evaluated. Retry or override to proceed.",
+        },
+      ];
+    }
+  } else if (isLive) {
+    // Fail-closed (live path): no portfolio snapshot means NO rail could be
+    // sized (size, sector, count, drawdown, emergency stop). Refuse rather than
+    // approve unchecked — surfaced as an overridable block. Paper is left lenient
+    // (dry-run plumbing), so this only fires for a live-account order.
+    railViolations = [
+      {
+        rule: "no-snapshot",
+        message:
+          "No portfolio snapshot — the risk rails could not be evaluated. Refresh the live account or override to proceed.",
+      },
+    ];
   }
 
   // Live-only caps (M4) — only when this order will actually go live.

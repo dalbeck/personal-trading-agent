@@ -220,7 +220,23 @@ describe("per-trade approval", () => {
       },
       {
         ...gate,
-        snapshot: null,
+        // A roomy live snapshot + available market so the rails pass and this
+        // test isolates gate routing (not the H2 degraded-path blocks).
+        snapshot: {
+          account: "live",
+          asOf: "2026-06-24T10:00:00-04:00",
+          currency: "USD",
+          equity: 100_000,
+          cash: 100_000,
+          buyingPower: 100_000,
+          totalPl: 0,
+          totalPlPct: 0,
+          dayPl: 0,
+          dayPlPct: 0,
+          positions: [],
+          equityCurve: [],
+        } as PortfolioSnapshot,
+        market: { spyIntradayChangePct: 0, vix: 15, spyAvailable: true },
         mockOrderId: "mock-live",
         placeLive: async () => {
           reachedRobinhood = true;
@@ -545,6 +561,105 @@ describe("live drawdown-halt rail at approval (H1 — persisted high-water)", ()
     expect(
       blocks.railViolations.find((v) => v.rule === "drawdown-halt"),
     ).toBeUndefined();
+  });
+});
+
+describe("live-path fails closed when degraded (H2)", () => {
+  const CALM = { spyIntradayChangePct: 0, vix: 15, spyAvailable: true };
+  const ROOMY = {
+    account: "live",
+    asOf: "2026-06-24T10:00:00-04:00",
+    currency: "USD",
+    equity: 100_000,
+    cash: 100_000,
+    buyingPower: 100_000,
+    totalPl: 0,
+    totalPlPct: 0,
+    dayPl: 0,
+    dayPlPct: 0,
+    positions: [],
+    equityCurve: [],
+  } as PortfolioSnapshot;
+
+  it("blocks a LIVE order with no snapshot (rails could not be evaluated)", async () => {
+    const gate = await closedGate();
+    const blocks = await evaluateApprovalBlocks(
+      { ...ORDER, account: "live" },
+      { ...gate, snapshot: null, market: CALM, quoteOf: async () => 100 },
+    );
+    const v = blocks.railViolations.find((x) => x.rule === "no-snapshot");
+    expect(v).toBeDefined();
+    expect(approvalIsBlocked(blocks)).toBe(true);
+  });
+
+  it("does NOT block a PAPER order with no snapshot (unchanged lenient path)", async () => {
+    const gate = await closedGate();
+    const blocks = await evaluateApprovalBlocks(
+      ORDER, // no account → paper
+      { ...gate, snapshot: null, market: CALM, quoteOf: async () => 100 },
+    );
+    expect(
+      blocks.railViolations.find((x) => x.rule === "no-snapshot"),
+    ).toBeUndefined();
+  });
+
+  it("blocks a LIVE order when SPY data is unavailable (emergency stop unevaluable)", async () => {
+    const gate = await closedGate();
+    const blocks = await evaluateApprovalBlocks(
+      { ...ORDER, account: "live" },
+      {
+        ...gate,
+        snapshot: ROOMY,
+        market: { spyIntradayChangePct: 0, vix: 15, spyAvailable: false },
+        quoteOf: async () => 100,
+      },
+    );
+    const v = blocks.railViolations.find(
+      (x) => x.rule === "market-data-unavailable",
+    );
+    expect(v).toBeDefined();
+    expect(approvalIsBlocked(blocks)).toBe(true);
+  });
+
+  it("does NOT block a LIVE order when SPY data is available (flat tape)", async () => {
+    const gate = await closedGate();
+    const blocks = await evaluateApprovalBlocks(
+      { ...ORDER, account: "live" },
+      { ...gate, snapshot: ROOMY, market: CALM, quoteOf: async () => 100 },
+    );
+    expect(
+      blocks.railViolations.find((x) => x.rule === "market-data-unavailable"),
+    ).toBeUndefined();
+  });
+
+  it("submitTradeApproval blocks a live no-snapshot order, and a valid override clears it", async () => {
+    const gate = await closedGate();
+    const base = {
+      order: { ...ORDER, account: "live" as const },
+      decision: "approve" as const,
+      approver: "human" as const,
+      timestamp: "2026-06-24T10:00:00-04:00",
+    };
+    const blocked = await submitTradeApproval(base, {
+      ...gate,
+      snapshot: null,
+      market: CALM,
+      quoteOf: async () => 100,
+      mockOrderId: "mock-ns",
+    });
+    expect(blocked.outcome).toBe("blocked-risk");
+
+    const overridden = await submitTradeApproval(
+      { ...base, override: { comment: "Snapshot stale; I accept the risk." } },
+      {
+        ...gate,
+        snapshot: null,
+        market: CALM,
+        quoteOf: async () => 100,
+        mockOrderId: "mock-ns-ovr",
+      },
+    );
+    expect(overridden.outcome).toBe("approved");
   });
 });
 

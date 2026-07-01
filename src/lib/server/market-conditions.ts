@@ -31,12 +31,23 @@ export interface MarketConditions {
   /** SPY intraday change as a fraction: -0.025 === SPY −2.5%. */
   spyIntradayChangePct: number;
   vix: number;
+  /** Whether the SPY read yielded a usable value (vs. falling back to neutral).
+   *  Optional so existing `{ spyIntradayChangePct, vix }` literals still satisfy
+   *  the type; `getMarketConditions` always sets it. The live emergency-stop
+   *  block fires only on an explicit `false` (a real fetch failure). */
+  spyAvailable?: boolean;
+  /** Whether a VIX value was sourced (vs. the neutral default). VIX has no
+   *  reliable free feed, so this is informational — it does not block orders. */
+  vixAvailable?: boolean;
 }
 
-/** The neutral reading used when a source is unavailable — trips no rail. */
+/** The neutral reading used when a source is unavailable — trips no rail. Both
+ *  arms are flagged unavailable, since neutral *is* the no-data state. */
 export const NEUTRAL_MARKET: MarketConditions = {
   spyIntradayChangePct: 0,
   vix: 15,
+  spyAvailable: false,
+  vixAvailable: false,
 };
 
 /** SPY snapshot getter seam (defaults to Alpaca's IEX snapshot). */
@@ -161,24 +172,32 @@ export async function getMarketConditions(opts?: {
       }));
 
   let spyIntradayChangePct = NEUTRAL_MARKET.spyIntradayChangePct;
+  let spyAvailable = false;
   if (spyChange) {
     try {
       const v = await spyChange();
-      if (v != null && Number.isFinite(v)) spyIntradayChangePct = v;
+      if (v != null && Number.isFinite(v)) {
+        spyIntradayChangePct = v;
+        spyAvailable = true;
+      }
     } catch {
-      /* fail-soft → neutral */
+      /* fail-soft → neutral, spyAvailable stays false */
     }
   }
 
   let vix = NEUTRAL_MARKET.vix;
+  let vixAvailable = false;
   if (vixGetter) {
     try {
       const v = await vixGetter();
-      if (v != null && Number.isFinite(v) && v > 0) vix = v;
+      if (v != null && Number.isFinite(v) && v > 0) {
+        vix = v;
+        vixAvailable = true;
+      }
     } catch {
-      /* fail-soft → neutral */
+      /* fail-soft → neutral, vixAvailable stays false */
     }
   }
 
-  return { spyIntradayChangePct, vix };
+  return { spyIntradayChangePct, vix, spyAvailable, vixAvailable };
 }

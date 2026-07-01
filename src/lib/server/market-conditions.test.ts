@@ -31,6 +31,36 @@ describe("getMarketConditions", () => {
     expect(conds.vix).toBe(34);
   });
 
+  it("reports availability: a usable SPY + VIX read marks both available", async () => {
+    const conds = await getMarketConditions({
+      spyChange: async () => -0.01,
+      vix: async () => 22,
+    });
+    expect(conds.spyAvailable).toBe(true);
+    expect(conds.vixAvailable).toBe(true);
+  });
+
+  it("marks SPY unavailable when its read throws (distinct from a flat tape)", async () => {
+    const conds = await getMarketConditions({
+      spyChange: async () => {
+        throw new Error("network down");
+      },
+      vix: async () => 22,
+    });
+    expect(conds.spyIntradayChangePct).toBe(0); // neutral value
+    expect(conds.spyAvailable).toBe(false); // ...but flagged unavailable
+    expect(conds.vixAvailable).toBe(true);
+  });
+
+  it("marks VIX unavailable when no source yields a value", async () => {
+    const conds = await getMarketConditions({
+      spyChange: async () => 0,
+      vix: async () => null,
+    });
+    expect(conds.vixAvailable).toBe(false);
+    expect(conds.vix).toBe(NEUTRAL_MARKET.vix);
+  });
+
   it("computes SPY intraday change from an injected Alpaca snapshot fetch", async () => {
     // last 392 vs prev close 400 → −2%.
     const fetchImpl = (async () =>
