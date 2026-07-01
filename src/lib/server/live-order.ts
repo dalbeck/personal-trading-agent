@@ -27,6 +27,7 @@ import {
   evaluateLiveCaps,
   liveCapContextFromSnapshot,
 } from "./live-guards";
+import { readLiveHighWater } from "./live-high-water";
 import {
   getMarketConditions,
   type MarketConditions,
@@ -375,6 +376,11 @@ export interface ApprovalOpts extends RouteOpts {
    *  inject). Defaults to a live Alpaca read, fail-soft to null (then levels are
    *  never treated as stale — a quote hiccup can't block every order). */
   quoteOf?: (symbol: string) => Promise<number | null>;
+  /** Persisted live high-water floor (USD) for the drawdown-halt rail (H1; tests
+   *  inject). A live snapshot has no equity curve, so for a live order the peak
+   *  is read from the persisted mark. Defaults to `readLiveHighWater()` for a
+   *  live order, 0 otherwise (paper carries its own curve). */
+  liveHighWater?: number;
 }
 
 /**
@@ -511,9 +517,16 @@ export async function evaluateApprovalBlocks(
         sector: await sectorOf(p.symbol),
       })),
     );
+    // Live snapshots carry no equity curve (H1), so for a live order floor the
+    // peak with the persisted high-water mark — otherwise the drawdown-halt rail
+    // measures against the current equity and can never fire.
+    const liveHighWater =
+      (order.account ?? "paper") === "live"
+        ? opts.liveHighWater ?? (await readLiveHighWater({ dataDir: opts.dataDir }))
+        : 0;
     const context: RiskContext = {
       equity: snapshot.equity,
-      highWaterEquity: highWater(snapshot),
+      highWaterEquity: Math.max(highWater(snapshot), liveHighWater),
       openPositions,
       ordersToday,
       spyIntradayChangePct: market.spyIntradayChangePct,

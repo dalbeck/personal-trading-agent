@@ -141,6 +141,39 @@ describe("live drawdown kill switch", () => {
     expect(liveDrawdown(snap(96, [100, 96])).breached).toBe(false);
   });
 
+  it("uses the persisted high-water floor for a live snapshot with an empty curve", () => {
+    // A real live snapshot carries equityCurve: [] — without the floor the peak
+    // would be the current equity and drawdown would read 0.
+    const dd = liveDrawdown(snap(90, []), undefined, 100);
+    expect(dd.highWaterUsd).toBe(100);
+    expect(dd.drawdownPct).toBeCloseTo(0.1, 5);
+    expect(dd.breached).toBe(true);
+  });
+
+  it("floors an empty-curve snapshot but never below its own equity", () => {
+    // A stale/low floor must not fabricate a drawdown below the live equity.
+    const dd = liveDrawdown(snap(120, []), undefined, 80);
+    expect(dd.highWaterUsd).toBe(120);
+    expect(dd.drawdownPct).toBe(0);
+  });
+
+  it("enforceLiveDrawdownKill halts a live snapshot via the persisted high-water", async () => {
+    const dir = await tmp();
+    const halts: string[] = [];
+    // equity 85, empty curve (live shape) — dead without the floor. With a 100
+    // high-water it is a −15% drawdown, past the kill threshold.
+    const res = await enforceLiveDrawdownKill(snap(85, []), {
+      dataDir: dir,
+      highWaterUsd: 100,
+      halt: async (r) => void halts.push(r),
+      alert: async () => {},
+    });
+    expect(res.highWaterUsd).toBe(100);
+    expect(res.breached).toBe(true);
+    expect(res.halted).toBe(true);
+    expect(halts).toHaveLength(1);
+  });
+
   it("halts and alerts when breached", async () => {
     const dir = await tmp();
     const halts: string[] = [];
