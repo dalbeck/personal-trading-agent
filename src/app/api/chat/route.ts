@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { z } from "zod";
 import { isChatModel } from "@/lib/chat";
 import { assistantCommand, buildGroundingContext } from "@/lib/server/chat";
@@ -17,6 +18,8 @@ function sse(obj: unknown): string {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: unknown;
   try {
     body = await req.json();

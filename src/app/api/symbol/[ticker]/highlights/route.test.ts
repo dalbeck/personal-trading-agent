@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { POST } from "./route";
 
+const TOKEN = "test-trigger-token";
+
 function req(): Request {
   return new Request("http://127.0.0.1:3000/api/symbol/NVDA/highlights", {
     method: "POST",
-    headers: { host: "127.0.0.1:3000" },
+    headers: { host: "127.0.0.1:3000", authorization: `Bearer ${TOKEN}` },
   });
 }
 
@@ -16,10 +18,12 @@ const prevProvider = process.env.RESEARCH_PROVIDER;
 
 beforeEach(() => {
   delete process.env.RESEARCH_PROVIDER; // default-off
+  process.env.ROUTINE_TRIGGER_TOKEN = TOKEN;
 });
 afterEach(() => {
   if (prevProvider === undefined) delete process.env.RESEARCH_PROVIDER;
   else process.env.RESEARCH_PROVIDER = prevProvider;
+  delete process.env.ROUTINE_TRIGGER_TOKEN;
 });
 
 describe("symbol research route", () => {

@@ -1,4 +1,5 @@
 import { readProposals } from "@/lib/server/data";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { parseRedTeamModel, runRedTeam } from "@/lib/server/red-team";
 import { setProposalRedTeam } from "@/lib/server/writers";
 
@@ -23,6 +24,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   const { id } = await params;
 
   // Optional model override; a malformed/absent body just keeps the GPT default.

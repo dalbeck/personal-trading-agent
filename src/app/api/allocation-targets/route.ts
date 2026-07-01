@@ -2,6 +2,7 @@ import {
   readAllocationTargets,
   writeAllocationTargets,
 } from "@/lib/server/allocation-targets";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * Read/write the human's target allocation across sleeves (portfolio M5). The
@@ -17,6 +18,8 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: unknown;
   try {
     body = await req.json();

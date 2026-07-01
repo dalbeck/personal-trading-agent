@@ -1,4 +1,5 @@
 import type { MaterialNewsItem } from "@/lib/types";
+import { requireAuthorized } from "@/lib/server/authorize";
 import {
   bookFromSymbols,
   DEFAULT_FEEDS,
@@ -40,10 +41,8 @@ function parseFeeds(): Feed[] {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const token = process.env.ROUTINE_TRIGGER_TOKEN;
-  if (token && req.headers.get("authorization") !== `Bearer ${token}`) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
 
   const symbols = await getScoutSymbols();
   if (symbols.length === 0) {

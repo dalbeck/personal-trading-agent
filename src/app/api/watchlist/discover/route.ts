@@ -1,4 +1,5 @@
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { addDiscoveredToWatchlist } from "@/lib/server/writers";
 import { DISCOVERY_LIMITS } from "@strategy/charter.config";
 
@@ -16,10 +17,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
-  const token = process.env.ROUTINE_TRIGGER_TOKEN;
-  if (token && req.headers.get("authorization") !== `Bearer ${token}`) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
 
   let body: { symbols?: unknown };
   try {

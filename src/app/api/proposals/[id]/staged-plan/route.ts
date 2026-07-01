@@ -1,4 +1,5 @@
 import { readProposalById, setStagedPlan } from "@/lib/server/writers";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { isAdvisoryProposal } from "@/lib/proposal-advisory";
 import { buildStagedEntryPlan, STAGED_ENTRY_DEFAULTS } from "@/lib/staged-entry";
 
@@ -25,6 +26,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   const { id } = await params;
   let body: {
     remove?: boolean;

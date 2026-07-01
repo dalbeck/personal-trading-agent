@@ -90,12 +90,20 @@ unset-token hole, not just adds a check).
 `symbol/[ticker]/{bars,quote,research/freshness}`, and the `GET` handlers of
 `allocation-targets`, `discovery-settings`, `risk-settings`, `watchlist`.
 
-### 3. Narrow the routine `Bash(curl:*)` grant
+### 3. Narrow the routine `Bash(curl:*)` grant — deferred to a follow-up
 
-The routine harness config that currently allows `Bash(curl:*)` is narrowed to
-the specific localhost routine-runner endpoints the agents actually call, so a
-routine agent cannot reach the approve endpoint even though it now also needs a
-token. Defense in depth for C1.
+Deferred out of this branch (decision 2026-07-01). Key finding: the routine
+agents **already hold `$ROUTINE_TRIGGER_TOKEN`** (they curl read/write endpoints
+with `Authorization: Bearer $ROUTINE_TRIGGER_TOKEN`), so the code-level auth in
+this branch does **not** by itself stop a routine agent from curling
+`/api/live/approve` with the token. Narrowing `ROUTINE_ALLOWED_TOOLS`
+(`src/lib/server/routine-cli.ts:23`) to an explicit read/write endpoint
+allowlist is the real defense-in-depth, but Bash prefix-matching is fragile and
+must be validated by actually running the routines (regime, bars,
+watchlist/discover, research/finance, news-scout). It gets its own focused
+follow-up branch. Until then, the **live gate** remains the boundary: an
+approved order lands in the dry-run sink unless a human has separately opened the
+gate.
 
 ## Behavior after the change
 
@@ -121,5 +129,7 @@ token. Defense in depth for C1.
 
 ## Out of scope (follow-up branches)
 
+- **Routine `Bash(curl:*)` narrowing** — deferred (see section 3), needs live
+  routine validation.
 - **C2** — loopback binding (`next start -H 127.0.0.1`, Caddy `bind 127.0.0.1`).
 - **H1–H8**, medium items, and all charter/playbook edits.

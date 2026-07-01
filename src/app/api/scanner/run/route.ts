@@ -3,6 +3,7 @@ import {
   resolveScanFilters,
   type ScanFilters,
 } from "@/lib/scanner";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { runScan, ScannerUnavailableError } from "@/lib/server/scanner";
 
 /**
@@ -19,6 +20,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: { preset?: unknown; filters?: Partial<ScanFilters> };
   try {
     body = (await req.json()) as typeof body;

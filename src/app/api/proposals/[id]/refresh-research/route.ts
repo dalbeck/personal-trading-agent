@@ -1,4 +1,5 @@
 import { refreshProposalResearch } from "@/lib/server/refresh-research";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * Rebuild ONE proposal's value-lens fields (cashFlow / dividend / catalyst /
@@ -22,9 +23,11 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   const { id } = await params;
   const result = await refreshProposalResearch(id);
   if (!result.ok) {

@@ -2,6 +2,7 @@ import {
   readDiscoverySettings,
   writeDiscoverySettings,
 } from "@/lib/server/discovery-settings";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * Discovery-funnel settings read/write (Phase 3 M3). The human tunes the review
@@ -22,6 +23,8 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: unknown;
   try {
     body = await req.json();

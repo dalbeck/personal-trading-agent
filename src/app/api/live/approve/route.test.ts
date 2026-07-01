@@ -66,10 +66,17 @@ function proposal(over: Record<string, unknown> = {}) {
   };
 }
 
+const TOKEN = "test-trigger-token";
+
+/** An authorized same-origin-equivalent request (localhost Host + bearer). */
 function post(body: unknown): Request {
   return new Request("http://127.0.0.1:3000/api/live/approve", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      host: "127.0.0.1:3000",
+      authorization: `Bearer ${TOKEN}`,
+    },
     body: JSON.stringify(body),
   });
 }
@@ -81,9 +88,47 @@ beforeEach(() => {
   markTrancheFilled.mockReset();
   setProposalStatus.mockResolvedValue({ id: "p-1", file: "x" });
   markTrancheFilled.mockResolvedValue({ id: "p-1" });
+  process.env.ROUTINE_TRIGGER_TOKEN = TOKEN;
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete process.env.ROUTINE_TRIGGER_TOKEN;
+});
+
+describe("POST /api/live/approve — auth gate (fail closed)", () => {
+  function raw(headers: Record<string, string>): Request {
+    return new Request("http://127.0.0.1:3000/api/live/approve", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ proposalId: "p-1", decision: "approve" }),
+    });
+  }
+
+  it("fails closed (503) with no token, never reading proposals or routing an order", async () => {
+    readProposals.mockResolvedValue([]);
+    delete process.env.ROUTINE_TRIGGER_TOKEN;
+    const res = await POST(raw({ host: "127.0.0.1:3000", "sec-fetch-site": "same-origin" }));
+    expect(res.status).toBe(503);
+    expect(readProposals).not.toHaveBeenCalled();
+    expect(submitTradeApproval).not.toHaveBeenCalled();
+  });
+
+  it("rejects a cross-site browser request (403) before any side effect", async () => {
+    readProposals.mockResolvedValue([]);
+    const res = await POST(raw({ host: "127.0.0.1:3000", "sec-fetch-site": "cross-site" }));
+    expect(res.status).toBe(403);
+    expect(readProposals).not.toHaveBeenCalled();
+    expect(submitTradeApproval).not.toHaveBeenCalled();
+  });
+
+  it("lets an authorized caller past the gate (reaches proposal lookup → 404)", async () => {
+    readProposals.mockResolvedValue([]);
+    const res = await POST(raw({ host: "127.0.0.1:3000", authorization: `Bearer ${TOKEN}` }));
+    expect(res.status).toBe(404);
+    expect(readProposals).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("POST /api/live/approve — advisory proposals are non-executable", () => {
   it("REFUSES a live-advisory proposal and never calls the order router", async () => {

@@ -1,4 +1,5 @@
 import { refreshLiveAccount } from "@/lib/server/account";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * Refresh the live Robinhood Agentic snapshot on demand (the Refresh button on
@@ -15,7 +16,9 @@ import { refreshLiveAccount } from "@/lib/server/account";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(): Promise<Response> {
+export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   const live = await refreshLiveAccount();
   return Response.json({
     connected: live.connected,

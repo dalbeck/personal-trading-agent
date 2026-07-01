@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { POST } from "./route";
 
 /**
@@ -7,10 +7,21 @@ import { POST } from "./route";
  * that happens BEFORE any research/broker/CLI work — so they run without the
  * network or a metered call.
  */
+const TOKEN = "test-trigger-token";
+const AUTH = { host: "localhost", authorization: `Bearer ${TOKEN}` };
+
+beforeEach(() => {
+  process.env.ROUTINE_TRIGGER_TOKEN = TOKEN;
+});
+afterEach(() => {
+  delete process.env.ROUTINE_TRIGGER_TOKEN;
+});
+
 describe("POST /api/proposals/analyze — input validation", () => {
   it("400s on a non-JSON body", async () => {
     const res = await POST(new Request("http://localhost/api/proposals/analyze", {
       method: "POST",
+      headers: { ...AUTH },
       body: "not json",
     }));
     expect(res.status).toBe(400);
@@ -20,7 +31,7 @@ describe("POST /api/proposals/analyze — input validation", () => {
     const res = await POST(
       new Request("http://localhost/api/proposals/analyze", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...AUTH },
         body: JSON.stringify({}),
       }),
     );
@@ -33,7 +44,7 @@ describe("POST /api/proposals/analyze — input validation", () => {
     const res = await POST(
       new Request("http://localhost/api/proposals/analyze", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...AUTH },
         body: JSON.stringify({ symbol: "   " }),
       }),
     );

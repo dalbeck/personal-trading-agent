@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The approve precheck must be READ-ONLY: it reports what blocks an order so the
@@ -46,10 +46,16 @@ function proposal(over: Record<string, unknown> = {}) {
   };
 }
 
+const TOKEN = "test-trigger-token";
+
 function post(body: unknown): Request {
   return new Request("http://127.0.0.1:3000/api/live/approve/precheck", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      host: "127.0.0.1:3000",
+      authorization: `Bearer ${TOKEN}`,
+    },
     body: JSON.stringify(body),
   });
 }
@@ -57,6 +63,11 @@ function post(body: unknown): Request {
 beforeEach(() => {
   readProposals.mockReset();
   evaluateApprovalBlocks.mockReset();
+  process.env.ROUTINE_TRIGGER_TOKEN = TOKEN;
+});
+
+afterEach(() => {
+  delete process.env.ROUTINE_TRIGGER_TOKEN;
 });
 
 describe("POST /api/live/approve/precheck", () => {

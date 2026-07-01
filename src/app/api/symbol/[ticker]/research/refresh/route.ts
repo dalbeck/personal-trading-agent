@@ -1,4 +1,5 @@
 import { getSymbolResearch } from "@/lib/server/symbol-research";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { isValidSymbol, normalizeSymbol } from "@/lib/symbol";
 
 /**
@@ -15,9 +16,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ ticker: string }> },
 ): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   const { ticker } = await params;
   const symbol = normalizeSymbol(ticker);
   if (!isValidSymbol(symbol)) {

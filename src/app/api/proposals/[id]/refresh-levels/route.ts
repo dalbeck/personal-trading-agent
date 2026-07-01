@@ -1,4 +1,5 @@
 import { refreshProposalLevels } from "@/lib/server/refresh-levels";
+import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
  * Re-anchor ONE proposal's entry/stop/target/sizing to the **current** Alpaca
@@ -21,9 +22,11 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   const { id } = await params;
   const result = await refreshProposalLevels(id);
   if (!result.ok) {

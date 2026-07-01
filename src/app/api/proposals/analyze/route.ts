@@ -1,4 +1,5 @@
 import { analyzeSymbol } from "@/lib/server/analyze-symbol";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { getViewMode } from "@/lib/server/mode";
 import { lensSleeveOf } from "@/lib/proposal-lens";
 import { parseRedTeamModel } from "@/lib/server/red-team";
@@ -17,6 +18,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
   let body: {
     symbol?: string;
     sleeve?: string;

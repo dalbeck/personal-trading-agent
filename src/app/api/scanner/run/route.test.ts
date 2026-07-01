@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The scanner run endpoint resolves a {preset, filters} request into bounded
@@ -15,16 +15,25 @@ vi.mock("@/lib/server/scanner", async (orig) => {
 import { POST } from "./route";
 import { ScannerUnavailableError } from "@/lib/server/scanner";
 
+const TOKEN = "test-trigger-token";
+const AUTH = { host: "localhost", authorization: `Bearer ${TOKEN}` };
+
 const call = (body: unknown) =>
   POST(
     new Request("http://localhost/x", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...AUTH },
       body: JSON.stringify(body),
     }),
   );
 
-afterEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  process.env.ROUTINE_TRIGGER_TOKEN = TOKEN;
+});
+afterEach(() => {
+  vi.clearAllMocks();
+  delete process.env.ROUTINE_TRIGGER_TOKEN;
+});
 
 describe("POST /api/scanner/run", () => {
   it("runs a preset scan and returns results + resolved filters", async () => {
@@ -51,7 +60,7 @@ describe("POST /api/scanner/run", () => {
 
   it("400s on an invalid JSON body", async () => {
     const res = await POST(
-      new Request("http://localhost/x", { method: "POST" }),
+      new Request("http://localhost/x", { method: "POST", headers: AUTH }),
     );
     expect(res.status).toBe(400);
     expect(runScan).not.toHaveBeenCalled();

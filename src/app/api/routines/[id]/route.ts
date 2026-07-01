@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { requireAuthorized } from "@/lib/server/authorize";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ROUTINE_IDS } from "@/lib/schemas";
@@ -79,10 +80,8 @@ export async function POST(
     return Response.json({ error: "unknown routine" }, { status: 404 });
   }
 
-  const token = process.env.ROUTINE_TRIGGER_TOKEN;
-  if (token && req.headers.get("authorization") !== `Bearer ${token}`) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const denied = requireAuthorized(req);
+  if (denied) return denied;
 
   const startedAt = nowET();
 
