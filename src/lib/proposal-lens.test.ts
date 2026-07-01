@@ -20,6 +20,7 @@ const verdict = (v: RedTeamVerdict["verdict"]): RedTeamVerdict => ({
   notes: "n",
   factors: [],
   basis: null,
+  model: null,
 });
 
 function lens(

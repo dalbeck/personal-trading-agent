@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { parseFrontmatter } from "./frontmatter";
 import {
   buildProsecutorPrompt,
+  parseRedTeamModel,
   parseVerdict,
   redTeamOutcome,
   runRedTeam,
@@ -401,6 +402,8 @@ describe("parseVerdict", () => {
       notes: "Valuation too rich.",
       factors: [],
       basis: null,
+      // `model` defaults to null at parse; runRedTeam stamps it after.
+      model: null,
     });
   });
 
@@ -474,7 +477,7 @@ describe("parseVerdict", () => {
 
 describe("redTeamOutcome", () => {
   it("maps verdicts to gate outcomes", () => {
-    const base = { factors: [], basis: null };
+    const base = { factors: [], basis: null, model: null };
     expect(redTeamOutcome({ verdict: "reject", notes: "x", ...base })).toBe("block");
     expect(redTeamOutcome({ verdict: "concern", notes: "x", ...base })).toBe("downsize");
     expect(redTeamOutcome({ verdict: "approve", notes: "x", ...base })).toBe("allow");
@@ -482,7 +485,7 @@ describe("redTeamOutcome", () => {
 });
 
 describe("runRedTeam", () => {
-  it("returns the prosecutor's verdict", async () => {
+  it("returns the prosecutor's verdict, stamped with the model (default GPT)", async () => {
     const exec: RedTeamExec = async () =>
       '{"verdict":"reject","notes":"Thesis leans on consensus."}';
     const v = await runRedTeam(proposal, { exec });
@@ -491,21 +494,43 @@ describe("runRedTeam", () => {
       notes: "Thesis leans on consensus.",
       factors: [],
       basis: null,
+      model: "codex",
     });
   });
 
-  it("fails CLOSED to a reject when the prosecutor errors", async () => {
+  it("stamps the chosen model onto the verdict (red-team-model-toggle)", async () => {
+    const exec: RedTeamExec = async () =>
+      '{"verdict":"approve","notes":"Holds up."}';
+    const v = await runRedTeam(proposal, { exec, model: "claude" });
+    expect(v.verdict).toBe("approve");
+    expect(v.model).toBe("claude");
+  });
+
+  it("fails CLOSED to a reject when the prosecutor errors, keeping the model", async () => {
     const exec: RedTeamExec = async () => {
-      throw new Error("codex not found");
+      throw new Error("claude not found");
     };
-    const v = await runRedTeam(proposal, { exec });
+    const v = await runRedTeam(proposal, { exec, model: "claude" });
     expect(v.verdict).toBe("reject");
     expect(v.notes).toMatch(/default/i);
+    // The fail-closed path still records which judge was attempted.
+    expect(v.model).toBe("claude");
   });
 
   it("fails CLOSED to a reject on unparseable output", async () => {
     const exec: RedTeamExec = async () => "no idea";
     expect((await runRedTeam(proposal, { exec })).verdict).toBe("reject");
+  });
+});
+
+describe("parseRedTeamModel", () => {
+  it("accepts 'claude' and defaults everything else to GPT (codex)", () => {
+    expect(parseRedTeamModel("claude")).toBe("claude");
+    expect(parseRedTeamModel("codex")).toBe("codex");
+    expect(parseRedTeamModel("gpt")).toBe("codex");
+    expect(parseRedTeamModel(undefined)).toBe("codex");
+    expect(parseRedTeamModel(null)).toBe("codex");
+    expect(parseRedTeamModel(42)).toBe("codex");
   });
 });
 

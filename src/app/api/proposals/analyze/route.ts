@@ -1,6 +1,7 @@
 import { analyzeSymbol } from "@/lib/server/analyze-symbol";
 import { getViewMode } from "@/lib/server/mode";
 import { lensSleeveOf } from "@/lib/proposal-lens";
+import { parseRedTeamModel } from "@/lib/server/red-team";
 
 /**
  * On-demand "analyze a symbol" route (Phase 3 M2). Runs the full pipeline —
@@ -22,6 +23,7 @@ export async function POST(req: Request): Promise<Response> {
     targetWeightPct?: number;
     reviewTriggerPct?: number;
     extraSleeves?: string[];
+    redTeamModel?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -60,8 +62,12 @@ export async function POST(req: Request): Promise<Response> {
   );
 
   const account = await getViewMode(); // "paper" | "live"
+  // Which model judges the red-team (red-team-model-toggle). Defaults to GPT
+  // (codex) when the field is absent or unrecognized — Claude is opt-in.
+  const redTeamModel = parseRedTeamModel(body.redTeamModel);
   const result = await analyzeSymbol(symbol, {
     account,
+    redTeamModel,
     ...(isCore
       ? {
           sleeve: "core-long" as const,
@@ -91,6 +97,8 @@ export async function POST(req: Request): Promise<Response> {
     proposalId: result.proposal.id,
     symbol: result.proposal.symbol,
     account: result.proposal.account,
+    // Echo which model judged so the UI can confirm the toggle took effect.
+    redTeamModel,
     // Both lens verdicts at a glance (dual-lens M1): [{ strategy, verdict }, …].
     lenses: result.proposal.lenses.map((l) => ({
       sleeve: lensSleeveOf(l),

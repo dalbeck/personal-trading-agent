@@ -14,6 +14,9 @@ vi.mock("@/lib/server/data", () => ({
 }));
 vi.mock("@/lib/server/red-team", () => ({
   runRedTeam: (...a: unknown[]) => runRedTeam(...a),
+  // The route validates the optional model from the body; keep the real default
+  // behavior (anything but "claude" → "codex").
+  parseRedTeamModel: (raw: unknown) => (raw === "claude" ? "claude" : "codex"),
 }));
 vi.mock("@/lib/server/writers", () => ({
   setProposalRedTeam: (...a: unknown[]) => setProposalRedTeam(...a),
@@ -60,6 +63,41 @@ describe("POST /api/proposals/[id]/red-team", () => {
     expect(runRedTeam).toHaveBeenCalledOnce();
     // The NEW verdict was persisted over the old one.
     expect(setProposalRedTeam).toHaveBeenCalledWith("p-1", NEW_VERDICT);
+  });
+
+  it("passes the body's model to the prosecutor (red-team-model-toggle)", async () => {
+    readProposals.mockResolvedValue([proposal()]);
+    runRedTeam.mockResolvedValue(NEW_VERDICT);
+    setProposalRedTeam.mockResolvedValue({ id: "p-1", file: "x.json" });
+
+    const res = await POST(
+      new Request("http://localhost/x", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ model: "claude" }),
+      }),
+      { params: Promise.resolve({ id: "p-1" }) },
+    );
+    expect(res.status).toBe(200);
+    // Second arg carries the selected model.
+    expect(runRedTeam).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: "MSFT" }),
+      { model: "claude" },
+    );
+  });
+
+  it("defaults to GPT when the body has no/invalid model", async () => {
+    readProposals.mockResolvedValue([proposal()]);
+    runRedTeam.mockResolvedValue(NEW_VERDICT);
+    setProposalRedTeam.mockResolvedValue({ id: "p-1", file: "x.json" });
+
+    // The shared `call` helper sends no body at all.
+    const res = await call("p-1");
+    expect(res.status).toBe(200);
+    expect(runRedTeam).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: "MSFT" }),
+      { model: "codex" },
+    );
   });
 
   it("404s an unknown proposal and never runs the prosecutor", async () => {
