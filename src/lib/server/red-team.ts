@@ -27,13 +27,22 @@ import type {
 } from "@/lib/types";
 
 /**
- * Red-team gate. After the primary model proposes a trade, a **different model
- * family** (`codex exec`) is invoked as a hostile prosecutor told to refute the
- * thesis and **default to "no."** The value is adversarial pressure, not a
- * second opinion. The verdict is recorded; a "reject" blocks the trade.
+ * Red-team gate. After the primary model proposes a trade, a hostile prosecutor
+ * is invoked, told to refute the thesis and **default to "no."** The value is
+ * adversarial pressure, not a second opinion. The verdict is recorded; a
+ * "reject" blocks the trade.
  *
- * The `codex` spawn is injected (`opts.exec`) so the prompt/parse/policy logic
- * is unit-tested without the CLI. If the prosecutor is unavailable or its output
+ * **Prosecutor model is selectable** (red-team-model-toggle). The default is
+ * `codex` = GPT, which is a **different model family** from the proposer — the
+ * intended cross-model adversarial setup. `claude` = Claude Opus is offered as
+ * an opt-in so the desk can A/B the same proposal under both judges. Note the
+ * cross-model property only holds when the *proposer* is not also Claude: the
+ * manual analyze builds proposals deterministically (no LLM), so a Claude
+ * red-team there is still independent; for Claude-authored discovery proposals a
+ * Claude red-team is same-family — keep GPT the default for that reason.
+ *
+ * The spawn is injected (`opts.exec`) so the prompt/parse/policy logic is
+ * unit-tested without the CLI. If the prosecutor is unavailable or its output
  * can't be parsed, the gate **fails closed** to a reject — never silently allow.
  */
 
@@ -207,6 +216,16 @@ function catalystSourcesBriefing(sources: CatalystSource[] | null | undefined): 
 
 export type RedTeamExec = (prompt: string) => Promise<string>;
 export type RedTeamOutcome = "allow" | "downsize" | "block";
+
+// Model constants live in the plain `@/lib/red-team-model` (client + server);
+// re-exported here so existing server-side imports keep resolving.
+export {
+  DEFAULT_RED_TEAM_MODEL,
+  parseRedTeamModel,
+  type RedTeamModel,
+} from "@/lib/red-team-model";
+import type { RedTeamModel } from "@/lib/red-team-model";
+import { DEFAULT_RED_TEAM_MODEL } from "@/lib/red-team-model";
 
 export function buildProsecutorPrompt(p: RedTeamProposal): string {
   // Each sleeve has its own lens — never merged (core-long M3 / position-mid M4).
@@ -448,15 +467,23 @@ export function redTeamOutcome(verdict: RedTeamVerdict): RedTeamOutcome {
   }
 }
 
-/** Run the prosecutor. Fails closed to a reject if it errors or is unparseable. */
+/** Run the prosecutor. Fails closed to a reject if it errors or is unparseable.
+ *
+ *  `opts.model` picks the prosecutor family (default `codex` = GPT); `opts.exec`
+ *  overrides the spawn entirely (used by tests). When `exec` is omitted the model
+ *  selects the default spawn. The chosen model is stamped onto the verdict so two
+ *  outcomes (GPT vs Claude) on the same proposal stay distinguishable — including
+ *  on the fail-closed path. */
 export async function runRedTeam(
   proposal: RedTeamProposal,
-  opts?: { exec?: RedTeamExec },
+  opts?: { exec?: RedTeamExec; model?: RedTeamModel },
 ): Promise<RedTeamVerdict> {
-  const exec = opts?.exec ?? defaultCodexExec;
+  const model = opts?.model ?? DEFAULT_RED_TEAM_MODEL;
+  const exec =
+    opts?.exec ?? (model === "claude" ? defaultClaudeExec : defaultCodexExec);
   try {
     const raw = await exec(buildProsecutorPrompt(proposal));
-    return parseVerdict(raw);
+    return { ...parseVerdict(raw), model };
   } catch (err) {
     return {
       verdict: "reject",
@@ -465,6 +492,7 @@ export async function runRedTeam(
       })`,
       factors: [],
       basis: null,
+      model,
     };
   }
 }
@@ -475,19 +503,36 @@ export async function runRedTeam(
  *  shadows a working Homebrew install in the launchd daemon's PATH). */
 const CODEX_BIN = process.env.CODEX_BIN || "codex";
 
-/** Spawn `codex exec` (a different model family) and capture its stdout. */
-const defaultCodexExec: RedTeamExec = (prompt) =>
-  new Promise<string>((resolve, reject) => {
-    // argv (no shell) so the prompt can't inject commands.
-    const child = spawn(CODEX_BIN, ["exec", prompt], { cwd: process.cwd() });
-    child.stdin.end(); // `codex exec` reads stdin; close it so it won't hang.
+/** The claude binary to spawn. Defaults to `claude` (PATH-resolved); pin via
+ *  `CLAUDE_BIN` when a shadowing install is earlier on the launchd PATH. */
+const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
+
+/** The Claude model the red-team prosecutor runs under (red-team-model-toggle).
+ *  Defaults to Opus 4.8; override with `CLAUDE_RED_TEAM_MODEL`. Passed to
+ *  `claude -p --model`. */
+const CLAUDE_RED_TEAM_MODEL =
+  process.env.CLAUDE_RED_TEAM_MODEL || "claude-opus-4-8";
+
+/** How long to wait for a prosecutor CLI before killing it and failing closed. */
+const RED_TEAM_TIMEOUT_MS = 120_000;
+
+/**
+ * Spawn a prosecutor CLI (argv, never a shell, so the prompt can't inject
+ * commands) and capture its stdout. Shared by the codex (GPT) and claude
+ * (Claude Opus) execs — same timeout, stdin-close, and fail-on-nonzero policy.
+ */
+function spawnExec(label: string, cmd: string, args: string[]): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(cmd, args, { cwd: process.cwd() });
+    // Both `codex exec` and `claude -p` read stdin; close it so they won't hang.
+    child.stdin.end();
 
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error("codex exec timed out"));
-    }, 120_000);
+      reject(new Error(`${label} timed out`));
+    }, RED_TEAM_TIMEOUT_MS);
 
     child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
     child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
@@ -498,6 +543,24 @@ const defaultCodexExec: RedTeamExec = (prompt) =>
     child.on("close", (code) => {
       clearTimeout(timer);
       if (code === 0) resolve(stdout);
-      else reject(new Error(stderr.trim().slice(0, 500) || `codex exited ${code}`));
+      else
+        reject(
+          new Error(stderr.trim().slice(0, 500) || `${label} exited ${code}`),
+        );
     });
   });
+}
+
+/** Spawn `codex exec` (GPT — a different model family) and capture its stdout. */
+const defaultCodexExec: RedTeamExec = (prompt) =>
+  spawnExec("codex exec", CODEX_BIN, ["exec", prompt]);
+
+/** Spawn `claude -p` pinned to Opus and capture its stdout. The prosecutor only
+ *  reasons over the prompt — no repo tools are needed or granted. */
+const defaultClaudeExec: RedTeamExec = (prompt) =>
+  spawnExec("claude red-team", CLAUDE_BIN, [
+    "-p",
+    prompt,
+    "--model",
+    CLAUDE_RED_TEAM_MODEL,
+  ]);

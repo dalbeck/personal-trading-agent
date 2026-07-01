@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SLEEVE_LABEL, type Sleeve } from "@/lib/sleeves";
+import {
+  DEFAULT_RED_TEAM_MODEL,
+  RED_TEAM_MODEL_FULL_LABEL,
+  type RedTeamModel,
+} from "@/lib/red-team-model";
 
 type Verdict = "approve" | "concern" | "reject";
 interface LensOutcome {
@@ -19,6 +24,7 @@ type Outcome =
       railsOk: boolean;
       railViolations: { rule: string; message: string }[];
       usedPerplexity: boolean;
+      redTeamModel?: RedTeamModel;
     }
   | { ok: false; error: string };
 
@@ -48,6 +54,10 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
     "all",
   );
   const [targetWeight, setTargetWeight] = useState("10"); // percent
+  // Which model judges the red-team (red-team-model-toggle). GPT (codex) is the
+  // default; Claude Opus is opt-in for A/B-ing the two prosecutors on a pick.
+  const [redTeamModel, setRedTeamModel] =
+    useState<RedTeamModel>(DEFAULT_RED_TEAM_MODEL);
 
   const isCore = sleeve === "core-long";
   const isMid = sleeve === "position-mid";
@@ -69,15 +79,21 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(
           isCore
-            ? { symbol: ticker, sleeve: "core-long", targetWeightPct: weightPct }
+            ? {
+                symbol: ticker,
+                sleeve: "core-long",
+                targetWeightPct: weightPct,
+                redTeamModel,
+              }
             : isMid
-              ? { symbol: ticker, sleeve: "position-mid" }
+              ? { symbol: ticker, sleeve: "position-mid", redTeamModel }
               : {
                   // Default: evaluate the swing pair PLUS position-mid + core-long
                   // — a manual analyze always shows every sleeve's verdict. The
                   // opt-in flags gate only autonomous discovery, not this.
                   symbol: ticker,
                   extraSleeves: ["position-mid", "core-long"],
+                  redTeamModel,
                 },
         ),
       });
@@ -128,6 +144,20 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
             <option value="all">All sleeves</option>
             <option value="position-mid">Position (mid) only</option>
             <option value="core-long">Core (long) only</option>
+          </select>
+        </label>
+        <label className="min-w-[10rem]">
+          <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+            Red-team
+          </span>
+          <select
+            value={redTeamModel}
+            onChange={(e) => setRedTeamModel(e.target.value as RedTeamModel)}
+            aria-label="Red-team prosecutor model"
+            className="mt-1 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+          >
+            <option value="codex">{RED_TEAM_MODEL_FULL_LABEL.codex} (default)</option>
+            <option value="claude">{RED_TEAM_MODEL_FULL_LABEL.claude}</option>
           </select>
         </label>
         {isCore ? (
@@ -199,7 +229,11 @@ export function AnalyzeSymbolForm({ mode }: { mode: "paper" | "live" }) {
               <span className={outcome.railsOk ? "text-success" : "text-danger"}>
                 {outcome.railsOk ? "rails clear" : "rails flagged"}
               </span>
-              {outcome.usedPerplexity ? " · used Perplexity (capped)" : ""}.
+              {outcome.usedPerplexity ? " · used Perplexity (capped)" : ""}
+              {outcome.redTeamModel
+                ? ` · judged by ${RED_TEAM_MODEL_FULL_LABEL[outcome.redTeamModel]}`
+                : ""}
+              .
             </p>
             {!outcome.railsOk && outcome.railViolations.length > 0 ? (
               <ul className="mt-1 list-disc pl-5 text-xs text-danger">

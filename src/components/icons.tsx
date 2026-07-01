@@ -24,6 +24,7 @@ import {
   Newspaper,
   NotebookPen,
   PieChart,
+  Radar,
   RefreshCw,
   Scale,
   ScrollText,
@@ -72,6 +73,7 @@ export const JournalIcon = lucideIcon(NotebookPen);
 export const CoachingIcon = lucideIcon(GraduationCap);
 export const NewsIcon = lucideIcon(Newspaper);
 export const ProposalsIcon = lucideIcon(Lightbulb);
+export const ScannerIcon = lucideIcon(Radar);
 export const StrategyIcon = lucideIcon(Target);
 export const RoutinesIcon = lucideIcon(RefreshCw);
 export const LogsIcon = lucideIcon(ScrollText);

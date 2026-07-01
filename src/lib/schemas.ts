@@ -156,6 +156,11 @@ export const RedTeamVerdictSchema = z
     factors: z.array(RedTeamFactorSchema).default([]),
     // One-line "how it decided" / conviction summary. Null for older records.
     basis: z.string().nullable().default(null),
+    // Which model family produced this verdict (red-team-model-toggle): `codex`
+    // = GPT (the default cross-model prosecutor), `claude` = Claude Opus. Stamped
+    // by `runRedTeam` so two outcomes (GPT vs Claude) on the same proposal stay
+    // distinguishable. Null for older records written before the toggle existed.
+    model: z.enum(["codex", "claude"]).nullable().default(null),
   })
   .strict();
 

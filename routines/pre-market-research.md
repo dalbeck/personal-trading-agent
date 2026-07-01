@@ -62,6 +62,22 @@ more real setups are there.
    Industrials, Consumer Discretionary, Consumer Staples, Communication Services,
    Materials, Utilities, Real Estate) so non-tech names actually enter
    consideration. Good sources:
+   - **the market scanner** (free, preferred first pass when enabled) — the
+     Robinhood-backed scanner seeds candidates by trend / value / earnings. When
+     `SCANNER_ENABLED` is set, run one or more presets and treat the hits as the
+     raw funnel you then rank + diversify (it returns indicative metrics only;
+     every candidate still re-prices via Alpaca on analyze). It is a discovery
+     aid, NOT a stock picker — keep only names that fit the playbook. Example:
+
+     ```bash
+     # Trend preset (RSI 50–80, ≥1.3× rel vol, ≥$2B market cap). Swap
+     # "trend" for "value" or "earnings-soon", or pass a custom filters object.
+     curl -fsS -X POST -H "content-type: application/json" \
+       -d '{"preset":"trend"}' \
+       "http://127.0.0.1:${PORT:-3000}/api/scanner/run" | tail -c 1200
+     ```
+     A 403 means the scanner is disabled (skip it, use the sources below); a 409
+     means no Robinhood account is connected.
    - sector leaders / market movers **per sector** (e.g. the top holdings of each
      sector ETF, or each sector's strongest trending names),
    - `data/news/` (the scout's material headlines for the tracked universe),

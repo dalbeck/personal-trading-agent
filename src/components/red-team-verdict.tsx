@@ -1,6 +1,10 @@
 import type { RedTeamVerdict } from "@/lib/types";
 import { Term } from "@/components/term";
 import { factorStanceStyle, redTeamVerdictStyle } from "@/lib/red-team-style";
+import {
+  DEFAULT_RED_TEAM_MODEL,
+  RED_TEAM_MODEL_LABEL,
+} from "@/lib/red-team-model";
 
 /**
  * The red-team's structured rationale, rendered roomily and shared by the
@@ -18,15 +22,18 @@ export function RedTeamVerdict({
   className?: string;
 }) {
   const style = redTeamVerdictStyle[verdict.verdict];
+  // Which model judged (red-team-model-toggle). Older verdicts have no `model`
+  // stamp; they were always GPT (codex), so default to that label.
+  const modelLabel = RED_TEAM_MODEL_LABEL[verdict.model ?? DEFAULT_RED_TEAM_MODEL];
 
   return (
     <section
-      aria-label="Codex red-team verdict"
+      aria-label={`${modelLabel} red-team verdict`}
       className={`rounded-card border border-l-4 p-4 ${style.callout} ${className}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-          Codex <Term term="red-team">red-team</Term>
+          {modelLabel} <Term term="red-team">red-team</Term>
         </h3>
         <span
           className={`rounded-pill border px-2.5 py-0.5 text-xs font-semibold ${style.className}`}

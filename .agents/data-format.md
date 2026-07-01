@@ -531,11 +531,17 @@ proposal is **structured, not one text blob** (`RedTeamVerdictSchema` in
   `notes` when empty so old records still render.
 - **`basis`** — a one-line "how it decided" / conviction summary. Nullable
   (`null` for older records).
+- **`model`** — which prosecutor family produced the verdict
+  (red-team-model-toggle): `codex` = GPT (the default cross-model judge) or
+  `claude` = Claude Opus. Stamped by `runRedTeam` (incl. the fail-closed path) so
+  GPT-vs-Claude outcomes on the same proposal stay distinguishable. Nullable
+  (`null` for records written before the toggle existed; the UI renders those as
+  GPT).
 
 The gate still **fails closed**: an unparseable/unavailable prosecutor yields
-`verdict: reject` with an explanatory `notes` and no factors. The structured
-shape is parsed best-effort — a prosecutor that returns only `{verdict, notes}`
-is still valid.
+`verdict: reject` with an explanatory `notes` and no factors (still stamped with
+the attempted `model`). The structured shape is parsed best-effort — a prosecutor
+that returns only `{verdict, notes}` is still valid.
 
 ## Frontmatter conventions
 

@@ -10,6 +10,7 @@ import { recordManualProposal } from "@/lib/server/writers";
 import {
   runRedTeam,
   type RedTeamExec,
+  type RedTeamModel,
   type RedTeamProposal,
 } from "@/lib/server/red-team";
 import {
@@ -106,6 +107,10 @@ export interface AnalyzeSymbolOpts {
     account: "paper" | "live",
   ) => Promise<{ equity: number; highWaterEquity: number; openPositions: RiskContext["openPositions"] } | null>;
   redTeamExec?: RedTeamExec;
+  /** Which model family runs the red-team prosecutor (red-team-model-toggle).
+   *  Defaults to `codex` (GPT) when omitted. `claude` opts into a Claude Opus
+   *  prosecutor so the desk can A/B the two judges on the same pick. */
+  redTeamModel?: RedTeamModel;
   /** Analyze under a specific sleeve (core-long M3). Omitted/`swing-*` → the
    *  dual-lens (trend + value) path, unchanged. `core-long` → a single core-long
    *  proposal sized by target weight with no stop. */
@@ -416,6 +421,7 @@ export async function analyzeSymbol(
     pricedAt: createdAt,
     researchAt: createdAt,
     redTeamExec: opts.redTeamExec,
+    redTeamModel: opts.redTeamModel,
     extraSleeves: opts.extraSleeves,
   };
   const derived =
@@ -517,6 +523,9 @@ export interface DeriveProposalArgs {
   status?: TradeProposal["status"];
   origin?: TradeProposal["origin"];
   redTeamExec?: RedTeamExec;
+  /** Which model family runs the prosecutor (red-team-model-toggle); defaults to
+   *  `codex` (GPT) when omitted. */
+  redTeamModel?: RedTeamModel;
   /** Extra sleeves to ALSO evaluate on this proposal (verdict-matrix M7) — a
    *  subset of {`position-mid`, `core-long`}. The dual swing lenses (trend +
    *  value) are always evaluated; each extra sleeve appends its own lens (own
@@ -617,7 +626,7 @@ export async function deriveProposalFromResearch(
   const [trendRedTeam, valueRedTeam] = await Promise.all([
     runRedTeam(
       redTeamInput(trendDraft, null, null, null, catalystSources, catalystState),
-      { exec: args.redTeamExec },
+      { exec: args.redTeamExec, model: args.redTeamModel },
     ),
     runRedTeam(
       redTeamInput(
@@ -628,7 +637,7 @@ export async function deriveProposalFromResearch(
         catalystSources,
         valueCatalystState,
       ),
-      { exec: args.redTeamExec },
+      { exec: args.redTeamExec, model: args.redTeamModel },
     ),
   ]);
 
@@ -684,7 +693,7 @@ export async function deriveProposalFromResearch(
           cashFlow,
           researchStatus,
         },
-        { exec: args.redTeamExec },
+        { exec: args.redTeamExec, model: args.redTeamModel },
       );
       lenses.push(
         draftToLens(midDraft, midRedTeam, null, null, null, catalystSources, catalystState, null, null, null, "position-mid"),
@@ -723,7 +732,7 @@ export async function deriveProposalFromResearch(
           thesis: coreDraft.thesis,
           reasoning: coreDraft.reasoning,
         },
-        { exec: args.redTeamExec },
+        { exec: args.redTeamExec, model: args.redTeamModel },
       );
       lenses.push({
         strategy: coreDraft.strategy,
@@ -873,7 +882,7 @@ export async function deriveCoreLongProposal(
       thesis: draft.thesis,
       reasoning: draft.reasoning,
     },
-    { exec: args.redTeamExec },
+    { exec: args.redTeamExec, model: args.redTeamModel },
   );
 
   const lens: ProposalLensBreakdown = {
@@ -1014,7 +1023,7 @@ export async function deriveMidProposal(
       cashFlow,
       researchStatus,
     },
-    { exec: args.redTeamExec },
+    { exec: args.redTeamExec, model: args.redTeamModel },
   );
 
   const lens = draftToLens(

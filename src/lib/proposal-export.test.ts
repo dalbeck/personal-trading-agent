@@ -18,6 +18,7 @@ const verdict: RedTeamVerdict = {
     { label: "Stop", assessment: "Below support", stance: "supports" },
   ],
   basis: "Defaulted to no on a weak value case.",
+  model: "codex",
 };
 
 function makeProposal(overrides: Partial<TradeProposal> = {}): TradeProposal {
