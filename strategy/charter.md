@@ -82,8 +82,11 @@ cannot override them.
 - **Per-position risk:** at most **2%** of equity at risk to the protective stop.
 - **Per-position size:** at most **20%** of paper equity in any single name.
 - **Sector concentration:** at most **40%** of equity in any single sector, so a
-  5-position book can't quietly become three correlated names. Enforced when the
-  sector is known; an unknown sector never causes a false block (fails open).
+  5-position book can't quietly become three correlated names. A **buy must carry
+  a known sector** to be placed (`sector-required`): a buy the desk can't classify
+  is **blocked** — the human can classify it (refresh research) or consciously
+  override — so the cap can't be skipped by omitting the sector. A **sell** needs
+  no sector (it opens no new exposure).
 - **Concurrent positions:** at most **5** open positions at once.
 - **Daily order cap:** at most **6** orders per day.
 - **Drawdown halt:** at a **−10%** drawdown from the account high-water mark,
@@ -177,6 +180,15 @@ watchlist symbols are **tracking-only** (no order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-07-02** — **Sector required to place a buy (sector-required rail).**
+  Closed a bypass: the sector-concentration rail fails open on an unknown sector,
+  and `sector` is set by the discovery LLM/research (can be null), so a buy could
+  skip the 40% cap by omitting the classification. A buy now needs a **known
+  sector** to be placed (`sector-required`, `lib/risk/validators.ts`) — a
+  null-sector buy is **blocked** (the autonomous batch rejects it; the human can
+  refresh research or consciously override). Enforced at placement, not creation,
+  so a research-degraded proposal is still recorded + fixable. No numeric limit
+  changed.
 - **2026-07-02** — **Long-only stated + enforced (no-shorts rail).** Made the
   implicit consequence of "no margin" explicit: the desk is **long-only, no short
   selling**. Added a **hard rail** (`no-shorts`, `lib/risk/validators.ts`) so a
