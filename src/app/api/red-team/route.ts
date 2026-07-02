@@ -1,4 +1,5 @@
 import { runRedTeam, type RedTeamProposal } from "@/lib/server/red-team";
+import { toRedTeamProposal } from "@/lib/server/red-team-briefing";
 import { requireAuthorized } from "@/lib/server/authorize";
 
 /**
@@ -35,22 +36,22 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const verdict = await runRedTeam({
-    symbol: body.symbol,
-    action: body.action,
-    side: body.side ?? "long",
-    qty: body.qty ?? 0,
-    limitPrice: body.limitPrice,
-    stopPrice: body.stopPrice ?? null,
-    takeProfit: body.takeProfit ?? null,
-    targetType: body.targetType ?? null,
-    relativeVolume: body.relativeVolume ?? null,
-    catalyst: body.catalyst ?? null,
-    catalystType: body.catalystType ?? null,
-    thesis: body.thesis,
-    reasoning: body.reasoning,
-    research: body.research,
-  });
+  // Route through the shared briefing mapper (H3) so a value/core candidate is
+  // judged under its own lens with the full briefing — whatever fields the caller
+  // supplies (strategy/sleeve/cashFlow/dividend/…) flow through consistently.
+  const verdict = await runRedTeam(
+    toRedTeamProposal({
+      ...body,
+      symbol: body.symbol,
+      action: body.action,
+      side: body.side ?? "long",
+      qty: body.qty ?? 0,
+      limitPrice: body.limitPrice,
+      stopPrice: body.stopPrice ?? null,
+      takeProfit: body.takeProfit ?? null,
+      thesis: body.thesis,
+    }),
+  );
 
   return Response.json(verdict);
 }

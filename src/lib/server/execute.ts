@@ -15,6 +15,7 @@ import {
   runRedTeam,
   type RedTeamExec,
 } from "./red-team";
+import { toRedTeamProposal } from "./red-team-briefing";
 import {
   recordRejection,
   recordRiskRejection,
@@ -140,29 +141,12 @@ export async function executeProposal(
     return { symbol: proposal.symbol, outcome: "rejected-risk", journalId: id };
   }
 
-  // 2. Red-team gate — cross-model prosecutor, fails closed.
-  const verdict = await runRedTeam(
-    {
-      symbol: proposal.symbol,
-      action: proposal.action,
-      side: proposal.side,
-      strategy: proposal.strategy,
-      qty: proposal.qty,
-      limitPrice: proposal.limitPrice,
-      stopPrice: proposal.stopPrice,
-      takeProfit: proposal.takeProfit,
-      targetType: proposal.targetType ?? null,
-      relativeVolume: proposal.relativeVolume ?? null,
-      catalyst: proposal.catalyst ?? null,
-      catalystType: proposal.catalystType ?? null,
-      // Sector (red-team-fixes Issue 1) — suppress financial-sector leverage factors.
-      sector: proposal.sector ?? null,
-      thesis: proposal.thesis,
-      reasoning: proposal.reasoning,
-      research: proposal.research,
-    },
-    { exec: opts.exec },
-  );
+  // 2. Red-team gate — cross-model prosecutor, fails closed. One shared briefing
+  // mapper (H3) so the paper batch judges a value/core proposal under its own
+  // lens with the full value briefing, not the trend lens.
+  const verdict = await runRedTeam(toRedTeamProposal(proposal), {
+    exec: opts.exec,
+  });
   const gate = redTeamOutcome(verdict);
   if (gate === "block") {
     const { id } = await recordRejection(

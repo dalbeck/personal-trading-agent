@@ -10,7 +10,15 @@ import {
   type RiskLimits,
   type Violation,
 } from "@/lib/risk";
-import type { PortfolioSnapshot, RedTeamVerdict } from "@/lib/types";
+import type {
+  CashFlowQuality,
+  CatalystSource,
+  CatalystState,
+  DividendSignals,
+  PortfolioSnapshot,
+  RedTeamVerdict,
+  ResearchStatus,
+} from "@/lib/types";
 import {
   computePriceDrift,
   isStaleEntry,
@@ -45,11 +53,8 @@ import { sleeveOf } from "@/lib/sleeves";
 import type { Sleeve } from "@/lib/sleeves";
 import type { Strategy } from "@/lib/strategy";
 import { getCachedSector } from "./symbol-research";
-import {
-  runRedTeam,
-  type RedTeamExec,
-  type RedTeamProposal,
-} from "./red-team";
+import { runRedTeam, type RedTeamExec } from "./red-team";
+import { toRedTeamProposal } from "./red-team-briefing";
 import {
   recordRejection,
   recordRiskRejection,
@@ -292,6 +297,14 @@ export interface ApprovalOrder {
    *  by the swing stop rail. Null for risk-to-stop sleeves. */
   reviewTriggerPct?: number | null;
   targetWeightPct?: number | null;
+  /** Value-lens briefing carried from the proposal (H3) so the approval-time
+   *  red-team fallback (when no stored verdict exists) judges a value/core
+   *  proposal on the FULL briefing, not a lens-stripped one. */
+  catalystSources?: CatalystSource[] | null;
+  catalystState?: CatalystState | null;
+  cashFlow?: CashFlowQuality | null;
+  dividend?: DividendSignals | null;
+  researchStatus?: ResearchStatus | null;
 }
 
 export type ApprovalOutcome =
@@ -433,27 +446,6 @@ function toProposedOrder(o: ApprovalOrder): ProposedOrder {
     requiresStop: sleeveRequiresStop(sleeveOf(o)),
     reviewTriggerPct: o.reviewTriggerPct ?? null,
     targetWeightPct: o.targetWeightPct ?? null,
-  };
-}
-
-function toRedTeamProposal(o: ApprovalOrder): RedTeamProposal {
-  return {
-    symbol: o.symbol,
-    action: o.action,
-    side: o.side,
-    qty: o.qty,
-    limitPrice: o.limitPrice,
-    stopPrice: o.stopPrice,
-    takeProfit: o.takeProfit,
-    targetType: o.targetType ?? null,
-    relativeVolume: o.relativeVolume ?? null,
-    catalyst: o.catalyst ?? null,
-    catalystType: o.catalystType ?? null,
-    // Sector (red-team-fixes Issue 1) — suppress financial-sector leverage factors.
-    sector: o.sector ?? null,
-    thesis: o.thesis,
-    reasoning: o.reasoning,
-    research: o.research,
   };
 }
 

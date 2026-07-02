@@ -80,6 +80,37 @@ describe("sweepPendingRedTeam", () => {
     );
   });
 
+  it("briefs each proposal's own lens (H3) — a value proposal's prompt differs from a trend one", async () => {
+    const prompts: string[] = [];
+    const exec = vi.fn(async (p: string) => {
+      prompts.push(p);
+      return '{"verdict":"approve","notes":"ok"}';
+    });
+    const cashFlow = {
+      operatingCashFlow: 12_000,
+      freeCashFlow: 9_000,
+      fcfTrend: "growing" as const,
+      fcfYield: 0.06,
+      netDebt: 5_000,
+      debtToEquity: 0.4,
+      interestCoverage: 12,
+    };
+    await sweepPendingRedTeam({
+      proposals: [
+        proposal({ id: "v", sleeve: "swing-value", strategy: "value", stopPrice: null, cashFlow }),
+        proposal({ id: "t", sleeve: "swing-trend", strategy: "trend" }),
+      ],
+      exec,
+      setVerdict: setVerdictMock(),
+    });
+    // The value proposal is briefed under the value lens (with its cash-flow), so
+    // its prosecutor prompt differs from the trend proposal's — proving the sweep
+    // carries the sleeve + value briefing through the shared mapper.
+    expect(prompts).toHaveLength(2);
+    expect(prompts[0]).not.toBe(prompts[1]);
+    expect(prompts[0]).toMatch(/cash|FCF|free cash/i);
+  });
+
   it("fails closed — an unavailable prosecutor writes a reject, never a silent allow", async () => {
     const setVerdict = setVerdictMock();
     const exec = vi.fn(async () => {

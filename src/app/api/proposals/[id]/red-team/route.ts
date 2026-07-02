@@ -1,6 +1,7 @@
 import { readProposals } from "@/lib/server/data";
 import { requireAuthorized } from "@/lib/server/authorize";
 import { parseRedTeamModel, runRedTeam } from "@/lib/server/red-team";
+import { toRedTeamProposal } from "@/lib/server/red-team-briefing";
 import { setProposalRedTeam } from "@/lib/server/writers";
 
 /**
@@ -43,29 +44,10 @@ export async function POST(
     return Response.json({ error: "unknown proposal" }, { status: 404 });
   }
 
-  const verdict = await runRedTeam({
-    symbol: proposal.symbol,
-    action: proposal.action,
-    side: proposal.side,
-    qty: proposal.qty,
-    limitPrice: proposal.limitPrice,
-    stopPrice: proposal.stopPrice,
-    takeProfit: proposal.takeProfit,
-    targetType: proposal.targetType,
-    relativeVolume: proposal.relativeVolume,
-    catalyst: proposal.catalyst,
-    catalystType: proposal.catalystType,
-    // Sector (red-team-fixes Issue 1) — suppress financial-sector leverage factors.
-    sector: proposal.sector,
-    // Carry the catalyst evidence + state so a RE-RUN judges on the same briefing:
-    // the sources (catalyst-news-sources M1) and — critically — the capture state
-    // (catalyst-state-honesty M2), so an `unavailable` (failed-fetch) catalyst is
-    // never re-rejected as "no catalyst".
-    catalystSources: proposal.catalystSources,
-    catalystState: proposal.catalystState,
-    thesis: proposal.thesis,
-    reasoning: proposal.reasoning,
-  }, { model });
+  // One shared briefing mapper (H3) — a RE-RUN judges on the FULL briefing
+  // (sleeve + value cashFlow/dividend/researchStatus), so a value/core proposal
+  // is re-judged under its own lens rather than the trend lens.
+  const verdict = await runRedTeam(toRedTeamProposal(proposal), { model });
 
   const written = await setProposalRedTeam(id, verdict);
   if (!written) {
