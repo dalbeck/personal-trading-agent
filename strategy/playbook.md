@@ -76,9 +76,22 @@ unchanged** (≤ 2% risk, ≤ 20% size, the sector + concurrency caps, the
 **Fundamentals LEAD here** — the one deliberate exception to "technical-primary."
 A value proposal should clear these:
 
-1. **Quality** — a profitable, durable business with a sound balance sheet. Not a
-   broken company under a bid. This is the **primary** driver — fundamentals
-   (Perplexity, capped) carry the thesis here, not price/trend.
+1. **Quality (checkable bars, not vibes)** — a profitable, durable business with a
+   sound balance sheet, not a broken company under a bid. This is the **primary**
+   driver (fundamentals carry the thesis here, not price/trend), and it is
+   **quantified + code-enforced** — computed by `assessCashFlowQuality` /
+   `assessDividendFloor` and surfaced to the value red-team, which treats a failed
+   bar as a value-trap flag:
+   - **Free cash flow:** positive and non-declining. Negative or declining FCF is
+     a value-trap flag.
+   - **Leverage:** manageable — **D/E ≤ 2** (`debtToEquityHeavy`) and **interest
+     coverage ≥ 3×** (`interestCoverageWeak`). Suppressed for financial-sector
+     names, where high leverage is by design (not a solvency signal).
+   - **FCF yield:** a clean floor clears **≥ 3%** (`fcfYieldHealthy`); unknown is
+     unverified, not a free pass.
+   - **Dividend (if paid):** FCF-covered (**≥ 1.2×**, `fcfCoverageHealthy`), payout
+     not stretched (**≤ 100%**, `payoutRatioStretched`), and **not recently cut**
+     (a negative dividend CAGR — a shrinking dividend — is a value-trap flag).
 2. **Discount** — genuinely cheap vs its own history / peers (P/E, etc.) and/or
    near a multi-year or 52-week low. The discount is the edge.
 3. **Catalyst or floor — why now** — a real reason the bleeding stops: a dividend
@@ -176,6 +189,14 @@ Durable lessons promoted from the coaching log. Newest first.
 Structural edits to this playbook (distinct from the banked lessons above).
 Newest first.
 
+- **2026-07-02** — **Quantified the value-sleeve quality bars + a dividend-cut
+  flag.** The value **Quality** checklist item was vague ("sound balance sheet");
+  it now enumerates the concrete, code-enforced bars (positive/non-declining FCF,
+  D/E ≤ 2, interest coverage ≥ 3×, FCF yield ≥ 3%, and — for a payer — FCF-covered
+  ≥ 1.2×, payout ≤ 100%, not recently cut), mirroring `CASH_FLOW_THRESHOLDS` /
+  `DIVIDEND_THRESHOLDS`. Added a **dividend-cut** value-trap bar in code
+  (`assessDividendFloor`: a negative dividend CAGR is at-risk). Quality now has
+  teeth — checkable + surfaced to the value red-team, not the LLM's vibe.
 - **2026-07-02** — **Enumerated the Position (mid-term) and Core (long-term)
   sleeve checklists.** The two sleeves were prose sketches; they now have explicit
   numbered checklists matching the trend/value style, mirroring the prosecutor's

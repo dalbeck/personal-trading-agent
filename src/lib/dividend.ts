@@ -92,6 +92,14 @@ export function assessDividendFloor(
 
   const coverage = dividendCoverage(d);
   const reasons: string[] = [];
+  // A dividend that actually SHRANK over the measured window (negative CAGR) was
+  // cut — a value-trap tell that overrides an otherwise-clean cover (value-quality
+  // bar). A flat dividend (streak 0, CAGR ≥ 0 / unknown) is NOT treated as a cut.
+  if (d.dividendCagr !== null && d.dividendCagr < 0) {
+    reasons.push(
+      `dividend cut (${formatPercent(d.dividendCagr, { signed: true })} CAGR)`,
+    );
+  }
   if (coverage !== null && coverage < DIVIDEND_THRESHOLDS.fcfCoverageAtRisk) {
     reasons.push(`FCF covers only ${coverage.toFixed(1)}× — doesn't cover the dividend`);
   }
