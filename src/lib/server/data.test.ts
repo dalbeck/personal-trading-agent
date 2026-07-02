@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   readCoachingLog,
   readJournal,
@@ -6,6 +9,39 @@ import {
   readProposals,
   readSnapshots,
 } from "./data";
+
+describe("readProposals — resilient list read (H8)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it("skips a corrupt proposal file instead of throwing (dashboard can't brick)", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pta-data-"));
+    const pdir = path.join(root, "proposals");
+    await mkdir(pdir, { recursive: true });
+    // A real, valid seed proposal as the "good" file.
+    const seedDir = path.join(process.cwd(), "data", "proposals");
+    const seed = (await readdir(seedDir)).find((n) => n.endsWith(".json"))!;
+    await writeFile(
+      path.join(pdir, "good.json"),
+      await readFile(path.join(seedDir, seed), "utf8"),
+    );
+    // A corrupt file that previously rejected the ENTIRE read.
+    await writeFile(path.join(pdir, "bad.json"), "{ not valid json", "utf8");
+
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("TRADING_DATA_DIR", root);
+    vi.resetModules();
+    const { readProposals: fresh } = await import("./data");
+    const res = await fresh();
+    expect(res).toHaveLength(1); // the good one; the bad one skipped, not thrown
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining("proposals/bad.json"),
+    );
+  });
+});
 
 // These exercise the readers against the local seed fixtures in `data/`
 // (gitignored sample data). A passing run proves every fixture parses and

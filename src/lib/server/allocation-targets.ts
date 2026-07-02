@@ -1,6 +1,7 @@
 import "server-only";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { atomicWrite } from "./atomic-write";
 import path from "node:path";
 import { AllocationTargetsSchema } from "@/lib/schemas";
 import type { AllocationTargets } from "@/lib/types";
@@ -51,7 +52,6 @@ export async function writeAllocationTargets(
     updatedAt: now.toISOString(),
   });
   const file = settingsFile(opts?.dataDir);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+  await atomicWrite(file, `${JSON.stringify(parsed, null, 2)}\n`);
   return parsed;
 }

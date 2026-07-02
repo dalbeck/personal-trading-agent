@@ -1,7 +1,8 @@
 import "server-only";
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { atomicWrite } from "./atomic-write";
 import { SLEEVE_CONFIG_LIST } from "@strategy/sleeves.config";
 import { SLEEVE_LABEL } from "@/lib/sleeves";
 import type { Horizon, Sleeve } from "@/lib/types";
@@ -164,5 +165,5 @@ export async function writeStrategyDoc(
   if (content.length > MAX_BYTES) {
     throw new Error("Document exceeds the size limit.");
   }
-  await writeFile(resolve(doc, opts), content, "utf8");
+  await atomicWrite(resolve(doc, opts), content);
 }

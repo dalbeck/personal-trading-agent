@@ -1,7 +1,9 @@
 import "server-only";
 
-import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { atomicWrite } from "./atomic-write";
+import { withRetryingLock } from "./lockfile";
 import {
   bankedLessonBullet,
   composeCoachingBody,
@@ -96,8 +98,7 @@ async function writeNarrative<S extends z.ZodType>(
       `Refusing to write invalid artifact ${path.basename(absPath)}: ${detail}`,
     );
   }
-  await mkdir(path.dirname(absPath), { recursive: true });
-  await writeFile(absPath, stringifyFrontmatter(frontmatter, body), "utf8");
+  await atomicWrite(absPath, stringifyFrontmatter(frontmatter, body));
 }
 
 /** Validate a structured record and write it as pretty JSON. */
@@ -115,8 +116,7 @@ async function writeStructured<S extends z.ZodType>(
       `Refusing to write invalid artifact ${path.basename(absPath)}: ${detail}`,
     );
   }
-  await mkdir(path.dirname(absPath), { recursive: true });
-  await writeFile(absPath, `${JSON.stringify(parsed.data, null, 2)}\n`, "utf8");
+  await atomicWrite(absPath, `${JSON.stringify(parsed.data, null, 2)}\n`);
   return parsed.data;
 }
 
@@ -378,6 +378,22 @@ export async function recordSnapshot(
 
 /* ------------------------------- Proposals ---------------------------------- */
 
+/**
+ * Serialize a proposal read-modify-write under one shared filesystem lock (H8),
+ * so a concurrent mutation from another process (e.g. the routine sweep vs a
+ * human status change) can't clobber it. Waits for the lock; returns `null` only
+ * if it stays contended past the retries — the same `null` a "no match" returns,
+ * which callers already treat as "did not apply".
+ */
+function withProposalsLock<T>(
+  opts: { dataDir?: string } | undefined,
+  task: () => Promise<T | null>,
+): Promise<T | null> {
+  return withRetryingLock("proposals", task, {
+    dir: path.join(dataRoot(opts), "locks"),
+  });
+}
+
 /** Update a proposal's `status` in place (data/proposals/), preserving every
  *  other field. Returns the file written, or `null` if no proposal matches the
  *  id. Used by the per-trade approval flow so the queue reflects decisions. */
@@ -386,27 +402,29 @@ export async function setProposalStatus(
   status: TradeProposal["status"],
   opts?: { dataDir?: string },
 ): Promise<WriteResult | null> {
-  const dir = path.join(dataRoot(opts), "proposals");
-  let names: string[];
-  try {
-    names = await readdir(dir);
-  } catch {
-    return null;
-  }
-  for (const name of names.filter((n) => n.endsWith(".json"))) {
-    const file = path.join(dir, name);
-    const parsed = TradeProposalSchema.safeParse(
-      JSON.parse(await readFile(file, "utf8")),
-    );
-    if (parsed.success && parsed.data.id === id) {
-      await writeStructured(file, TradeProposalSchema, {
-        ...parsed.data,
-        status,
-      });
-      return { id, file };
+  return withProposalsLock(opts, async () => {
+    const dir = path.join(dataRoot(opts), "proposals");
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch {
+      return null;
     }
-  }
-  return null;
+    for (const name of names.filter((n) => n.endsWith(".json"))) {
+      const file = path.join(dir, name);
+      const parsed = TradeProposalSchema.safeParse(
+        JSON.parse(await readFile(file, "utf8")),
+      );
+      if (parsed.success && parsed.data.id === id) {
+        await writeStructured(file, TradeProposalSchema, {
+          ...parsed.data,
+          status,
+        });
+        return { id, file };
+      }
+    }
+    return null;
+  });
 }
 
 /** Attach a red-team verdict to a proposal in place (data/proposals/),
@@ -417,27 +435,29 @@ export async function setProposalRedTeam(
   redTeam: RedTeamVerdict,
   opts?: { dataDir?: string },
 ): Promise<WriteResult | null> {
-  const dir = path.join(dataRoot(opts), "proposals");
-  let names: string[];
-  try {
-    names = await readdir(dir);
-  } catch {
-    return null;
-  }
-  for (const name of names.filter((n) => n.endsWith(".json"))) {
-    const file = path.join(dir, name);
-    const parsed = TradeProposalSchema.safeParse(
-      JSON.parse(await readFile(file, "utf8")),
-    );
-    if (parsed.success && parsed.data.id === id) {
-      await writeStructured(file, TradeProposalSchema, {
-        ...parsed.data,
-        redTeam,
-      });
-      return { id, file };
+  return withProposalsLock(opts, async () => {
+    const dir = path.join(dataRoot(opts), "proposals");
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch {
+      return null;
     }
-  }
-  return null;
+    for (const name of names.filter((n) => n.endsWith(".json"))) {
+      const file = path.join(dir, name);
+      const parsed = TradeProposalSchema.safeParse(
+        JSON.parse(await readFile(file, "utf8")),
+      );
+      if (parsed.success && parsed.data.id === id) {
+        await writeStructured(file, TradeProposalSchema, {
+          ...parsed.data,
+          redTeam,
+        });
+        return { id, file };
+      }
+    }
+    return null;
+  });
 }
 
 /**
@@ -476,6 +496,16 @@ export async function overwriteProposal(
   proposal: TradeProposal,
   opts?: { dataDir?: string },
 ): Promise<WriteResult | null> {
+  return withProposalsLock(opts, () => overwriteProposalUnlocked(proposal, opts));
+}
+
+/** The find-and-write half of {@link overwriteProposal}, WITHOUT taking the
+ *  proposals lock — for callers that already hold it (setStagedPlan /
+ *  markTrancheFilled) so they don't deadlock re-acquiring the same lock. */
+async function overwriteProposalUnlocked(
+  proposal: TradeProposal,
+  opts?: { dataDir?: string },
+): Promise<WriteResult | null> {
   const dir = path.join(dataRoot(opts), "proposals");
   let names: string[];
   try {
@@ -506,11 +536,13 @@ export async function setStagedPlan(
   plan: TradeProposal["stagedPlan"],
   opts?: { dataDir?: string },
 ): Promise<TradeProposal | null> {
-  const existing = await readProposalById(id, opts);
-  if (!existing) return null;
-  const updated = TradeProposalSchema.parse({ ...existing, stagedPlan: plan });
-  const written = await overwriteProposal(updated, opts);
-  return written ? updated : null;
+  return withProposalsLock(opts, async () => {
+    const existing = await readProposalById(id, opts);
+    if (!existing) return null;
+    const updated = TradeProposalSchema.parse({ ...existing, stagedPlan: plan });
+    const written = await overwriteProposalUnlocked(updated, opts);
+    return written ? updated : null;
+  });
 }
 
 /**
@@ -526,20 +558,22 @@ export async function markTrancheFilled(
   trancheIndex: number,
   opts?: { dataDir?: string },
 ): Promise<TradeProposal | null> {
-  const existing = await readProposalById(id, opts);
-  if (!existing?.stagedPlan) return null;
-  const tranches = existing.stagedPlan.tranches.map((t) =>
-    t.index === trancheIndex ? { ...t, status: "filled" as const } : t,
-  );
-  if (!tranches.some((t) => t.index === trancheIndex)) return null;
-  const allFilled = tranches.every((t) => t.status === "filled");
-  const updated = TradeProposalSchema.parse({
-    ...existing,
-    stagedPlan: { ...existing.stagedPlan, tranches },
-    status: allFilled ? "approved" : existing.status,
+  return withProposalsLock(opts, async () => {
+    const existing = await readProposalById(id, opts);
+    if (!existing?.stagedPlan) return null;
+    const tranches = existing.stagedPlan.tranches.map((t) =>
+      t.index === trancheIndex ? { ...t, status: "filled" as const } : t,
+    );
+    if (!tranches.some((t) => t.index === trancheIndex)) return null;
+    const allFilled = tranches.every((t) => t.status === "filled");
+    const updated = TradeProposalSchema.parse({
+      ...existing,
+      stagedPlan: { ...existing.stagedPlan, tranches },
+      status: allFilled ? "approved" : existing.status,
+    });
+    const written = await overwriteProposalUnlocked(updated, opts);
+    return written ? updated : null;
   });
-  const written = await overwriteProposal(updated, opts);
-  return written ? updated : null;
 }
 
 /** The fields a caller supplies to emit a live-advisory proposal. The

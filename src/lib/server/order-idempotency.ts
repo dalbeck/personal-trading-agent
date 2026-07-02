@@ -1,7 +1,8 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { atomicWrite } from "./atomic-write";
 import path from "node:path";
 import { z } from "zod";
 
@@ -112,8 +113,7 @@ export async function recordPlacedOrder(
 ): Promise<void> {
   try {
     const file = placedFile(record.clientOrderId, opts?.dataDir);
-    await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+    await atomicWrite(file, `${JSON.stringify(record, null, 2)}\n`);
   } catch {
     /* see doc comment — never fail a placed order on a record-write error */
   }

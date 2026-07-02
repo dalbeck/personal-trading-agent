@@ -142,7 +142,25 @@ async function readDir<S extends z.ZodType>(
     throw err;
   }
   const files = names.filter((n) => n.endsWith(ext)).sort();
-  return Promise.all(files.map((f) => readOne(path.join(dir, f), schema)));
+  // Resilient read (H8): a single malformed/invalid file is SKIPPED with a
+  // warning, not thrown — one corrupt artifact can't brick the whole list read
+  // (and take down the dashboard). `validateDataDir` keeps its own strict path,
+  // so corruption is still caught by validation.
+  const settled = await Promise.allSettled(
+    files.map((f) => readOne(path.join(dir, f), schema)),
+  );
+  const out: z.infer<S>[] = [];
+  for (let i = 0; i < settled.length; i++) {
+    const r = settled[i];
+    if (r.status === "fulfilled") out.push(r.value);
+    else
+      console.warn(
+        `[data] skipping unreadable ${subdir}/${files[i]}: ${
+          (r.reason as Error)?.message ?? r.reason
+        }`,
+      );
+  }
+  return out;
 }
 
 /* ----------------------------- Snapshots ------------------------------- */
