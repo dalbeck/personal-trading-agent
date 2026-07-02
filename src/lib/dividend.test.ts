@@ -43,6 +43,15 @@ describe("assessDividendFloor", () => {
     expect(r.floorText).toBeNull();
   });
 
+  it("flags a dividend that was CUT (negative CAGR) as at-risk, even if covered", () => {
+    // A shrinking dividend is a value-trap tell — a cut overrides a clean cover.
+    const r = assessDividendFloor({ ...DURABLE, dividendCagr: -0.15 });
+    expect(r.status).toBe("flag");
+    expect(r.atRisk).toBe(true);
+    expect(r.covered).toBe(false);
+    expect(r.reasons.join(" ")).toMatch(/cut/i);
+  });
+
   it("registers a named floor for a durable, well-covered dividend", () => {
     const r = assessDividendFloor(DURABLE);
     expect(r.status).toBe("pass");
