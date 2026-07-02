@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { InfoIcon } from "@/components/icons";
-import { GLOSSARY, type GlossaryEntry, type GlossaryKey } from "@/lib/glossary";
+import {
+  GLOSSARY,
+  tokenizeGlossary,
+  type GlossaryEntry,
+  type GlossaryKey,
+} from "@/lib/glossary";
 
 /**
  * Inline glossary term — a subtle dotted-underline trigger with a small info
@@ -86,5 +91,34 @@ export function Term({
         </span>
       ) : null}
     </span>
+  );
+}
+
+/**
+ * Render free-flowing copy with its jargon auto-linked to glossary tooltips: the
+ * first occurrence of each known term (across the shared `seen` set) becomes a
+ * `<Term>`; everything else stays plain text. Pass ONE `seen` set down a view so
+ * a term is tagged only on its primary appearance (the restraint above).
+ */
+export function GlossaryText({
+  text,
+  seen,
+}: {
+  text: string;
+  seen?: Set<GlossaryKey>;
+}) {
+  const segments = tokenizeGlossary(text, seen);
+  return (
+    <>
+      {segments.map((seg, i) =>
+        typeof seg === "string" ? (
+          <Fragment key={i}>{seg}</Fragment>
+        ) : (
+          <Term key={i} term={seg.term}>
+            {seg.text}
+          </Term>
+        ),
+      )}
+    </>
   );
 }

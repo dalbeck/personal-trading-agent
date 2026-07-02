@@ -1,13 +1,32 @@
+import { Fragment } from "react";
 import { ScaleIcon } from "@/components/icons";
+import { Term } from "@/components/term";
 import { RED_TEAM_RULES } from "@/lib/red-team-rules";
+import { tokenizeGlossary, type GlossaryKey } from "@/lib/glossary";
 
 /**
  * Read-only render of the red-team prosecutor's ruleset (`RED_TEAM_RULES`) for
  * the Strategy page's "Red Team" tab. Presentation only — the rules and their
  * thresholds are code-derived (the page can't edit them), so this surfaces them
  * for the human to read alongside the editable Charter/Playbook.
+ *
+ * Jargon is auto-linked to a glossary tooltip (`<Term>`) on its FIRST appearance
+ * across the whole view — a single `seen` set is threaded through every string,
+ * tokenized server-side, so a term is tagged once (the component's restraint).
  */
 export function RedTeamRulesView() {
+  const seen = new Set<GlossaryKey>();
+  const gloss = (text: string) =>
+    tokenizeGlossary(text, seen).map((seg, i) =>
+      typeof seg === "string" ? (
+        <Fragment key={i}>{seg}</Fragment>
+      ) : (
+        <Term key={i} term={seg.term}>
+          {seg.text}
+        </Term>
+      ),
+    );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start gap-3">
@@ -18,7 +37,7 @@ export function RedTeamRulesView() {
           <ScaleIcon className="size-[18px]" />
         </span>
         <p className="text-pretty text-sm leading-relaxed text-fg-muted">
-          {RED_TEAM_RULES.intro}
+          {gloss(RED_TEAM_RULES.intro)}
         </p>
       </div>
 
@@ -29,7 +48,7 @@ export function RedTeamRulesView() {
               {section.title}
             </h3>
             <p className="mt-0.5 text-pretty text-sm text-fg-muted">
-              {section.summary}
+              {gloss(section.summary)}
             </p>
             <ul className="mt-3 flex flex-col gap-2">
               {section.rules.map((rule, i) => (
@@ -38,7 +57,9 @@ export function RedTeamRulesView() {
                     aria-hidden
                     className="mt-[0.45rem] size-1.5 shrink-0 rounded-full bg-accent/60"
                   />
-                  <span className="text-pretty leading-relaxed">{rule}</span>
+                  <span className="text-pretty leading-relaxed">
+                    {gloss(rule)}
+                  </span>
                 </li>
               ))}
             </ul>

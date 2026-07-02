@@ -6,6 +6,7 @@ import {
 import { CASH_FLOW_THRESHOLDS } from "@/lib/cash-flow";
 import { REL_VOLUME_BREAKOUT_MIN } from "@/lib/volume";
 import { MIN_REWARD_RISK } from "@/lib/risk-reward";
+import { SLEEVES, sleeveToStrategy } from "@/lib/sleeves";
 
 describe("RED_TEAM_RULE_THRESHOLDS", () => {
   it("re-exports the real prosecutor constants (drift guard)", () => {
@@ -28,11 +29,32 @@ describe("RED_TEAM_RULE_THRESHOLDS", () => {
 describe("RED_TEAM_RULES", () => {
   const ids = RED_TEAM_RULES.sections.map((s) => s.id);
 
-  it("covers the shared rails, trend, and value lenses", () => {
-    expect(ids).toEqual(["shared", "trend", "value"]);
+  it("covers the shared rails + every lens (shared, trend, value, mid, core)", () => {
+    expect(ids).toEqual([
+      "shared",
+      "trend",
+      "value",
+      "position-mid",
+      "core-long",
+    ]);
     for (const s of RED_TEAM_RULES.sections) {
       expect(s.title.length).toBeGreaterThan(0);
       expect(s.rules.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("resolves every sleeve to a present rules section (drift guard)", () => {
+    // "read live from the prosecutor's logic" — a sleeve added without a rules
+    // section would silently vanish from the Strategy page. This fails first.
+    const idSet = new Set(ids);
+    for (const sleeve of SLEEVES) {
+      const sectionId =
+        sleeve === "position-mid" || sleeve === "core-long"
+          ? sleeve
+          : sleeveToStrategy(sleeve);
+      expect(idSet.has(sectionId), `no rules section for sleeve ${sleeve}`).toBe(
+        true,
+      );
     }
   });
 

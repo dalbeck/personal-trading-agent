@@ -102,6 +102,63 @@ this sleeve (not weak); a sell-side `analyst_price` target is still weak.
 value sleeve (a discovery setting, off by default), and the manual
 **analyze-a-symbol** tool when the human picks the **Value** lens.
 
+## Position / mid-term sleeve
+
+A **weeks-to-quarters** position trade (`sleeve: "position-mid"`) that **blends
+trend with fundamentals** — longer-horizon than a swing, shorter than a core
+hold. The **hard risk rails are shared and unchanged** (≤ 2% risk, ≤ 20% size,
+the sector + concurrency caps, the 6-order/day cap, a stop on every entry,
+marketable-limit, reward/risk ≥ 2:1). Judged by its own red-team lens. A mid
+proposal should clear these:
+
+1. **Multi-week thesis** — a sound weeks-to-quarters trend + fundamental case
+   stands on its own; an immediate momentum trigger (a fresh breakout, a same-day
+   volume spike) is **not** required. Do not reject for "no momentum right now."
+2. **Fundamentals may lead** — a valuation / earnings-inflection / re-rating
+   rationale is **in mandate**, and a `fundamental` target is **appropriate**. A
+   sell-side `analyst_price` or an unspecified target is still weak.
+3. **Earnings inside the window is tolerated** — a hold will often span an
+   earnings date; that is expected here (unlike a swing) and is **not** an
+   automatic disqualifier — size around it, **unless** it is an **imminent binary**
+   whose downside exceeds the position's risk.
+4. **Trend + stop still matter** — the multi-week trend must be intact (a broken
+   structure, not a mere pullback, is a strike), with a defined stop sized to the
+   shared rails (≤ 2% risk, reward/risk ≥ 2:1).
+
+**Still prosecuted:** a broken multi-week trend, a deteriorating fundamental story
+(falling revenue / margins, cut guidance, slashed targets), an imminent binary
+that exceeds the risk, or a loose target / thin reward/risk.
+
+## Long-term / core sleeve
+
+A **multi-year buy-and-hold allocation** (`sleeve: "core-long"`), sized to a
+**target weight** and governed by a **wide review trigger** rather than a
+protective stop. It is an *allocation*, not a swing trade — judge it under the
+right criteria. The shared **account-level** rails still apply (concurrency,
+6-order/day cap, drawdown halt, emergency stop), but this sleeve is **no-stop by
+design**. A core proposal should clear these:
+
+1. **Durable quality** — a genuinely durable business, or a low-cost diversified
+   fund — **not** a speculative narrative dressed up as "core." Thesis drift / a
+   story stock is a strike.
+2. **Sensible entry vs long-term value** — buying a good asset at a **rich price**
+   (expensive vs its own history / a reasonable long-horizon valuation) is a real
+   objection. Counter-trend and no near-term catalyst are **normal** and are
+   **not** reasons to reject.
+3. **Sizing by target weight + review trigger** — sized to a target portfolio
+   weight (within the sleeve cap) and reviewed on a wide drawdown trigger. A
+   missing stop / profit target is **by design** — do not cite it as a flaw.
+4. **Concentration + (for a fund) cost** — respect the target allocation
+   (over-concentration is a strike); for an ETF/index, the **expense ratio**,
+   tracking error, and structure/liquidity must be sound (a high fee compounds
+   against the holder for years).
+
+**Still prosecuted:** overpaying vs long-term value, thesis drift / a story stock,
+over-concentration vs the target allocation, poor fund quality (high expense
+ratio, weak tracking), or an unrealistic long-term return assumption. A
+`fundamental` (or, for a fund, a sensible long-horizon) target is **appropriate**;
+a core ETF/index may legitimately have **no** price target — that is not weak.
+
 ## Banked lessons
 
 Durable lessons promoted from the coaching log. Newest first.
@@ -119,6 +176,15 @@ Durable lessons promoted from the coaching log. Newest first.
 Structural edits to this playbook (distinct from the banked lessons above).
 Newest first.
 
+- **2026-07-02** — **Enumerated the Position (mid-term) and Core (long-term)
+  sleeve checklists.** The two sleeves were prose sketches; they now have explicit
+  numbered checklists matching the trend/value style, mirroring the prosecutor's
+  mid/core mandate guidance. Also added both lenses to the Strategy page's
+  red-team rules view (`red-team-rules.ts` — previously only shared/trend/value,
+  so the two sleeve lenses were invisible despite the "read live from the
+  prosecutor's logic" claim), guarded by a drift test that fails if a sleeve lacks
+  a rules section. Jargon in that view now carries a glossary tooltip. No rail or
+  criterion changed — this is documentation + surfacing.
 - **2026-06-26** — **Value / mean-reversion sleeve (value-sleeve M1).** Added the
   **Value / mean-reversion sleeve** section — a deliberately separate, opt-in
   second mandate (`strategy: "value"`) with its own entry checklist (Quality,
