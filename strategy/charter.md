@@ -149,6 +149,11 @@ watchlist symbols are **tracking-only** (no order, no execution path).
   (the tier drives sort + an optional filter, never hiding by default).
 - **Watchlist ceiling:** the tracked universe's watchlist holds at most **20**
   symbols; discovery auto-adds stop at the ceiling. The human can prune freely.
+- **Proposal expiry:** a **pending** proposal is not actionable forever. It
+  drops to an **`expired`** status when its `reviewByDate` passes, or **5 days**
+  (`proposalExpiryDays`) after it was created if it has no review date — a stale
+  idea leaves the review queue rather than lingering as a graveyard. Enforced by
+  an expiry pass on every routine run (`lib/server/proposal-expiry.ts`).
 
 ## Execution quality
 
@@ -180,6 +185,14 @@ watchlist symbols are **tracking-only** (no order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-07-02** — **Proposal expiry (`expired` status).** Pending proposals no
+  longer linger forever (the queue had accumulated 40+, many stale). A pending
+  proposal drops to a new **`expired`** status when its `reviewByDate` passes, or
+  **5 days** (`DISCOVERY_LIMITS.proposalExpiryDays`) after creation with no review
+  date. Enforced by an expiry pass run on every routine
+  (`lib/server/proposal-expiry.ts`); expired proposals leave the `pendingOnly`
+  review queue + paper batch automatically. Added the **Proposal expiry** bullet
+  under Discovery caps.
 - **2026-07-02** — **Sector required to place a buy (sector-required rail).**
   Closed a bypass: the sector-concentration rail fails open on an unknown sector,
   and `sector` is set by the discovery LLM/research (can be null), so a buy could

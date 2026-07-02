@@ -58,6 +58,7 @@ const statusTone: Record<TradeProposal["status"], BadgeTone> = {
   rejected: "loss",
   reviewed: "gain",
   dismissed: "muted",
+  expired: "muted",
 };
 
 /**

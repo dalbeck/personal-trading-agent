@@ -547,7 +547,17 @@ export const TradeProposalSchema = z
     // manually. They are NEVER produced by the order/approval path, which only
     // ever writes `approved` / `rejected`. See `.agents/data-format.md`.
     status: z
-      .enum(["pending", "approved", "rejected", "reviewed", "dismissed"])
+      .enum([
+        "pending",
+        "approved",
+        "rejected",
+        "reviewed",
+        "dismissed",
+        // A pending idea that went stale (past `reviewByDate`, or older than
+        // DISCOVERY_LIMITS.proposalExpiryDays) — dropped here by the expiry pass
+        // so it leaves the actionable queue.
+        "expired",
+      ])
       .default("pending"),
     // Which account the proposal is for. `live` proposals are advisory-only in
     // this phase (the harness order gate is closed) and must never route to any

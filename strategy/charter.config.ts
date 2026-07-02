@@ -158,6 +158,10 @@ export interface DiscoveryLimits {
   /** Max total symbols the watchlist may hold — bounds auto-added discovery
    *  candidates so the tracked universe stays curated. */
   maxWatchlistSymbols: number;
+  /** A pending proposal with no `reviewByDate` expires this many days after
+   *  `createdAt` (a stale idea is not silently actionable). `reviewByDate`, when
+   *  set, takes precedence. */
+  proposalExpiryDays: number;
 }
 
 export const DISCOVERY_LIMITS: DiscoveryLimits = {
@@ -172,4 +176,7 @@ export const DISCOVERY_LIMITS: DiscoveryLimits = {
   minSectorsTarget: 3,
   // Keep the tracked universe bounded; discovery auto-adds stop at this ceiling.
   maxWatchlistSymbols: 20,
+  // A pending idea goes stale within the trading week — expire it after 5 days
+  // (reviewByDate wins when set) so the queue stays actionable, not a graveyard.
+  proposalExpiryDays: 5,
 };

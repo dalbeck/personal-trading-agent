@@ -11,6 +11,7 @@ import { hasRobinhoodConnection } from "@/lib/server/robinhood";
 import { isTradingHalted } from "@/lib/server/gate";
 import { withLock } from "@/lib/server/lockfile";
 import { sweepPendingRedTeam } from "@/lib/server/red-team-sweep";
+import { expireStaleProposals } from "@/lib/server/proposal-expiry";
 import { buildRoutineCliArgs } from "@/lib/server/routine-cli";
 import { pingDeadMan, sendHeartbeat } from "@/lib/server/notify";
 import { recordRunLog } from "@/lib/server/writers";
@@ -161,6 +162,11 @@ export async function POST(
           if (sweep.swept > 0) summary += ` · red-teamed ${sweep.swept}`;
         }
       }
+      // Expire stale pending proposals on every routine run (charter:
+      // proposal-expiry) so a week-old idea leaves the actionable queue.
+      // Best-effort — never fail the run on it.
+      const aged = await expireStaleProposals().catch(() => ({ expired: 0 }));
+      if (aged.expired > 0) summary += ` · expired ${aged.expired}`;
     } catch (err) {
       status = "error";
       summary = (err as Error).message.slice(0, 280);
