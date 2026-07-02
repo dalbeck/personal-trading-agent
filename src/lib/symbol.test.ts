@@ -28,9 +28,17 @@ describe("symbol normalize/validate", () => {
 
   it("accepts tickers with a dot or dash, rejects junk", () => {
     expect(isValidSymbol("BRK.B")).toBe(true);
+    expect(isValidSymbol("BRK-B")).toBe(true);
     expect(isValidSymbol("AMD")).toBe(true);
     expect(isValidSymbol("@bad")).toBe(false);
     expect(isValidSymbol("")).toBe(false);
     expect(isValidSymbol("WAYTOOLONGSYMBOL")).toBe(false);
+  });
+
+  it("requires a leading alphanumeric — rejects a bare dot / dash path", () => {
+    expect(isValidSymbol(".")).toBe(false);
+    expect(isValidSymbol("..")).toBe(false);
+    expect(isValidSymbol(".A")).toBe(false);
+    expect(isValidSymbol("-X")).toBe(false);
   });
 });

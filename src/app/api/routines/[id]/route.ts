@@ -34,8 +34,9 @@ function isRoutineId(id: string): id is (typeof ROUTINE_IDS)[number] {
 }
 
 /** ISO timestamp in US/Eastern with offset (the desk's trading clock). */
-function nowET(): string {
-  // Server runs natively on the Mac (typically ET); fall back to host time.
+/** A run-log timestamp — a UTC ISO string (not ET despite the desk's ET-day
+ *  accounting, which is derived separately via `etDay()`). */
+function nowIso(): string {
   return new Date().toISOString();
 }
 
@@ -84,7 +85,7 @@ export async function POST(
   const denied = requireAuthorized(req);
   if (denied) return denied;
 
-  const startedAt = nowET();
+  const startedAt = nowIso();
 
   // Kill switch (M6): if trading is halted, refuse to run — log it and 503.
   // Defense in depth alongside unloading the launchd jobs; even a manual fire
@@ -93,7 +94,7 @@ export async function POST(
     await recordRunLog({
       routine: id,
       startedAt,
-      finishedAt: nowET(),
+      finishedAt: nowIso(),
       status: "skipped",
       summary: "Trading halted (kill switch) — routine execution skipped.",
       proposalsConsidered: 0,
@@ -175,7 +176,7 @@ export async function POST(
     const log: RunLog = {
       routine: id,
       startedAt,
-      finishedAt: nowET(),
+      finishedAt: nowIso(),
       status,
       summary: summary || "Run complete.",
       proposalsConsidered,
@@ -207,7 +208,7 @@ export async function POST(
     await recordRunLog({
       routine: id,
       startedAt,
-      finishedAt: nowET(),
+      finishedAt: nowIso(),
       status: "locked",
       summary: "Skipped — another run holds the lock.",
       proposalsConsidered: 0,

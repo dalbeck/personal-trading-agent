@@ -1,8 +1,10 @@
 import "server-only";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { atomicWrite } from "./atomic-write";
+import { withRetryingLock } from "./lockfile";
 
 /**
  * Persisted **per-ET-day order counter** — the source of truth for
@@ -74,15 +76,27 @@ export async function incrementOrdersToday(opts?: {
   dataDir?: string;
   now?: Date;
 }): Promise<number> {
-  const today = etDay(opts?.now);
-  const counter = await readCounter(opts?.dataDir);
-  const count = counter && counter.date === today ? counter.count + 1 : 1;
-  const file = counterFile(opts?.dataDir);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(
-    file,
-    `${JSON.stringify({ date: today, count } satisfies OrderCounter, null, 2)}\n`,
-    "utf8",
-  );
-  return count;
+  const root =
+    opts?.dataDir ??
+    process.env.TRADING_DATA_DIR ??
+    path.join(process.cwd(), "data");
+  // The read-modify-write is shared across the Next server AND the routine
+  // process — serialize it under one lock (H8) so two concurrent placements
+  // can't both read N and write N+1 (which would let the ≤6/day cap admit a 7th).
+  const run = async (): Promise<number> => {
+    const today = etDay(opts?.now);
+    const counter = await readCounter(opts?.dataDir);
+    const count = counter && counter.date === today ? counter.count + 1 : 1;
+    await atomicWrite(
+      counterFile(opts?.dataDir),
+      `${JSON.stringify({ date: today, count } satisfies OrderCounter, null, 2)}\n`,
+    );
+    return count;
+  };
+  const locked = await withRetryingLock("order-counter", run, {
+    dir: path.join(root, "locks"),
+  });
+  // Lock exhausted (very rare) → fall back to the unlocked RMW so a placement is
+  // still counted rather than silently dropped.
+  return locked ?? run();
 }
