@@ -1,7 +1,8 @@
 import "server-only";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { atomicWrite } from "./atomic-write";
 import { z } from "zod";
 import { getStockSnapshot, hasAlpacaCredentials } from "./alpaca";
 import { getRobinhoodVix } from "./robinhood";
@@ -96,11 +97,9 @@ async function writeVixCache(
 ): Promise<void> {
   try {
     const file = marketCondFile(dataDir);
-    await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(
+    await atomicWrite(
       file,
       `${JSON.stringify({ vix, fetchedAt: nowIso }, null, 2)}\n`,
-      "utf8",
     );
   } catch {
     /* a cache write must never break the order path */

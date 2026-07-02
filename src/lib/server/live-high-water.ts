@@ -1,7 +1,8 @@
 import "server-only";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { atomicWrite } from "./atomic-write";
 import { z } from "zod";
 
 /**
@@ -62,15 +63,13 @@ export async function updateLiveHighWater(
   if (next === prior) return prior;
   try {
     const file = highWaterFile(opts?.dataDir);
-    await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(
+    await atomicWrite(
       file,
       `${JSON.stringify(
         { highWaterUsd: next, updatedAt: opts?.now ?? new Date().toISOString() },
         null,
         2,
       )}\n`,
-      "utf8",
     );
   } catch {
     /* a high-water write must never break the live read path */

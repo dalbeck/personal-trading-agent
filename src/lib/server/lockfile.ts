@@ -121,3 +121,33 @@ export async function withLock<T>(
     await releaseLock(handle);
   }
 }
+
+/**
+ * Like {@link withLock} but WAITS for a contended lock — retries acquisition up
+ * to `retries` times (default 10), sleeping `retryDelayMs` (default 50) between
+ * tries, before giving up. Serializes short read-modify-write ops (e.g. proposal
+ * mutations) across processes instead of dropping them on the first contention.
+ * Returns `null` only when the lock is still held after every retry. (H8)
+ */
+export async function withRetryingLock<T>(
+  name: string,
+  task: () => Promise<T>,
+  opts?: LockOpts & { retries?: number; retryDelayMs?: number },
+): Promise<T | null> {
+  const retries = opts?.retries ?? 10;
+  const delay = opts?.retryDelayMs ?? 50;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const handle = await acquireLock(name, opts);
+    if (handle) {
+      try {
+        return await task();
+      } finally {
+        await releaseLock(handle);
+      }
+    }
+    if (attempt < retries) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  return null;
+}

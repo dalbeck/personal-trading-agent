@@ -1,6 +1,7 @@
 import "server-only";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { atomicWrite } from "./atomic-write";
 import path from "node:path";
 import { RISK_LIMITS } from "@strategy/charter.config";
 import type { RiskLimits } from "@/lib/risk/types";
@@ -54,8 +55,7 @@ export async function writeRiskSettings(
     updatedAt: now.toISOString(),
   });
   const file = settingsFile(opts?.dataDir);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+  await atomicWrite(file, `${JSON.stringify(parsed, null, 2)}\n`);
   return parsed;
 }
 

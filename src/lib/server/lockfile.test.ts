@@ -2,11 +2,60 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { acquireLock, releaseLock, withLock } from "./lockfile";
+import {
+  acquireLock,
+  releaseLock,
+  withLock,
+  withRetryingLock,
+} from "./lockfile";
 
 async function tmp(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "pta-lock-"));
 }
+
+describe("withRetryingLock (H8)", () => {
+  it("serializes a contended task — the second waits for release, not dropped", async () => {
+    const dir = await tmp();
+    const order: string[] = [];
+    // Task A holds the lock for a beat, then releases.
+    const a = withRetryingLock(
+      "proposals",
+      async () => {
+        order.push("a-start");
+        await new Promise((r) => setTimeout(r, 60));
+        order.push("a-end");
+        return "a";
+      },
+      { dir },
+    );
+    // Give A time to grab the lock first.
+    await new Promise((r) => setTimeout(r, 10));
+    const b = withRetryingLock(
+      "proposals",
+      async () => {
+        order.push("b-run");
+        return "b";
+      },
+      { dir, retries: 20, retryDelayMs: 10 },
+    );
+    expect(await a).toBe("a");
+    expect(await b).toBe("b"); // ran, not dropped
+    // B ran strictly after A finished (serialized).
+    expect(order).toEqual(["a-start", "a-end", "b-run"]);
+  });
+
+  it("returns null only when retries are exhausted against a held lock", async () => {
+    const dir = await tmp();
+    const held = await acquireLock("proposals", { dir });
+    expect(held).not.toBeNull();
+    const res = await withRetryingLock("proposals", async () => "ran", {
+      dir,
+      retries: 0,
+    });
+    expect(res).toBeNull();
+    await releaseLock(held!);
+  });
+});
 
 describe("acquireLock / releaseLock", () => {
   it("acquires a free lock and writes the lock file", async () => {
