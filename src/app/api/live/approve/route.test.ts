@@ -246,7 +246,7 @@ describe("POST /api/live/approve — staged-entry tranches (M2)", () => {
     expect(setProposalStatus).not.toHaveBeenCalled();
   });
 
-  it("ignores an already-filled tranche index and approves the full position", async () => {
+  it("409s an already-filled tranche index — never falls back to the full position (H7)", async () => {
     const filled = {
       ...PLAN,
       tranches: PLAN.tranches.map((t) =>
@@ -254,22 +254,36 @@ describe("POST /api/live/approve — staged-entry tranches (M2)", () => {
       ),
     };
     readProposals.mockResolvedValue([proposal({ qty: 9, stagedPlan: filled })]);
+
+    // A lagged re-tap of tranche 0 (already filled) must be REFUSED — placing the
+    // full position (qty 9) here would over-fill the intended staged entry.
+    const res = await POST(
+      post({ proposalId: "p-1", decision: "approve", tranche: 0 }),
+    );
+    expect(res.status).toBe(409);
+    expect(submitTradeApproval).not.toHaveBeenCalled();
+    expect(markTrancheFilled).not.toHaveBeenCalled();
+  });
+
+  it("409s an out-of-range tranche index (never a full-position fallback)", async () => {
+    readProposals.mockResolvedValue([proposal({ qty: 9, stagedPlan: PLAN })]);
+    const res = await POST(
+      post({ proposalId: "p-1", decision: "approve", tranche: 9 }),
+    );
+    expect(res.status).toBe(409);
+    expect(submitTradeApproval).not.toHaveBeenCalled();
+  });
+
+  it("still approves the full position when NO tranche is requested (regression)", async () => {
+    readProposals.mockResolvedValue([proposal({ qty: 9, stagedPlan: PLAN })]);
     submitTradeApproval.mockResolvedValue({
       outcome: "approved",
       destination: "mock",
       dryRun: true,
     });
-
-    // Re-approving tranche 0 (already filled) is not honoured as a tranche → the
-    // request falls back to the full-position approve (qty 9).
-    const res = await POST(
-      post({ proposalId: "p-1", decision: "approve", tranche: 0 }),
-    );
+    const res = await POST(post({ proposalId: "p-1", decision: "approve" }));
     expect(res.status).toBe(200);
-    const arg = submitTradeApproval.mock.calls[0][0] as {
-      order: { qty: number };
-    };
+    const arg = submitTradeApproval.mock.calls[0][0] as { order: { qty: number } };
     expect(arg.order.qty).toBe(9);
-    expect(markTrancheFilled).not.toHaveBeenCalled();
   });
 });

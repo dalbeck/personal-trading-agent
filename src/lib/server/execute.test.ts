@@ -169,6 +169,26 @@ describe("executePendingProposals", () => {
     },
   ] as unknown as TradeProposal[];
 
+  it("marks a placed proposal 'approved' so a re-fire won't re-place it — rejects stay pending (H7)", async () => {
+    const dir = await tmpData();
+    const placeOrder = vi.fn(async () => ({ brokerOrderId: "ord" }));
+    const setStatus = vi.fn(async () => ({ id: "x", file: "f" }));
+    await executePendingProposals({
+      exec: approve,
+      placeOrder,
+      dataDir: dir,
+      timestamp: "2026-06-24T09:35:00-04:00",
+      proposals: pending,
+      snapshot,
+      setStatus,
+    });
+    // p-1 placed → flipped to approved (a re-fired batch reads pendingOnly, so it
+    // won't re-place; the live route 409s on non-pending too).
+    expect(setStatus).toHaveBeenCalledWith("p-1", "approved", expect.anything());
+    // p-2 was rejected-risk → left pending for the next run to re-evaluate.
+    expect(setStatus).not.toHaveBeenCalledWith("p-2", "approved", expect.anything());
+  });
+
   it("runs each pending proposal through the gates and tallies the run", async () => {
     const dir = await tmpData();
     const placeOrder = vi.fn(async () => ({ brokerOrderId: "ord" }));
