@@ -58,10 +58,10 @@ Extract the argv + cwd into a pure, testable
 Structured/numeric fields (symbol, qty, prices, sleeve, targetType, …) are not
 free text and keep their current interpolation.
 
-### Part C — Correct the deny ids
+### Part C — Correct the deny ids (MANUAL — harness-blocked)
 
-`.claude/settings.json`: replace the two `mcp__robinhood__*` deny entries with the
-real tool ids, and cover the option order tools too:
+`.claude/settings.json` denies `mcp__robinhood__*`, but the server is
+`robinhood-trading`, so the deny matches nothing. The correct entries:
 
 ```
 "mcp__robinhood-trading__place_equity_order",
@@ -69,6 +69,10 @@ real tool ids, and cover the option order tools too:
 "mcp__robinhood-trading__place_option_order",
 "mcp__robinhood-trading__cancel_option_order"
 ```
+
+The settings file self-denies `Edit(.claude/**)` / `Write(.claude/**)`, so the
+agent cannot make this change (and must not circumvent that guard via a shell).
+It is delivered as a manual edit for the owner to apply — noted in the PR.
 
 ## Testing (TDD)
 
