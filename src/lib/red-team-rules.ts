@@ -28,8 +28,9 @@ export const RED_TEAM_RULE_THRESHOLDS = {
 } as const;
 
 export interface RedTeamRuleSection {
-  /** Stable id used for keys + the section ordering contract. */
-  id: "shared" | "trend" | "value";
+  /** Stable id used for keys + the section ordering contract. Ids match the
+   *  sleeve values so the rules view can't drift from the prosecutor's lenses. */
+  id: "shared" | "trend" | "value" | "position-mid" | "core-long";
   title: string;
   summary: string;
   rules: string[];
@@ -89,6 +90,32 @@ export const RED_TEAM_RULES: RedTeamRules = {
         "A durable, well-covered dividend is a real floor and satisfies the why-now — but a safe dividend alone does not force an approve.",
         "Financial-sector leverage caveat: for Finance-sector names (banks, insurers, capital markets), generic debt-to-equity, net debt, and interest coverage are category errors — high leverage is by design — and are NOT cited as value-trap signals.",
         "A target anchored to fundamental value is appropriate here (not weak); a sell-side analyst price is still weak.",
+      ],
+    },
+    {
+      id: "position-mid",
+      title: "Position lens — mid-term",
+      summary:
+        "Weeks-to-quarters position trade that blends trend with fundamentals.",
+      rules: [
+        "A multi-week thesis is expected — this is not a day/week swing. The absence of an immediate momentum trigger (a fresh breakout, a same-day volume spike) is NOT by itself a reason to reject.",
+        "An earnings event inside the holding window is tolerated, not an automatic disqualifier (unlike a swing) — weigh it as risk to size around, UNLESS it is an imminent binary whose downside exceeds the position's risk.",
+        "A named fundamental thesis may lead — a valuation / earnings-inflection rationale is in mandate, and a target anchored to fundamental value is appropriate. A sell-side analyst price or an unspecified target is still weak.",
+        "Still prosecute: a broken multi-week trend (structure actually rolled over, not a mere pullback), a deteriorating fundamental story (falling revenue/margins, cut guidance), an imminent binary that exceeds the risk, or a loose target / thin reward-to-risk.",
+      ],
+    },
+    {
+      id: "core-long",
+      title: "Core lens — long-term hold",
+      summary:
+        "A multi-year buy-and-hold allocation, sized to a target weight and reviewed on a wide drawdown — not a swing trade.",
+      rules: [
+        "Counter-trend and no near-term catalyst are normal — being below the moving averages, in a drawdown, or lacking a near-term catalyst is expected for a quarters-to-years holding and is NOT by itself a reason to reject.",
+        "No protective stop is by design — a core position is governed by its target weight and a wide review trigger, not a stop. Do not cite a missing stop, missing target, or thin reward-to-risk as a flaw.",
+        "Prosecute overpaying versus long-term value — buying a good asset at a rich price (expensive vs its own history or a sensible long-horizon valuation) is a real objection.",
+        "Prosecute thesis drift / a story stock dressed up as core, and over-concentration versus the target allocation.",
+        "For an ETF or index fund, judge fund quality: a high expense ratio compounds against the holder for years, and poor tracking or a thin/exotic structure is a real objection.",
+        "Prosecute an unrealistic long-term return assumption — a thesis premised on an implausible compounding rate over the horizon is weak.",
       ],
     },
   ],

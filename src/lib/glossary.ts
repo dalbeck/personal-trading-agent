@@ -168,6 +168,105 @@ export const GLOSSARY = {
     caveat:
       "Advisory — the final GO is a human decision; it never gates your own approvals.",
   },
+  "mean-reversion": {
+    label: "mean-reversion",
+    definition:
+      "A trade that bets a price stretched away from its typical level will snap back toward it — buying weakness expecting a bounce, the opposite of trend-following. The value sleeve's stance.",
+  },
+  "value-trap": {
+    label: "value trap",
+    definition:
+      "A stock that looks cheap but keeps falling because the business is genuinely deteriorating — cheap for a reason, not a bargain. The value prosecutor's main thing to rule out.",
+  },
+  "measured-move": {
+    label: "measured move",
+    definition:
+      "A price target set by projecting the size of a prior move onto the breakout — e.g. a $10 base that breaks out projects a ~$10 further move. A technical, self-derived target.",
+  },
+  "target-weight": {
+    label: "target weight",
+    definition:
+      "The share of the portfolio a core position is sized to hold (e.g. 5%). A long-term holding is governed by this weight and a review trigger rather than a protective stop.",
+  },
+  "review-trigger": {
+    label: "review trigger",
+    definition:
+      "For a no-stop core holding, the wide drawdown (e.g. −20%) at which the position is flagged for a human review instead of being auto-stopped out — the long-term counterpart to a stop.",
+  },
+  "expense-ratio": {
+    label: "expense ratio",
+    definition:
+      "The annual fee an ETF/fund charges as a percentage of assets. It compounds against the holder every year, so a high expense ratio is a real drag on a long-term core holding.",
+  },
 } satisfies Record<string, GlossaryEntry>;
 
 export type GlossaryKey = keyof typeof GLOSSARY;
+
+/**
+ * Phrases (case-insensitive) that auto-link to a glossary term in free-flowing
+ * copy (e.g. the red-team rules view). Curated so rule phrasing maps to the
+ * right entry without bloating every record; longer phrases are matched before
+ * shorter ones so "reward-to-risk" wins over a bare "risk".
+ */
+const AUTO_LINK: ReadonlyArray<readonly [GlossaryKey, readonly string[]]> = [
+  ["rr", ["reward-to-risk", "reward/risk", "reward to risk"]],
+  ["relative-volume", ["relative volume"]],
+  ["mean-reversion", ["mean-reversion", "mean reversion"]],
+  ["value-trap", ["value trap"]],
+  ["measured-move", ["measured move"]],
+  ["target-weight", ["target weight"]],
+  ["review-trigger", ["review trigger"]],
+  ["expense-ratio", ["expense ratio"]],
+  ["fcf", ["free cash flow"]],
+  ["fcf-yield", ["fcf yield"]],
+  ["interest-coverage", ["interest coverage"]],
+  ["drawdown", ["drawdown"]],
+  ["atr", ["atr"]],
+  ["protective-stop", ["protective stop"]],
+];
+
+/** A plain text run, or a matched glossary term keeping its original text. */
+export type GlossarySegment = string | { term: GlossaryKey; text: string };
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Split `text` into plain runs and glossary matches, wrapping the FIRST
+ * occurrence of each known term (tracked in the shared `seen` set so a term is
+ * tagged once per view — matching `<Term>`'s "primary appearance only"
+ * restraint). Only terms present in {@link GLOSSARY} are matched. Pure + testable.
+ */
+export function tokenizeGlossary(
+  text: string,
+  seen: Set<GlossaryKey> = new Set(),
+): GlossarySegment[] {
+  const segments: GlossarySegment[] = [];
+  let rest = text;
+  // Longest phrase first so multi-word terms win over any substring.
+  const candidates = AUTO_LINK.flatMap(([key, phrases]) =>
+    phrases.map((p) => ({ key, phrase: p })),
+  ).sort((a, b) => b.phrase.length - a.phrase.length);
+
+  while (rest.length > 0) {
+    let best: { index: number; length: number; key: GlossaryKey; text: string } | null =
+      null;
+    for (const { key, phrase } of candidates) {
+      if (seen.has(key)) continue;
+      const m = new RegExp(`\\b${escapeRegExp(phrase)}\\b`, "i").exec(rest);
+      if (m && (best === null || m.index < best.index)) {
+        best = { index: m.index, length: m[0].length, key, text: m[0] };
+      }
+    }
+    if (!best) {
+      segments.push(rest);
+      break;
+    }
+    if (best.index > 0) segments.push(rest.slice(0, best.index));
+    segments.push({ term: best.key, text: best.text });
+    seen.add(best.key);
+    rest = rest.slice(best.index + best.length);
+  }
+  return segments;
+}
