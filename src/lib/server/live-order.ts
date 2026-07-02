@@ -329,6 +329,8 @@ export interface ApprovalResult {
   /** True when this result was de-duplicated (a prior identical placement was
    *  returned instead of placing again). The order placed exactly once. */
   idempotent?: boolean;
+  /** True when a `concern` verdict was placed at HALF the requested size. */
+  downsized?: boolean;
 }
 
 /**
@@ -753,7 +755,10 @@ async function runApproval(
     return { outcome: "blocked-risk", journalId: id, dryRun: true };
   }
 
-  if (blocks.capViolations.length > 0 && !override) {
+  // Live caps (live-max-exposure / live-funded-cap) are HARD money guardrails —
+  // NOT clearable by an override comment (like stale-levels). A justification
+  // can waive a rail or a red-team reject, never the account's exposure ceiling.
+  if (blocks.capViolations.length > 0) {
     const { id } = await recordRiskRejection(
       { ...journalMeta, proposedAction: order.action },
       { ok: false, violations: blocks.capViolations },
@@ -762,12 +767,21 @@ async function runApproval(
     return { outcome: "blocked-caps", journalId: id, dryRun: false };
   }
 
+  // Concern verdict → place at HALF size (charter: concern = reduced size, as the
+  // paper batch does). Halving is strictly more conservative than the rails/caps
+  // already cleared on the full qty, so no re-check is needed. Fractional-safe.
+  const concern = blocks.redTeam?.verdict === "concern";
+  const placeQty = concern ? order.qty / 2 : order.qty;
+  const toPlace = concern
+    ? toProposedOrder({ ...order, qty: placeQty })
+    : proposed;
+
   // Approved (clean or via override) → route through the gate to its
   // destination. A broker rejection must not crash the caller: surface it as a
   // clean `error` with nothing journaled.
   let placed: PlacedAt & { dryRun: boolean };
   try {
-    placed = await routeApprovedOrder(proposed, opts);
+    placed = await routeApprovedOrder(toPlace, opts);
   } catch (err) {
     return {
       outcome: "error",
@@ -797,12 +811,11 @@ async function runApproval(
       overrideTags.push(`override:${v.rule}`);
       overrodeReasons.push(`rail ${v.rule}: ${v.message}`);
     }
-    for (const v of blocks.capViolations) {
-      overrideTags.push(`override:${v.rule}`);
-      overrodeReasons.push(`live cap ${v.rule}: ${v.message}`);
-    }
+    // Live caps are non-overridable (they block above), so they never reach here.
     overrideTags.push("human-override");
   }
+  // A concern verdict was placed at half size — tag it for the audit trail.
+  const concernTags = concern ? ["concern:half-size"] : [];
 
   const sinkNote = placed.dryRun
     ? ` (dry-run sink — no real money; harness gate closed)`
@@ -818,7 +831,7 @@ async function runApproval(
       symbol: order.symbol,
       action: order.action,
       side: order.side,
-      qty: order.qty,
+      qty: placeQty,
       price: order.limitPrice,
       stopPrice: order.stopPrice,
       takeProfit: order.takeProfit,
@@ -828,6 +841,7 @@ async function runApproval(
         ...(order.tags ?? []),
         placed.dryRun ? "dry-run" : "live",
         "human-approved",
+        ...concernTags,
         ...overrideTags,
       ],
       thesis: order.thesis,
@@ -859,5 +873,6 @@ async function runApproval(
     destination: placed.destination,
     brokerOrderId: placed.brokerOrderId,
     dryRun: placed.dryRun,
+    downsized: concern,
   };
 }

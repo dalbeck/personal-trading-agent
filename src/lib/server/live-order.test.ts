@@ -394,6 +394,62 @@ describe("per-trade approval", () => {
     expect(reachedBroker).toBe(false); // never reached the broker
   });
 
+  it("blocks a live-cap violation even WITH a valid override (hard guardrail)", async () => {
+    const gate = await openGate();
+    let reachedBroker = false;
+    const res = await submitTradeApproval(
+      {
+        order: { ...ORDER, qty: 100, limitPrice: 50, riskPct: 0.01 },
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+        // A comment must NOT clear a hard live cap.
+        override: { comment: "I really want this fill." },
+      },
+      {
+        ...gate,
+        snapshot: null,
+        liveSnapshot: null,
+        redTeamExec: async () => '{"verdict":"approve","notes":"ok"}',
+        placeLive: async () => {
+          reachedBroker = true;
+          return { destination: "robinhood", brokerOrderId: "rh-x" };
+        },
+      },
+    );
+    expect(res.outcome).toBe("blocked-caps");
+    expect(reachedBroker).toBe(false);
+  });
+
+  it("places a CONCERN-rated order at HALF size, tagged + downsized", async () => {
+    const gate = await closedGate();
+    let placedQty: number | null = null;
+    const res = await submitTradeApproval(
+      {
+        order: {
+          ...ORDER,
+          redTeam: freshVerdict(ORDER_CORE, "concern", "Trim into the event."),
+        },
+        decision: "approve",
+        approver: "human",
+        timestamp: "2026-06-24T10:00:00-04:00",
+      },
+      {
+        ...gate,
+        snapshot: null, // paper order → rails skipped; isolate the concern downsize
+        quoteOf: async () => 100, // not stale (ORDER limit 100)
+        placeDryRun: async (o) => {
+          placedQty = o.qty;
+          return { destination: "mock", brokerOrderId: "m-concern" };
+        },
+      },
+    );
+    expect(res.outcome).toBe("approved");
+    expect(res.downsized).toBe(true);
+    // ORDER qty 1 → half = 0.5 (fractional shares).
+    expect(placedQty).toBe(0.5);
+  });
+
   it("surfaces a broker rejection as a clean error, not a crash", async () => {
     const gate = await closedGate();
     const res = await submitTradeApproval(
