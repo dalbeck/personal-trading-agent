@@ -28,6 +28,7 @@ const statusTone: Record<Status, BadgeTone> = {
   rejected: "loss",
   reviewed: "gain",
   dismissed: "muted",
+  expired: "muted",
 };
 
 /**

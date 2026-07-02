@@ -103,6 +103,7 @@ describe("DISCOVERY_LIMITS mirrors strategy/charter.md (Phase 3 discovery caps)"
       maxProposalsPerSector: 3, // best-in-sector cap per run
       minSectorsTarget: 3, // sector-spread target
       maxWatchlistSymbols: 20, // bounds auto-added discovery candidates
+      proposalExpiryDays: 5, // pending proposals expire after 5 days / reviewByDate
     });
   });
 
@@ -116,5 +117,10 @@ describe("DISCOVERY_LIMITS mirrors strategy/charter.md (Phase 3 discovery caps)"
     expect(DISCOVERY_LIMITS.maxIdeaCap).toBeGreaterThanOrEqual(
       DISCOVERY_LIMITS.ideaCap,
     );
+  });
+
+  it("mirrors the proposal-expiry window in the charter (5 days)", () => {
+    // charter.md: "a pending proposal expires ... 5 days after createdAt".
+    expect(DISCOVERY_LIMITS.proposalExpiryDays).toBe(5);
   });
 });
