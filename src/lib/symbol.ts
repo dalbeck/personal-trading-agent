@@ -8,8 +8,10 @@ export const SYMBOL_RANGES = ["1D", "1W", "1M", "3M", "1Y"] as const;
 export type SymbolRange = (typeof SYMBOL_RANGES)[number];
 export const DEFAULT_RANGE: SymbolRange = "3M";
 
-/** A symbol is 1–12 chars of upper-case letters, digits, dot or dash. */
-export const SYMBOL_PATTERN = /^[A-Z0-9.\-]{1,12}$/;
+/** A symbol is 1–12 chars of upper-case letters/digits, dot or dash — and must
+ *  START with an alphanumeric, so a bare `.` / `..` (path traversal) never
+ *  validates as a ticker. */
+export const SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9.\-]{0,11}$/;
 
 export function normalizeSymbol(raw: string): string {
   return raw.trim().toUpperCase();

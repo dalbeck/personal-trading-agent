@@ -25,7 +25,9 @@ import { requireAuthorized } from "@/lib/server/authorize";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function nowET(): string {
+/** The approval timestamp — a UTC ISO string. The ET *day* (for the order
+ *  counter) is derived downstream via `etDay()`; this is not itself ET. */
+function nowIso(): string {
   return new Date().toISOString();
 }
 
@@ -92,7 +94,7 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const timestamp = nowET();
+  const timestamp = nowIso();
   // The acting lens (dual-lens M1): its levels + red-team verdict drive the
   // order, and the order is risk-checked + gated under it — exactly as if it were
   // a single-lens proposal at those levels. For a single-lens proposal this is

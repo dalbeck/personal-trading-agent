@@ -419,6 +419,8 @@ describe("per-trade approval", () => {
     );
     expect(res.outcome).toBe("blocked-caps");
     expect(reachedBroker).toBe(false);
+    // Nothing was placed → no real money touched (was incorrectly dryRun:false).
+    expect(res.dryRun).toBe(true);
   });
 
   it("places a CONCERN-rated order at HALF size, tagged + downsized", async () => {

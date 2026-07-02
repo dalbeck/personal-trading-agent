@@ -764,7 +764,9 @@ async function runApproval(
       { ok: false, violations: blocks.capViolations },
       { dataDir: opts.dataDir },
     );
-    return { outcome: "blocked-caps", journalId: id, dryRun: false };
+    // Nothing was placed on a block → no real money touched (dryRun), matching
+    // every other blocked outcome.
+    return { outcome: "blocked-caps", journalId: id, dryRun: true };
   }
 
   // Concern verdict → place at HALF size (charter: concern = reduced size, as the
