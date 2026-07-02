@@ -47,6 +47,17 @@ export const allowedOrderType: Rule = (o, _ctx, limits) =>
         message: `${o.orderType} not allowed — marketable-limit orders only`,
       };
 
+/** Long-only mandate (charter Universe: "no margin" ⇒ no short selling). A short
+ *  order is a hard reject — shorting requires margin, which the charter
+ *  prohibits. The LLM cannot override a rail. */
+export const noShorts: Rule = (o) =>
+  o.side === "short"
+    ? {
+        rule: "no-shorts",
+        message: "short selling is prohibited — long-only (no margin)",
+      }
+    : null;
+
 export const universe: Rule = (o, _ctx, limits) => {
   if (!isEntry(o)) return null;
   if (!limits.allowedAssetClasses.includes(o.assetClass)) {
@@ -251,6 +262,7 @@ export const emergencyStop: Rule = (o, ctx, limits) => {
 
 /** The full rail set, in a stable order. */
 export const RULES: Rule[] = [
+  noShorts,
   universe,
   allowedOrderType,
   stopAttached,

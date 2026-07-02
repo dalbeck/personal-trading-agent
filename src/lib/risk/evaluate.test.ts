@@ -54,6 +54,18 @@ describe("evaluateOrder — a compliant order", () => {
   });
 });
 
+describe("long-only mandate — no shorts (charter Universe)", () => {
+  it("rejects a short entry with a no-shorts rail", () => {
+    const decision = evaluateOrder(baseOrder({ side: "short" }), baseCtx());
+    expect(decision.ok).toBe(false);
+    expect(decision.violations.map((v) => v.rule)).toContain("no-shorts");
+  });
+
+  it("does not flag a long order", () => {
+    expect(rules(baseOrder(), baseCtx())).not.toContain("no-shorts");
+  });
+});
+
 describe("per-sleeve rails — no-stop core-long order (per-sleeve-rails M2)", () => {
   const coreLimits = railsForSleeve("core-long");
 

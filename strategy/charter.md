@@ -64,6 +64,9 @@ stop-on-every-entry, marketable-limit). Only the *entry-thesis criteria* and the
 ## Universe
 
 - Listed **US equities only**. **No options, no crypto, no futures, no margin.**
+- **Long-only. No short selling** — shorting requires margin, which is prohibited
+  above. Enforced as a hard rail (`no-shorts`, `lib/risk`): a `side: "short"`
+  order is rejected, never downsized.
 - Fractional shares allowed.
 - Minimum average daily dollar volume: **$50M** (liquidity floor).
 - Exclude names failing the volatility filter (20-day ATR above the universe cap).
@@ -174,6 +177,12 @@ watchlist symbols are **tracking-only** (no order, no execution path).
 
 Every edit to this charter is dated and reasoned. Newest first.
 
+- **2026-07-02** — **Long-only stated + enforced (no-shorts rail).** Made the
+  implicit consequence of "no margin" explicit: the desk is **long-only, no short
+  selling**. Added a **hard rail** (`no-shorts`, `lib/risk/validators.ts`) so a
+  `side: "short"` order is **rejected** (journaled, not downsized; the LLM cannot
+  override). No numeric limit changed — this closes a gap where the schema/risk
+  engine still accepted a short the charter never permitted.
 - **2026-06-26** — **Value / mean-reversion sleeve (value-sleeve M1).** Authorized
   a **second strategy mandate**. Every proposal now carries a **`strategy`**
   (`trend` | `value`) and is judged under the matching red-team lens. **`trend`
