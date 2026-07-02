@@ -3,6 +3,7 @@ import "server-only";
 import type { TradeProposal } from "@/lib/types";
 import { readProposals } from "./data";
 import { runRedTeam, type RedTeamExec } from "./red-team";
+import { toRedTeamProposal } from "./red-team-briefing";
 import { setProposalRedTeam } from "./writers";
 
 /**
@@ -39,32 +40,10 @@ export async function sweepPendingRedTeam(opts?: {
   for (const p of pending) {
     if (p.redTeam) continue; // already judged
     considered += 1;
-    const verdict = await runRedTeam(
-      {
-        symbol: p.symbol,
-        action: p.action,
-        side: p.side,
-        strategy: p.strategy,
-        qty: p.qty,
-        limitPrice: p.limitPrice,
-        stopPrice: p.stopPrice,
-        takeProfit: p.takeProfit,
-        targetType: p.targetType,
-        relativeVolume: p.relativeVolume,
-        catalyst: p.catalyst,
-        catalystType: p.catalystType,
-        // Sector (red-team-fixes Issue 1) — suppress financial-sector leverage factors.
-        sector: p.sector,
-        // Carry the catalyst sources (catalyst-news-sources M1) + capture state
-        // (catalyst-state-honesty M2) so the sweep judges on the full briefing and
-        // never rejects an `unavailable` (failed-fetch) catalyst as "no catalyst".
-        catalystSources: p.catalystSources,
-        catalystState: p.catalystState,
-        thesis: p.thesis,
-        reasoning: p.reasoning,
-      },
-      { exec: opts?.exec },
-    );
+    // One shared briefing mapper (H3) — carries the sleeve + the value briefing
+    // (cashFlow/dividend/researchStatus) so a value/core proposal is judged under
+    // its own lens, not spuriously rejected under the trend lens.
+    const verdict = await runRedTeam(toRedTeamProposal(p), { exec: opts?.exec });
     const ok = await setVerdict(p.id, verdict, { dataDir: opts?.dataDir })
       .then(() => true)
       .catch(() => false);

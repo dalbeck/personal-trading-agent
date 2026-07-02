@@ -183,6 +183,13 @@ export async function POST(req: Request): Promise<Response> {
         relativeVolume: lens.relativeVolume,
         catalyst: lens.catalyst,
         catalystType: lens.catalystType,
+        // Value-lens briefing (H3) — carried so the approval-time red-team
+        // fallback judges a value/core proposal on the FULL briefing.
+        catalystSources: proposal.catalystSources,
+        catalystState: proposal.catalystState,
+        cashFlow: proposal.cashFlow,
+        dividend: proposal.dividend,
+        researchStatus: proposal.researchStatus,
         tags: tags.length > 0 ? tags : undefined,
       },
     });
