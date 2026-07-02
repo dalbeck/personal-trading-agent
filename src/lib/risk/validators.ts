@@ -138,6 +138,23 @@ const sectorHeldValue = (
     .reduce((sum, p) => sum + p.marketValue, 0);
 
 /**
+ * Sector-required rail — a BUY must carry a known GICS sector, so the sector
+ * concentration cap can't be skipped by simply omitting the classification. A
+ * buy with no sector is blocked (the human can override consciously, or refresh
+ * research to classify it); a sell doesn't open new exposure, so it is exempt.
+ */
+export const sectorRequired: Rule = (o) => {
+  if (!isEntry(o)) return null;
+  return o.sector
+    ? null
+    : {
+        rule: "sector-required",
+        message:
+          "buy needs a known sector — the concentration cap can't be checked without it (refresh research or set the sector)",
+      };
+};
+
+/**
  * Concentration rail — at most `maxSectorWeightPct` of equity in any one sector,
  * so a 5-position book can't quietly become three correlated names. **Fails
  * open** when the order's sector is unknown (null/absent): the desk never blocks
@@ -270,6 +287,7 @@ export const RULES: Rule[] = [
   reviewTriggerAttached,
   perPositionRisk,
   perPositionSize,
+  sectorRequired,
   sectorConcentration,
   positionCount,
   dailyOrderCap,

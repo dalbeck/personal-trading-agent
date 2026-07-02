@@ -44,6 +44,7 @@ function proposal(over: Partial<ExecutableProposal> = {}): ExecutableProposal {
     reviewDate: "2026-07-24",
     thesis: "Demand outrunning supply.",
     reasoning: "Breakout retest.",
+    sector: "Technology", // a real buy carries a sector (sector-required rail)
     ...over,
   };
 }
@@ -145,6 +146,7 @@ describe("executePendingProposals", () => {
       confidence: 0.6,
       thesis: "Clean trend.",
       reasoning: "Pullback.",
+      sector: "Technology",
       status: "pending",
       redTeam: null,
       reviewByDate: "2026-07-24",
@@ -163,6 +165,7 @@ describe("executePendingProposals", () => {
       confidence: 0.5,
       thesis: "Momentum.",
       reasoning: "Event.",
+      sector: "Consumer Discretionary",
       status: "pending",
       redTeam: null,
       reviewByDate: "2026-07-24",

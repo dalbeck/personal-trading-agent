@@ -28,6 +28,7 @@ function baseOrder(over: Partial<ProposedOrder> = {}): ProposedOrder {
     stopPrice: 147,
     takeProfit: 170,
     assetClass: "equity",
+    sector: "Technology", // a real buy carries a sector (sector-required rail)
     ...over,
   };
 }
@@ -51,6 +52,25 @@ describe("evaluateOrder — a compliant order", () => {
   it("passes every rail", () => {
     const decision = evaluateOrder(baseOrder(), baseCtx());
     expect(decision).toEqual({ ok: true, violations: [] });
+  });
+});
+
+describe("sector required to place a buy (concentration rail can't be skipped)", () => {
+  it("blocks a buy with no known sector", () => {
+    const decision = evaluateOrder(baseOrder({ sector: null }), baseCtx());
+    expect(decision.violations.map((v) => v.rule)).toContain("sector-required");
+  });
+
+  it("does not flag a buy that carries a sector", () => {
+    expect(rules(baseOrder({ sector: "Technology" }), baseCtx())).not.toContain(
+      "sector-required",
+    );
+  });
+
+  it("does not flag a sell with no sector (entries only)", () => {
+    expect(
+      rules(baseOrder({ action: "sell", sector: null }), baseCtx()),
+    ).not.toContain("sector-required");
   });
 });
 

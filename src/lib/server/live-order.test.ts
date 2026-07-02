@@ -85,6 +85,7 @@ const ORDER_CORE: Omit<ApprovalOrder, "redTeam"> = {
   reviewDate: "2026-07-21",
   thesis: "Megacap leadership intact.",
   reasoning: "Pullback held the rising 50-day.",
+  sector: "Technology", // a real buy carries a sector (sector-required rail)
   tags: ["test"],
 };
 
