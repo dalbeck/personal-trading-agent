@@ -20,6 +20,7 @@ import {
   recordRejection,
   recordRiskRejection,
   recordTradeDecision,
+  setProposalStatus,
 } from "./writers";
 
 /**
@@ -255,7 +256,12 @@ export async function executePendingProposals(opts: {
   market?: { spyIntradayChangePct?: number; vix?: number };
   proposals?: TradeProposal[];
   snapshot?: PortfolioSnapshot | null;
+  /** Proposal-status writer (tests inject; default flips the proposal file). A
+   *  PLACED proposal is marked `approved` so a re-fired batch (reads pendingOnly)
+   *  never re-places it and the live path 409s on the same proposal (H7). */
+  setStatus?: typeof setProposalStatus;
 }): Promise<RunSummary> {
+  const setStatus = opts.setStatus ?? setProposalStatus;
   // The autonomous batch is **paper-only**: it must never auto-place a
   // live-intent order. Live proposals — approvable (`advisory: false`) or manual
   // guidance (`advisory: true`) — are handled exclusively by the per-trade human
@@ -321,6 +327,10 @@ export async function executePendingProposals(opts: {
     results.push(result);
 
     if (result.outcome === "placed" || result.outcome === "downsized") {
+      // Mark it executed so a re-fired batch (pendingOnly) and the live approval
+      // path (409 on non-pending) can never place this proposal again (H7).
+      // Best-effort — a status-write hiccup must not fail the run.
+      await setStatus(p.id, "approved", { dataDir: opts.dataDir }).catch(() => {});
       ordersToday += 1;
       await incrementOrdersToday({
         dataDir: opts.dataDir,

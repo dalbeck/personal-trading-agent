@@ -123,16 +123,30 @@ export async function POST(req: Request): Promise<Response> {
   // so completing every tranche is never over-risked. Only an in-range pending
   // tranche is honoured; anything else falls back to the full-position approve.
   const plan = proposal.stagedPlan;
-  const trancheIdx =
+  const trancheRequested =
     decision === "approve" &&
     plan &&
     typeof body.tranche === "number" &&
-    Number.isInteger(body.tranche)
-      ? plan.tranches.find((t) => t.index === body.tranche && t.status === "pending")
-          ?.index ?? null
-      : null;
-  const tranche =
-    trancheIdx !== null ? plan!.tranches.find((t) => t.index === trancheIdx)! : null;
+    Number.isInteger(body.tranche);
+  // A requested tranche that is NOT pending (already filled or out of range) is a
+  // REFUSAL (409), never a silent fall-back to the full-position approve — a
+  // lagged re-tap of a filled tranche would otherwise over-fill the staged entry
+  // (H7). A request with no `tranche` places the full position (unchanged).
+  if (trancheRequested) {
+    const t = plan!.tranches.find((x) => x.index === body.tranche);
+    if (!t || t.status !== "pending") {
+      return Response.json(
+        {
+          error: "tranche already filled or invalid — refresh the plan",
+          tranche: body.tranche,
+        },
+        { status: 409 },
+      );
+    }
+  }
+  const tranche = trancheRequested
+    ? plan!.tranches.find((t) => t.index === body.tranche && t.status === "pending")!
+    : null;
   const orderQty = tranche ? tranche.qty : lens.qty;
   if (tranche) {
     tags.push(`tranche:${tranche.index + 1}/${plan!.tranches.length}`);
