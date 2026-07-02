@@ -13,10 +13,31 @@ import {
   submitTradeApproval,
   type ApprovalOrder,
 } from "./live-order";
+import { redTeamVerdictHash, toRedTeamProposal } from "./red-team-briefing";
 import type { ProposedOrder } from "@/lib/risk";
-import type { PortfolioSnapshot } from "@/lib/types";
+import type { PortfolioSnapshot, RedTeamVerdict } from "@/lib/types";
 
 const BROKER_ENV = "ROBINHOOD_BROKER_TRADING_ENABLED";
+
+/** A FRESH stored verdict for an order (H4): the correct briefing hash + a
+ *  current stamp, so `evaluateApprovalBlocks` REUSES it instead of re-running the
+ *  prosecutor (which would spawn a real CLI in tests). `judgedAt` is real-now so
+ *  it is within the TTL of every test's clock. */
+function freshVerdict(
+  order: Omit<ApprovalOrder, "redTeam">,
+  verdict: RedTeamVerdict["verdict"] = "approve",
+  notes = "Survived the attack.",
+): RedTeamVerdict {
+  return {
+    verdict,
+    notes,
+    factors: [],
+    basis: null,
+    model: null,
+    judgedAt: new Date().toISOString(),
+    judgedHash: redTeamVerdictHash(toRedTeamProposal(order)),
+  };
+}
 
 async function tmp(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "pta-order-"));
@@ -52,7 +73,7 @@ const PROPOSED: ProposedOrder = {
   assetClass: "equity",
 };
 
-const ORDER: ApprovalOrder = {
+const ORDER_CORE: Omit<ApprovalOrder, "redTeam"> = {
   symbol: "MSFT",
   action: "buy",
   side: "long",
@@ -65,8 +86,9 @@ const ORDER: ApprovalOrder = {
   thesis: "Megacap leadership intact.",
   reasoning: "Pullback held the rising 50-day.",
   tags: ["test"],
-  redTeam: { verdict: "approve", notes: "Survived the attack.", factors: [], basis: null, model: null },
 };
+
+const ORDER: ApprovalOrder = { ...ORDER_CORE, redTeam: freshVerdict(ORDER_CORE) };
 
 async function journalFiles(dataDir: string): Promise<string[]> {
   try {
@@ -254,7 +276,7 @@ describe("per-trade approval", () => {
     const gate = await closedGate();
     const res = await submitTradeApproval(
       {
-        order: { ...ORDER, redTeam: { verdict: "reject", notes: "Thesis fails.", factors: [], basis: null, model: null } },
+        order: { ...ORDER, redTeam: freshVerdict(ORDER_CORE, "reject", "Thesis fails.") },
         decision: "approve",
         approver: "human",
         timestamp: "2026-06-24T10:00:00-04:00",
@@ -357,6 +379,10 @@ describe("per-trade approval", () => {
         ...gate,
         snapshot: null, // skip the paper risk recheck; isolate the live caps
         liveSnapshot: null, // unfunded live account → funded capital 0
+        // The modified order (qty/limitPrice) differs from ORDER's stored
+        // verdict briefing, so the red-team re-runs (H4); inject an approve so
+        // this test isolates the live-cap block.
+        redTeamExec: async () => '{"verdict":"approve","notes":"ok"}',
         placeLive: async () => {
           reachedBroker = true;
           return { destination: "robinhood", brokerOrderId: "rh-x" };
@@ -561,6 +587,59 @@ describe("live drawdown-halt rail at approval (H1 — persisted high-water)", ()
     expect(
       blocks.railViolations.find((v) => v.rule === "drawdown-halt"),
     ).toBeUndefined();
+  });
+});
+
+describe("verdict invalidation at approval (H4)", () => {
+  const CALM = { spyIntradayChangePct: 0, vix: 15, spyAvailable: true };
+
+  it("reuses a FRESH stored verdict without re-running the prosecutor", async () => {
+    const gate = await closedGate();
+    let ran = false;
+    const blocks = await evaluateApprovalBlocks(
+      { ...ORDER_CORE, redTeam: freshVerdict(ORDER_CORE, "approve", "stored verdict") },
+      {
+        ...gate,
+        snapshot: null,
+        market: CALM,
+        quoteOf: async () => 100,
+        redTeamExec: async () => {
+          ran = true;
+          return '{"verdict":"reject","notes":"should not run"}';
+        },
+      },
+    );
+    expect(ran).toBe(false); // the fresh stored verdict was reused
+    expect(blocks.redTeam?.notes).toBe("stored verdict");
+  });
+
+  it("re-runs a STALE stored verdict (hash mismatch) at approval", async () => {
+    const gate = await closedGate();
+    let ran = false;
+    const staleOrder: ApprovalOrder = {
+      ...ORDER_CORE,
+      redTeam: {
+        verdict: "approve",
+        notes: "stale",
+        factors: [],
+        basis: null,
+        model: null,
+        judgedAt: new Date().toISOString(),
+        judgedHash: "deadbeef", // does not match the current briefing
+      },
+    };
+    const blocks = await evaluateApprovalBlocks(staleOrder, {
+      ...gate,
+      snapshot: null,
+      market: CALM,
+      quoteOf: async () => 100,
+      redTeamExec: async () => {
+        ran = true;
+        return '{"verdict":"reject","notes":"re-judged"}';
+      },
+    });
+    expect(ran).toBe(true); // the stale verdict forced a re-run
+    expect(blocks.redTeam?.notes).toBe("re-judged");
   });
 });
 
@@ -822,6 +901,9 @@ describe("M1 — real risk context at approval (daily cap + emergency stop)", ()
         ...gate,
         snapshot,
         market: CALM,
+        // Modified order (symbol/qty) ≠ ORDER's stored verdict briefing → the
+        // red-team re-runs (H4); inject an approve to isolate the concentration rail.
+        redTeamExec: async () => '{"verdict":"approve","notes":"ok"}',
         // Classify the held MSFT as Technology too (cache-only seam).
         sectorOf: async () => "Technology",
       },
@@ -955,13 +1037,7 @@ describe("M2 — order idempotency (double-tap / retry places at most once)", ()
     const gate = await closedGate();
     const rejected = {
       ...ORDER,
-      redTeam: {
-        verdict: "reject" as const,
-        notes: "Thesis fails.",
-        factors: [],
-        basis: null,
-        model: null,
-      },
+      redTeam: freshVerdict(ORDER_CORE, "reject", "Thesis fails."),
     };
     let calls = 0;
     const placeDryRun = async () => {
@@ -1013,7 +1089,7 @@ describe("hasValidOverride", () => {
 describe("human override of approval blocks", () => {
   const REJECTED: ApprovalOrder = {
     ...ORDER,
-    redTeam: { verdict: "reject", notes: "Crowded long; stop too wide.", factors: [], basis: null, model: null },
+    redTeam: freshVerdict(ORDER_CORE, "reject", "Crowded long; stop too wide."),
   };
 
   it("a blank override comment does NOT bypass a red-team reject", async () => {

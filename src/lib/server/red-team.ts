@@ -17,6 +17,7 @@ import {
 import { formatCompactCurrency, formatPercent } from "@/lib/format";
 import { researchUnavailableLabel } from "@/lib/research-availability";
 import { sleeveToStrategy, type Sleeve } from "@/lib/sleeves";
+import { redTeamVerdictHash } from "./red-team-briefing";
 import type {
   CashFlowQuality,
   CatalystSource,
@@ -476,14 +477,19 @@ export function redTeamOutcome(verdict: RedTeamVerdict): RedTeamOutcome {
  *  on the fail-closed path. */
 export async function runRedTeam(
   proposal: RedTeamProposal,
-  opts?: { exec?: RedTeamExec; model?: RedTeamModel },
+  opts?: { exec?: RedTeamExec; model?: RedTeamModel; now?: string },
 ): Promise<RedTeamVerdict> {
   const model = opts?.model ?? DEFAULT_RED_TEAM_MODEL;
   const exec =
     opts?.exec ?? (model === "claude" ? defaultClaudeExec : defaultCodexExec);
+  // Verdict-invalidation provenance (H4): stamp WHEN it was judged and a hash of
+  // the judged briefing, so a reuse point can detect a stale/changed briefing and
+  // re-run. Stamped on the fail-closed reject too.
+  const judgedAt = opts?.now ?? new Date().toISOString();
+  const judgedHash = redTeamVerdictHash(proposal);
   try {
     const raw = await exec(buildProsecutorPrompt(proposal));
-    return { ...parseVerdict(raw), model };
+    return { ...parseVerdict(raw), model, judgedAt, judgedHash };
   } catch (err) {
     return {
       verdict: "reject",
@@ -493,6 +499,8 @@ export async function runRedTeam(
       factors: [],
       basis: null,
       model,
+      judgedAt,
+      judgedHash,
     };
   }
 }

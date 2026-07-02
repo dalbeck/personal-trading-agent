@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TradeProposal } from "@/lib/types";
-import { toRedTeamProposal } from "./red-team-briefing";
+import {
+  isVerdictFresh,
+  redTeamVerdictHash,
+  toRedTeamProposal,
+} from "./red-team-briefing";
 
 /** A fully-populated proposal — every briefing-relevant field is set, so a
  *  dropped field in the mapper surfaces as a null/undefined in the output. */
@@ -133,5 +137,77 @@ describe("toRedTeamProposal", () => {
       expect(rt.cashFlow).toBeNull();
       expect(rt.dividend).toBeNull();
     }
+  });
+});
+
+describe("redTeamVerdictHash", () => {
+  it("is stable for an identical briefing", () => {
+    const a = redTeamVerdictHash(toRedTeamProposal(proposal()));
+    const b = redTeamVerdictHash(toRedTeamProposal(proposal()));
+    expect(a).toBe(b);
+  });
+
+  it("changes when a core judged field changes (levels / qty / thesis)", () => {
+    const base = redTeamVerdictHash(toRedTeamProposal(proposal()));
+    expect(redTeamVerdictHash(toRedTeamProposal(proposal({ limitPrice: 61 })))).not.toBe(base);
+    expect(redTeamVerdictHash(toRedTeamProposal(proposal({ takeProfit: 90 })))).not.toBe(base);
+    expect(redTeamVerdictHash(toRedTeamProposal(proposal({ qty: 5 })))).not.toBe(base);
+    expect(redTeamVerdictHash(toRedTeamProposal(proposal({ thesis: "Different." })))).not.toBe(base);
+  });
+
+  it("is stable across mapper-only fields (sleeve/targetWeightPct) — no false staleness", () => {
+    // These fields are omitted by the analyze-time mapper, so hashing them would
+    // make an unchanged proposal re-run on every approval. They must NOT move the
+    // hash.
+    const base = redTeamVerdictHash(toRedTeamProposal(proposal()));
+    expect(redTeamVerdictHash(toRedTeamProposal(proposal({ targetWeightPct: 0.09 })))).toBe(base);
+  });
+});
+
+describe("isVerdictFresh", () => {
+  const NOW = "2026-06-25T12:00:00-04:00";
+  const briefing = () => toRedTeamProposal(proposal());
+  const verdict = (over: Record<string, unknown> = {}) => ({
+    verdict: "approve" as const,
+    notes: "ok",
+    factors: [],
+    basis: null,
+    model: null,
+    judgedAt: NOW,
+    judgedHash: redTeamVerdictHash(briefing()),
+    ...over,
+  });
+
+  it("is fresh when the hash matches and it is within the TTL", () => {
+    expect(isVerdictFresh(verdict(), briefing(), { now: NOW })).toBe(true);
+  });
+
+  it("is stale when the briefing hash no longer matches", () => {
+    const changed = toRedTeamProposal(proposal({ limitPrice: 61 }));
+    expect(isVerdictFresh(verdict(), changed, { now: NOW })).toBe(false);
+  });
+
+  it("is stale once older than the TTL", () => {
+    const later = "2026-06-27T12:00:00-04:00"; // 48h later, past the 24h TTL
+    expect(isVerdictFresh(verdict(), briefing(), { now: later })).toBe(false);
+  });
+
+  it("is stale when the stamp is missing (older record)", () => {
+    expect(
+      isVerdictFresh(verdict({ judgedAt: null, judgedHash: null }), briefing(), {
+        now: NOW,
+      }),
+    ).toBe(false);
+  });
+
+  it("uses the charter TTL constant (pinned at 24h)", async () => {
+    const { RED_TEAM_VERDICT_TTL_HOURS } = await import("@/lib/red-team-model");
+    expect(RED_TEAM_VERDICT_TTL_HOURS).toBe(24);
+    // A verdict exactly at the TTL boundary is still fresh; just past it is stale.
+    const judgedAt = "2026-06-24T12:00:00-04:00";
+    const atBoundary = "2026-06-25T12:00:00-04:00"; // +24h
+    const pastBoundary = "2026-06-25T12:00:01-04:00"; // +24h1s
+    expect(isVerdictFresh(verdict({ judgedAt }), briefing(), { now: atBoundary })).toBe(true);
+    expect(isVerdictFresh(verdict({ judgedAt }), briefing(), { now: pastBoundary })).toBe(false);
   });
 });

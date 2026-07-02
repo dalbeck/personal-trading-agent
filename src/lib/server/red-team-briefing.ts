@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+import { RED_TEAM_VERDICT_TTL_HOURS } from "@/lib/red-team-model";
 import { sleeveToStrategy, type Sleeve } from "@/lib/sleeves";
 import type { Strategy } from "@/lib/strategy";
 import type {
@@ -7,6 +9,7 @@ import type {
   CatalystSource,
   CatalystState,
   DividendSignals,
+  RedTeamVerdict,
   ResearchStatus,
 } from "@/lib/types";
 import type { RedTeamProposal } from "./red-team";
@@ -95,4 +98,66 @@ export function toRedTeamProposal(src: RedTeamBriefingSource): RedTeamProposal {
     reasoning: src.reasoning,
     research: src.research,
   };
+}
+
+/* ----------------------- verdict invalidation (H4) ------------------------ */
+
+/**
+ * The judged fields whose change should invalidate a verdict, in fixed order and
+ * null-normalized so the hash is canonical regardless of key order.
+ *
+ * Deliberately the **mapper-stable core identity** of the trade: the fields that
+ * BOTH briefing mappers (`redTeamInput` at analyze/refresh time and
+ * `toRedTeamProposal` at approval/sweep time) populate identically for an
+ * unchanged proposal. Fields one mapper omits (`sleeve`, `targetWeightPct`,
+ * `reviewTriggerPct`) or value-gates differently (`cashFlow`, `dividend`) are
+ * excluded — including them would make an unchanged proposal hash-mismatch across
+ * mappers and re-run on every approval. Those briefing inputs only change via
+ * `refresh-research` / `refresh-levels`, which already re-run the prosecutor, so
+ * the TTL + these core fields are the guard that matters.
+ */
+function verdictHashInput(b: RedTeamProposal): string {
+  // Fixed positions ARE the canonical order; null-normalize undefined.
+  const fields: unknown[] = [
+    b.symbol,
+    b.action,
+    b.side,
+    b.qty,
+    b.limitPrice,
+    b.stopPrice,
+    b.takeProfit,
+    b.targetType,
+    b.strategy,
+    b.thesis,
+  ].map((v) => (v === undefined ? null : v));
+  return JSON.stringify(fields);
+}
+
+/** A canonical hash of a briefing's judged fields (H4). Two structurally-equal
+ *  briefings hash identically; any change to a judged field changes the hash. */
+export function redTeamVerdictHash(briefing: RedTeamProposal): string {
+  return createHash("sha1").update(verdictHashInput(briefing)).digest("hex");
+}
+
+/**
+ * Whether a stored verdict may still be trusted for the given briefing (H4).
+ * False when the verdict's `judgedHash` is missing or no longer matches the
+ * briefing (a judged field changed), its `judgedAt` is missing/unparseable, or
+ * its age exceeds the TTL. A stale verdict must be re-run (fail closed).
+ */
+export function isVerdictFresh(
+  verdict: Pick<RedTeamVerdict, "judgedAt" | "judgedHash">,
+  briefing: RedTeamProposal,
+  opts?: { now?: string; ttlHours?: number },
+): boolean {
+  if (!verdict.judgedHash || verdict.judgedHash !== redTeamVerdictHash(briefing)) {
+    return false;
+  }
+  if (!verdict.judgedAt) return false;
+  const judgedMs = Date.parse(verdict.judgedAt);
+  if (!Number.isFinite(judgedMs)) return false;
+  const nowMs = opts?.now ? Date.parse(opts.now) : Date.now();
+  if (!Number.isFinite(nowMs)) return false;
+  const ttlMs = (opts?.ttlHours ?? RED_TEAM_VERDICT_TTL_HOURS) * 3_600_000;
+  return nowMs - judgedMs <= ttlMs;
 }
