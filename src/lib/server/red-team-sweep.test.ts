@@ -1,6 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RedTeamVerdict, TradeProposal } from "@/lib/types";
 import { sweepPendingRedTeam } from "./red-team-sweep";
+import { redTeamVerdictHash, toRedTeamProposal } from "./red-team-briefing";
+
+const NOW = "2026-06-25T12:00:00-04:00";
+
+/** A FRESH verdict for a proposal: matching hash + a recent stamp, so the sweep
+ *  (H4) treats it as still valid and skips it. */
+function freshVerdict(p: TradeProposal): RedTeamVerdict {
+  return {
+    verdict: "approve",
+    notes: "ok",
+    factors: [],
+    basis: null,
+    model: null,
+    judgedAt: NOW,
+    judgedHash: redTeamVerdictHash(toRedTeamProposal(p)),
+  };
+}
 
 const setVerdictMock = () =>
   vi.fn(
@@ -60,24 +77,55 @@ function proposal(over: Partial<TradeProposal>): TradeProposal {
 }
 
 describe("sweepPendingRedTeam", () => {
-  it("judges only proposals without a verdict and writes the result", async () => {
+  it("judges only proposals needing it (verdict-less or stale) and writes the result", async () => {
     const setVerdict = setVerdictMock();
     const exec = vi.fn(async () => '{"verdict":"concern","notes":"Chasing highs."}');
+    const b = proposal({ id: "b" });
     const res = await sweepPendingRedTeam({
       proposals: [
         proposal({ id: "a", redTeam: null }),
-        proposal({ id: "b", redTeam: { verdict: "approve", notes: "ok", factors: [], basis: null, model: null } }),
+        // `b` already has a FRESH verdict (matching hash, within TTL) → skipped.
+        proposal({ id: "b", redTeam: freshVerdict(b) }),
       ],
       exec,
       setVerdict,
+      now: NOW,
     });
     expect(res).toEqual({ considered: 1, swept: 1 });
     expect(exec).toHaveBeenCalledTimes(1); // only the verdict-less one
     expect(setVerdict).toHaveBeenCalledWith(
       "a",
-      { verdict: "concern", notes: "Chasing highs.", factors: [], basis: null, model: "codex" },
+      expect.objectContaining({
+        verdict: "concern",
+        notes: "Chasing highs.",
+        model: "codex",
+        judgedAt: NOW,
+      }),
       expect.anything(),
     );
+  });
+
+  it("re-judges a STALE verdict (hash no longer matches) even though one exists", async () => {
+    const setVerdict = setVerdictMock();
+    const exec = vi.fn(async () => '{"verdict":"approve","notes":"Re-judged."}');
+    // A verdict whose hash was computed for a DIFFERENT briefing → stale.
+    const stale: RedTeamVerdict = {
+      verdict: "reject",
+      notes: "old",
+      factors: [],
+      basis: null,
+      model: null,
+      judgedAt: NOW,
+      judgedHash: "deadbeef",
+    };
+    const res = await sweepPendingRedTeam({
+      proposals: [proposal({ id: "a", redTeam: stale })],
+      exec,
+      setVerdict,
+      now: NOW,
+    });
+    expect(res.considered).toBe(1);
+    expect(exec).toHaveBeenCalledTimes(1); // the stale verdict was re-judged
   });
 
   it("briefs each proposal's own lens (H3) — a value proposal's prompt differs from a trend one", async () => {

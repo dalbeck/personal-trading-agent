@@ -3,7 +3,7 @@ import "server-only";
 import type { TradeProposal } from "@/lib/types";
 import { readProposals } from "./data";
 import { runRedTeam, type RedTeamExec } from "./red-team";
-import { toRedTeamProposal } from "./red-team-briefing";
+import { isVerdictFresh, toRedTeamProposal } from "./red-team-briefing";
 import { setProposalRedTeam } from "./writers";
 
 /**
@@ -30,6 +30,8 @@ export async function sweepPendingRedTeam(opts?: {
   /** Verdict writer (tests inject; default updates the proposal file). */
   setVerdict?: typeof setProposalRedTeam;
   dataDir?: string;
+  /** Clock for the verdict-freshness check + stamp (tests pin it; default now). */
+  now?: string;
 }): Promise<SweepResult> {
   const pending =
     opts?.proposals ?? (await readProposals({ pendingOnly: true }));
@@ -38,12 +40,18 @@ export async function sweepPendingRedTeam(opts?: {
   let considered = 0;
   let swept = 0;
   for (const p of pending) {
-    if (p.redTeam) continue; // already judged
-    considered += 1;
     // One shared briefing mapper (H3) — carries the sleeve + the value briefing
     // (cashFlow/dividend/researchStatus) so a value/core proposal is judged under
     // its own lens, not spuriously rejected under the trend lens.
-    const verdict = await runRedTeam(toRedTeamProposal(p), { exec: opts?.exec });
+    const briefing = toRedTeamProposal(p);
+    // Verdict invalidation (H4): skip only when the stored verdict is still FRESH
+    // for the current briefing; a stale (changed/expired) verdict is re-judged so
+    // the human reviews a current verdict, not a stale one.
+    if (p.redTeam && isVerdictFresh(p.redTeam, briefing, { now: opts?.now })) {
+      continue;
+    }
+    considered += 1;
+    const verdict = await runRedTeam(briefing, { exec: opts?.exec, now: opts?.now });
     const ok = await setVerdict(p.id, verdict, { dataDir: opts?.dataDir })
       .then(() => true)
       .catch(() => false);

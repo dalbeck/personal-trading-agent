@@ -19,6 +19,8 @@ const verdict: RedTeamVerdict = {
   ],
   basis: "Defaulted to no on a weak value case.",
   model: "codex",
+  judgedAt: null,
+  judgedHash: null,
 };
 
 function makeProposal(overrides: Partial<TradeProposal> = {}): TradeProposal {

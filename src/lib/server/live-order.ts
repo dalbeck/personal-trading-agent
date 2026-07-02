@@ -54,7 +54,7 @@ import type { Sleeve } from "@/lib/sleeves";
 import type { Strategy } from "@/lib/strategy";
 import { getCachedSector } from "./symbol-research";
 import { runRedTeam, type RedTeamExec } from "./red-team";
-import { toRedTeamProposal } from "./red-team-briefing";
+import { isVerdictFresh, toRedTeamProposal } from "./red-team-briefing";
 import {
   recordRejection,
   recordRiskRejection,
@@ -468,9 +468,15 @@ export async function evaluateApprovalBlocks(
 ): Promise<ApprovalBlocks> {
   const proposed = toProposedOrder(order);
 
+  // Verdict invalidation (H4): trust the stored verdict only when it is FRESH for
+  // the current briefing — the judged hash still matches and it is within the
+  // TTL. A stale/changed/unstamped verdict is re-judged (runRedTeam fails closed
+  // to a reject on prosecutor error), so a real order never rides an old verdict.
+  const briefing = toRedTeamProposal(order);
   const redTeam =
-    order.redTeam ??
-    (await runRedTeam(toRedTeamProposal(order), { exec: opts.redTeamExec }));
+    order.redTeam && isVerdictFresh(order.redTeam, briefing, { now: opts.now?.toISOString() })
+      ? order.redTeam
+      : await runRedTeam(briefing, { exec: opts.redTeamExec, now: opts.now?.toISOString() });
   const redTeamRejects = redTeam.verdict === "reject";
 
   // Risk rails — sized against the relevant book, with the human's overlay.

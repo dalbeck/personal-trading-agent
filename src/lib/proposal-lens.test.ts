@@ -21,6 +21,8 @@ const verdict = (v: RedTeamVerdict["verdict"]): RedTeamVerdict => ({
   factors: [],
   basis: null,
   model: null,
+  judgedAt: null,
+  judgedHash: null,
 });
 
 function lens(

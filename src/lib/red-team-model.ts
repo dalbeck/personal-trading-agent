@@ -15,6 +15,12 @@ export type RedTeamModel = (typeof RED_TEAM_MODELS)[number];
 /** GPT (codex) is always the default — Claude is opt-in. */
 export const DEFAULT_RED_TEAM_MODEL: RedTeamModel = "codex";
 
+/** How long a red-team verdict stays fresh before age alone forces a re-run at a
+ *  reuse point (H4), independent of the content hash. A verdict older than this
+ *  is treated as stale (the market may have moved / news may have broken) even
+ *  when the judged briefing is byte-identical. */
+export const RED_TEAM_VERDICT_TTL_HOURS = 24;
+
 /** Narrow an untrusted value to a {@link RedTeamModel}, falling back to GPT. */
 export function parseRedTeamModel(raw: unknown): RedTeamModel {
   return raw === "claude" ? "claude" : DEFAULT_RED_TEAM_MODEL;

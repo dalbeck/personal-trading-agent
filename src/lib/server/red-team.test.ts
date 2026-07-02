@@ -11,6 +11,7 @@ import {
   runRedTeam,
   type RedTeamExec,
 } from "./red-team";
+import { redTeamVerdictHash } from "./red-team-briefing";
 import { validateDataDir } from "./validate-data";
 import { recordRejection, recordTradeDecision } from "./writers";
 
@@ -402,8 +403,11 @@ describe("parseVerdict", () => {
       notes: "Valuation too rich.",
       factors: [],
       basis: null,
-      // `model` defaults to null at parse; runRedTeam stamps it after.
+      // `model` + judged provenance default to null at parse; runRedTeam stamps
+      // them after.
       model: null,
+      judgedAt: null,
+      judgedHash: null,
     });
   });
 
@@ -477,7 +481,7 @@ describe("parseVerdict", () => {
 
 describe("redTeamOutcome", () => {
   it("maps verdicts to gate outcomes", () => {
-    const base = { factors: [], basis: null, model: null };
+    const base = { factors: [], basis: null, model: null, judgedAt: null, judgedHash: null };
     expect(redTeamOutcome({ verdict: "reject", notes: "x", ...base })).toBe("block");
     expect(redTeamOutcome({ verdict: "concern", notes: "x", ...base })).toBe("downsize");
     expect(redTeamOutcome({ verdict: "approve", notes: "x", ...base })).toBe("allow");
@@ -488,14 +492,36 @@ describe("runRedTeam", () => {
   it("returns the prosecutor's verdict, stamped with the model (default GPT)", async () => {
     const exec: RedTeamExec = async () =>
       '{"verdict":"reject","notes":"Thesis leans on consensus."}';
-    const v = await runRedTeam(proposal, { exec });
+    const NOW = "2026-06-25T12:00:00-04:00";
+    const v = await runRedTeam(proposal, { exec, now: NOW });
     expect(v).toEqual({
       verdict: "reject",
       notes: "Thesis leans on consensus.",
       factors: [],
       basis: null,
       model: "codex",
+      judgedAt: NOW,
+      judgedHash: redTeamVerdictHash(proposal),
     });
+  });
+
+  it("stamps judgedAt + judgedHash for verdict invalidation (H4)", async () => {
+    const exec: RedTeamExec = async () => '{"verdict":"approve","notes":"ok"}';
+    const NOW = "2026-06-25T12:00:00-04:00";
+    const v = await runRedTeam(proposal, { exec, now: NOW });
+    expect(v.judgedAt).toBe(NOW);
+    expect(v.judgedHash).toBe(redTeamVerdictHash(proposal));
+  });
+
+  it("stamps the hash + time on the fail-closed reject too", async () => {
+    const exec: RedTeamExec = async () => {
+      throw new Error("prosecutor down");
+    };
+    const NOW = "2026-06-25T12:00:00-04:00";
+    const v = await runRedTeam(proposal, { exec, now: NOW });
+    expect(v.verdict).toBe("reject");
+    expect(v.judgedAt).toBe(NOW);
+    expect(v.judgedHash).toBe(redTeamVerdictHash(proposal));
   });
 
   it("stamps the chosen model onto the verdict (red-team-model-toggle)", async () => {

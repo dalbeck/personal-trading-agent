@@ -161,6 +161,12 @@ export const RedTeamVerdictSchema = z
     // by `runRedTeam` so two outcomes (GPT vs Claude) on the same proposal stay
     // distinguishable. Null for older records written before the toggle existed.
     model: z.enum(["codex", "claude"]).nullable().default(null),
+    // Verdict provenance for invalidation (H4). `judgedAt` = when the prosecutor
+    // ran; `judgedHash` = a hash of the judged briefing. A reuse point re-runs
+    // when the hash no longer matches the current briefing or the verdict is past
+    // its TTL. Null for older records (treated as stale → re-run, fail closed).
+    judgedAt: z.string().nullable().default(null),
+    judgedHash: z.string().nullable().default(null),
   })
   .strict();
 
