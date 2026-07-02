@@ -97,6 +97,12 @@ cannot override them.
   at decision time. The stop is the **tighter of a fixed −8% and an ATR-based
   level** (the one nearer the entry wins), so the sizing math is deterministic —
   not left to discretion (`resolveStopPrice`, `lib/risk`).
+  - **Known gap (live):** the stop is defined at decision time and drives sizing
+    + the red-team on every path, but on the **live Robinhood path** only the
+    entry order is placed today — the protective stop is **not yet auto-placed at
+    the broker after fill, nor monitored intraday**. The human manages the live
+    stop until broker-side stop placement + a stop-monitor land (tracked
+    separately). Paper/dry-run and the risk math are unaffected.
 - **Winner-exit discipline:** every entry also defines how it takes profit — a
   **profit target OR a trailing-stop rule**, set at decision time. The desk
   governs winners, not just losses.

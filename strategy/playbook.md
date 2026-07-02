@@ -55,10 +55,12 @@ on any single item is a reason to pass or to downsize.
    −8% and an ATR-based level — deterministic, never discretionary), then size so
    the stop costs **≤2%** of equity and the position is **≤20%** of equity.
    Reward/risk must be **≥2:1**.
-9. **Target** — the profit target must be **technically or fundamentally
-   anchored** (`prior_high`, `measured_move`, `atr_multiple`, or `fundamental`),
-   **not a sell-side `analyst_price`** — an analyst target is the desk taking
-   someone else's number, and the red-team flags it weak.
+9. **Target** — for a **trend** entry the profit target must be **technically
+   anchored** (`prior_high`, `measured_move`, or `atr_multiple`), **not** a
+   sell-side `analyst_price` **and not** a `fundamental` target — a
+   valuation/fundamental target is out of mandate for trend (it belongs to the
+   value / mid / core sleeves). An analyst target is the desk taking someone
+   else's number; the red-team flags both as weak on the trend lens.
 10. **Winner-exit** — define how the trade *exits a winner* at entry: a profit
     target **or** a trailing-stop rule. Govern the upside, not just the stop.
 11. **Correlation / sector** — does this overlap existing book exposure? Respect
@@ -179,10 +181,12 @@ Durable lessons promoted from the coaching log. Newest first.
 - **Prefer pullback entries over breakout chases.** Breakout chases widen the
   stop and degrade reward/risk. _(Promoted 2026-06-15, from c-2026-06-15.)_
 - **Honor the trim trigger on losers** approaching the stop rather than hoping
-  for a base.
+  for a base. _(Legacy lesson — promoted before provenance tagging; original
+  coaching-log source not recorded.)_
 - **Let the governance filters work** — recorded rejections (volatility cap,
   risk-cap breaches, red-team "no") have avoided more losers than they've cost
-  in missed upside.
+  in missed upside. _(Legacy lesson — promoted before provenance tagging;
+  original coaching-log source not recorded.)_
 
 ## Change log
 
